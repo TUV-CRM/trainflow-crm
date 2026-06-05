@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0059)file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_54.html -->
+<!-- saved from url=(0059)file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_55.html -->
 <html lang="ar" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrainFlow CRM — معهد TUV التدريبي</title>
-<link href="./TrainFlow CRM 54— معهد TUV التدريبي_files/css2" rel="stylesheet">
+<link href="./TrainFlow CRM 55— معهد TUV التدريبي_files/css2" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;font-family:'Cairo','DM Sans',sans-serif}
@@ -1148,19 +1148,29 @@ function buildSidebar(){
 //  NAVIGATION
 // ════════════════════════════════════════════
 function navigateChild(child){
-  activeChild = child.key;
-  const page = child.page;
-  navigatePage(page);
-  // Pass sub-tab info to render functions
-  currentChildKey = child.key;
+  activeChild    = child.key;
+  currentChildKey = child.key;   // set BEFORE render
+  navigatePage(child.page);
 }
 let currentChildKey = 'ops-reports';
-function navigate(page){navigatePage(page);}
+function navigate(page){
+  // Find first child key for this page and set it
+  for(const sec of NAV){
+    const ch = sec.children.find(c=>c.page===page);
+    if(ch){ activeChild=ch.key; currentChildKey=ch.key; break; }
+  }
+  navigatePage(page);
+}
 function navigatePage(page){
-  if(!CU.pages.includes(page)){showDenied(page);return;}
-  activePage=page;
-  document.querySelectorAll('.page').forEach(p=>{p.classList.remove('active');p.innerHTML='';});
-  document.getElementById('page-'+page).classList.add('active');
+  if(!CU || !CU.pages.includes(page)){showDenied(page);return;}
+  activePage = page;
+  // Clear all pages and re-render target
+  document.querySelectorAll('.page').forEach(p=>{
+    p.classList.remove('active');
+    p.innerHTML = '';
+  });
+  const pg = document.getElementById('page-'+page);
+  if(pg) pg.classList.add('active');
   buildSidebar();
   renderPage(page);
 }
