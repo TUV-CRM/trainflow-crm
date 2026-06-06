@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"><head>
-<meta http-equiv="content-type" content="text/html; charset=UTF-8">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>TrainFlow CRM — معهد TUV التدريبي</title>
-<link href="TrainFlow%20CRM%20-75%E2%80%94%20%D9%85%D8%B9%D9%87%D8%AF%20TUV%20%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8%D9%8A_files/css2.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Cairo:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;font-family:'Cairo','DM Sans',sans-serif}
@@ -92,35 +92,35 @@ input[type=date].fc{color-scheme:dark}
 .tab{padding:7px 14px;border-radius:7px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;color:#6A85A5;background:transparent}
 .tab.active{background:linear-gradient(135deg,#1A7A8A,#23A0B5);color:#fff}
 </style>
-<script src="TrainFlow%20CRM%20-75%E2%80%94%20%D9%85%D8%B9%D9%87%D8%AF%20TUV%20%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8%D9%8A_files/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
-<body style="font-family: &quot;Cairo&quot;, &quot;DM Sans&quot;, sans-serif;">
-<div id="loginScreen" class="hidden">
+<body>
+<div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
       <div style="width:50px;height:50px;border-radius:13px;background:linear-gradient(135deg,#C9A84C,#8A6F2E);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#0B1E3D;margin:0 auto 10px">T</div>
       <div style="font-family:'Playfair Display',serif;font-size:21px;font-weight:800;color:#F5F7FA">TrainFlow CRM</div>
       <div style="color:#6A85A5;font-size:11px;margin-top:3px">معهد TUV التدريبي</div>
     </div>
-    <div class="login-step" id="lstep1">
+    <div class="login-step active" id="lstep1">
       <div style="color:#6A85A5;font-size:12px;text-align:center;margin-bottom:14px">اختر حسابك</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="chipGrid"><div class="user-chip"><div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#C9A84C,#C9A84C88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:13px;margin:0 auto 6px">حق</div><div style="color:#F5F7FA;font-size:12px;font-weight:700">حسين القصبي</div><div style="color:#6A85A5;font-size:10px">مدير التشغيل</div></div><div class="user-chip"><div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#1A7A8A,#1A7A8A88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:13px;margin:0 auto 6px">مو</div><div style="color:#F5F7FA;font-size:12px;font-weight:700">محمد الوضاح</div><div style="color:#6A85A5;font-size:10px">مستشار مبيعات</div></div><div class="user-chip"><div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#23A0B5,#23A0B588);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:13px;margin:0 auto 6px">مأ</div><div style="color:#F5F7FA;font-size:12px;font-weight:700">محمد أسد</div><div style="color:#6A85A5;font-size:10px">مستشار مبيعات</div></div><div class="user-chip"><div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#1A8A5A,#1A8A5A88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:13px;margin:0 auto 6px">أح</div><div style="color:#F5F7FA;font-size:12px;font-weight:700">م. أحمد عبد السلام</div><div style="color:#6A85A5;font-size:10px">مدرب</div></div><div class="user-chip"><div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#9B59B6,#9B59B688);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:13px;margin:0 auto 6px">مر</div><div style="color:#F5F7FA;font-size:12px;font-weight:700">محمد رسام</div><div style="color:#6A85A5;font-size:10px">منسق دورات</div></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="chipGrid"></div>
     </div>
-    <div class="login-step active" id="lstep2">
+    <div class="login-step" id="lstep2">
       <button onclick="backLogin()" style="background:none;border:none;color:#6A85A5;font-size:12px;cursor:pointer;margin-bottom:14px;font-family:inherit">← رجوع</button>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
-        <div id="lAvatar" class="avatar" style="width: 44px; height: 44px; border-radius: 12px; font-size: 15px; background: linear-gradient(135deg, rgb(201, 168, 76), rgba(201, 168, 76, 0.533));">حق</div>
-        <div><div id="lName" style="color:#F5F7FA;font-weight:700;font-size:15px">حسين القصبي</div><div id="lRole" style="color:#6A85A5;font-size:12px">مدير التشغيل</div></div>
+        <div id="lAvatar" class="avatar" style="width:44px;height:44px;border-radius:12px;font-size:15px"></div>
+        <div><div id="lName" style="color:#F5F7FA;font-weight:700;font-size:15px"></div><div id="lRole" style="color:#6A85A5;font-size:12px"></div></div>
       </div>
       <div id="lError" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.4);border-radius:8px;color:#E74C3C;font-size:12px;padding:9px 13px;margin-bottom:12px;display:none">كلمة المرور غير صحيحة</div>
-      <input class="fc" id="lPwd" type="password" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()" autocomplete="current-password">
+      <input class="fc" id="lPwd" type="password" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()" autocomplete="current-password"/>
       <button class="btn btn-teal" onclick="doLogin()" style="width:100%;margin-top:10px;padding:11px;font-size:14px">تسجيل الدخول</button>
     </div>
     <div style="text-align:center;color:#3A5070;font-size:10px;margin-top:18px">TrainFlow CRM v4.0 · جميع الحقوق محفوظة</div>
   </div>
 </div>
 
-<div id="app" style="display: flex;">
+<div id="app" style="display:none">
   <!-- TOPBAR -->
   <div id="topbar">
     <div style="display:flex;align-items:center;gap:12px">
@@ -132,15 +132,19 @@ input[type=date].fc{color-scheme:dark}
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <button id="langToggleBtn" onclick="toggleLang()" style="background:#0D1A2E;border:1px solid #1A2E4A;border-radius:7px;color:#C9A84C;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🇬🇧 English</button>
-      <button onclick="handleSyncBtn()" title="مزامنة البيانات" id="syncBtn" style="background:#0D1A2E;border:1px solid #1A2E4A;border-radius:7px;color:#6A85A5;width:32px;height:32px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">🔄</button>
+      <button id="langToggleBtn" onclick="toggleLang()"
+        style="background:#0D1A2E;border:1px solid #1A2E4A;border-radius:7px;color:#C9A84C;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">
+        🇬🇧 English
+      </button>
+      <button onclick="handleSyncBtn()" title="مزامنة البيانات" id="syncBtn"
+        style="background:#0D1A2E;border:1px solid #1A2E4A;border-radius:7px;color:#6A85A5;width:32px;height:32px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">🔄</button>
       <div style="position:relative;cursor:pointer" onclick="toggleNotif()">
         <span style="font-size:19px;color:#6A85A5">🔔</span>
-        <span id="notifBadge" style="position:absolute;top:-4px;right:-4px;width:15px;height:15px;border-radius:50%;background:#C0392B;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700">4</span>
+        <span id="notifBadge" style="position:absolute;top:-4px;right:-4px;width:15px;height:15px;border-radius:50%;background:#C0392B;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700">3</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;background:#0D1A2E;border:1px solid #1A2E4A;border-radius:8px;padding:5px 12px">
-        <div id="tbAvatar" class="avatar" style="width: 26px; height: 26px; border-radius: 6px; font-size: 10px; background: linear-gradient(135deg, rgb(201, 168, 76), rgba(201, 168, 76, 0.533));">حق</div>
-        <div><div id="tbName" style="color:#E8C97A;font-weight:700;font-size:12px;line-height:1.2">حسين القصبي</div><div id="tbRole" style="color:#6A85A5;font-size:10px;line-height:1.2">مدير التشغيل</div></div>
+        <div id="tbAvatar" class="avatar" style="width:26px;height:26px;border-radius:6px;font-size:10px"></div>
+        <div><div id="tbName" style="color:#E8C97A;font-weight:700;font-size:12px;line-height:1.2"></div><div id="tbRole" style="color:#6A85A5;font-size:10px;line-height:1.2"></div></div>
       </div>
       <button id="logoutBtnEl" onclick="doLogout()" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:7px;color:#E74C3C;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit">خروج ⏻</button>
     </div>
@@ -149,7 +153,7 @@ input[type=date].fc{color-scheme:dark}
   <div id="body">
     <!-- SIDEBAR -->
     <div id="sidebar">
-      <div id="sidebarNav"><div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 9px 10px; cursor: pointer; user-select: none; border-radius: 0px; transition: background 0.15s;"><div style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%; min-width: 0px;"><div style="width: 7px; height: 7px; border-radius: 50%; background: rgb(201, 168, 76); flex-shrink: 0;"></div><span style="color: rgb(200, 216, 236); font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">إدارة التشغيل</span></div><div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;"><span style="color: rgb(58, 80, 112); font-size: 10px; transition: transform 0.2s;">∧</span></div></div><div style="overflow: hidden; transition: max-height 0.25s; max-height: 300px;"><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">📊</span><span>التقارير</span></div><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(201, 168, 76); font-size: 12px; font-weight: 700; background: rgba(201, 168, 76, 0.08); border-right: 2px solid rgb(201, 168, 76); transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">👤</span><span>المستخدمون</span></div><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">⚙️</span><span>الإعدادات</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 9px 10px; cursor: pointer; user-select: none; border-radius: 0px; transition: background 0.15s;"><div style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%; min-width: 0px;"><div style="width: 7px; height: 7px; border-radius: 50%; background: rgb(35, 160, 181); flex-shrink: 0;"></div><span style="color: rgb(200, 216, 236); font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">إدارة المبيعات</span></div><div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;"><div style="background: rgb(35, 160, 181); color: white; width: 18px; height: 18px; border-radius: 50%; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center;">3</div><span style="color: rgb(58, 80, 112); font-size: 10px; transition: transform 0.2s;">∧</span></div></div><div style="overflow: hidden; transition: max-height 0.25s; max-height: 300px;"><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">🛒</span><span>عملية البيع</span></div><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">👥</span><span>متابعة العملاء</span></div><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">📄</span><span>عروض الأسعار</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 9px 10px; cursor: pointer; user-select: none; border-radius: 0px; transition: background 0.15s;"><div style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%; min-width: 0px;"><div style="width: 7px; height: 7px; border-radius: 50%; background: rgb(201, 168, 76); flex-shrink: 0;"></div><span style="color: rgb(200, 216, 236); font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">إدارة المدربين</span></div><div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;"><span style="color: rgb(58, 80, 112); font-size: 10px; transition: transform 0.2s;">∧</span></div></div><div style="overflow: hidden; transition: max-height 0.25s; max-height: 300px;"><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">📋</span><span>قائمة المدربين</span></div><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">🏆</span><span>أداء المدربين</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 9px 10px; cursor: pointer; user-select: none; border-radius: 0px; transition: background 0.15s;"><div style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%; min-width: 0px;"><div style="width: 7px; height: 7px; border-radius: 50%; background: rgb(192, 57, 43); flex-shrink: 0;"></div><span style="color: rgb(200, 216, 236); font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">إدارة التدريب</span></div><div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;"><div style="background: rgb(192, 57, 43); color: white; width: 18px; height: 18px; border-radius: 50%; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center;">3</div><span style="color: rgb(58, 80, 112); font-size: 10px; transition: transform 0.2s;">∧</span></div></div><div style="overflow: hidden; transition: max-height 0.25s; max-height: 300px;"><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">📚</span><span>الدورات</span></div><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">📅</span><span>الجداول التدريبية</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 9px 10px; cursor: pointer; user-select: none; border-radius: 0px; transition: background 0.15s;"><div style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%; min-width: 0px;"><div style="width: 7px; height: 7px; border-radius: 50%; background: rgb(155, 89, 182); flex-shrink: 0;"></div><span style="color: rgb(200, 216, 236); font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">المالية</span></div><div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;"><span style="color: rgb(58, 80, 112); font-size: 10px; transition: transform 0.2s;">∧</span></div></div><div style="overflow: hidden; transition: max-height 0.25s; max-height: 300px;"><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">🧾</span><span>الفواتير</span></div><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">💳</span><span>المدفوعات</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 9px 10px; cursor: pointer; user-select: none; border-radius: 0px; transition: background 0.15s;"><div style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%; min-width: 0px;"><div style="width: 7px; height: 7px; border-radius: 50%; background: rgb(26, 138, 90); flex-shrink: 0;"></div><span style="color: rgb(200, 216, 236); font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">المتدربون</span></div><div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;"><div style="background: rgb(26, 138, 90); color: white; width: 18px; height: 18px; border-radius: 50%; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center;">2</div><span style="color: rgb(58, 80, 112); font-size: 10px; transition: transform 0.2s;">∧</span></div></div><div style="overflow: hidden; transition: max-height 0.25s; max-height: 300px;"><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">✅</span><span>المتدربون النشطون</span></div><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">🎓</span><span>الخريجون</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 9px 10px; cursor: pointer; user-select: none; border-radius: 0px; transition: background 0.15s;"><div style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%; min-width: 0px;"><div style="width: 7px; height: 7px; border-radius: 50%; background: rgb(106, 133, 165); flex-shrink: 0;"></div><span style="color: rgb(200, 216, 236); font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">كتالوج الدورات</span></div><div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;"><span style="color: rgb(58, 80, 112); font-size: 10px; transition: transform 0.2s;">∧</span></div></div><div style="overflow: hidden; transition: max-height 0.25s; max-height: 300px;"><div class="nav-child-item" style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 28px; cursor: pointer; color: rgb(106, 133, 165); font-size: 12px; font-weight: 400; background: transparent; border-right: 2px solid transparent; transition: 0.15s;"><span style="font-size:13px;width:18px;text-align:center">📒</span><span>الدورات والأسعار</span></div></div></div>
+      <div id="sidebarNav"></div>
       <div style="flex:1"></div>
       <div style="margin:12px;padding:10px;background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.15);border-radius:9px;text-align:center">
         <div style="color:#C9A84C;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase">النظام</div>
@@ -171,592 +175,7 @@ input[type=date].fc{color-scheme:dark}
       <div id="page-finance" class="page"></div>
       <div id="page-trainees" class="page"></div>
       <div id="page-catalog" class="page"></div>
-      <div id="page-users" class="page active">
-    <div class="page-header">
-      <div>
-        <div class="page-title">المستخدمون والصلاحيات</div>
-        <div class="page-sub">إدارة حسابات الموظفين وصلاحيات الوصول</div>
-      </div>
-      <button class="btn btn-teal" onclick="openUserModal()">+ إضافة مستخدم</button>
-    </div>
-
-    <!-- Summary KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-      <div class="kpi" style="display:flex;align-items:center;gap:12px">
-        <div style="width:42px;height:42px;border-radius:11px;background:#23A0B518;display:flex;align-items:center;justify-content:center;font-size:20px">👥</div>
-        <div>
-          <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px">إجمالي المستخدمين</div>
-          <div style="color:#F5F7FA;font-size:22px;font-weight:800;font-family:'Playfair Display',serif">5</div>
-        </div>
-      </div><div class="kpi" style="display:flex;align-items:center;gap:12px">
-        <div style="width:42px;height:42px;border-radius:11px;background:#1A7A8A18;display:flex;align-items:center;justify-content:center;font-size:20px">💼</div>
-        <div>
-          <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px">مستشارو المبيعات</div>
-          <div style="color:#F5F7FA;font-size:22px;font-weight:800;font-family:'Playfair Display',serif">2</div>
-        </div>
-      </div><div class="kpi" style="display:flex;align-items:center;gap:12px">
-        <div style="width:42px;height:42px;border-radius:11px;background:#1A8A5A18;display:flex;align-items:center;justify-content:center;font-size:20px">👨‍🏫</div>
-        <div>
-          <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px">المدربون</div>
-          <div style="color:#F5F7FA;font-size:22px;font-weight:800;font-family:'Playfair Display',serif">1</div>
-        </div>
-      </div><div class="kpi" style="display:flex;align-items:center;gap:12px">
-        <div style="width:42px;height:42px;border-radius:11px;background:#9B59B618;display:flex;align-items:center;justify-content:center;font-size:20px">🗓️</div>
-        <div>
-          <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px">منسقو التدريب</div>
-          <div style="color:#F5F7FA;font-size:22px;font-weight:800;font-family:'Playfair Display',serif">1</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Users Grid -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
-      
-        <div class="card" style="border-top:3px solid #c9a84c;position:relative">
-          <!-- Badge: current user -->
-          <div style="position:absolute;top:12px;left:12px;background:rgba(26,138,90,.2);border:1px solid rgba(26,138,90,.4);color:#1A8A5A;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">● أنت</div>
-
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-            <div style="width:52px;height:52px;border-radius:13px;background:linear-gradient(135deg,#c9a84c,#c9a84c88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:18px;flex-shrink:0">حق</div>
-            <div style="flex:1">
-              <div style="color:#F5F7FA;font-weight:700;font-size:15px">حسين القصبي</div>
-              <div style="color:#6A85A5;font-size:11px;margin-top:2px">مدير التشغيل</div>
-              <span style="background:#C9A84C22;color:#C9A84C;border:1px solid #C9A84C33;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;display:inline-block;margin-top:4px">
-                إدارة التشغيل
-              </span>
-            </div>
-          </div>
-
-          <!-- Permissions -->
-          <div style="margin-bottom:12px">
-            <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px">الصلاحيات</div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px">
-              
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#c9a84c22;
-                  color:#c9a84c;
-                  border:1px solid #c9a84c44">
-                  ✓ إدارة التشغيل
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#c9a84c22;
-                  color:#c9a84c;
-                  border:1px solid #c9a84c44">
-                  ✓ المستخدمون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#c9a84c22;
-                  color:#c9a84c;
-                  border:1px solid #c9a84c44">
-                  ✓ المبيعات
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#c9a84c22;
-                  color:#c9a84c;
-                  border:1px solid #c9a84c44">
-                  ✓ المدربين
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#c9a84c22;
-                  color:#c9a84c;
-                  border:1px solid #c9a84c44">
-                  ✓ التدريب
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#c9a84c22;
-                  color:#c9a84c;
-                  border:1px solid #c9a84c44">
-                  ✓ المالية
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#c9a84c22;
-                  color:#c9a84c;
-                  border:1px solid #c9a84c44">
-                  ✓ المتدربون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#c9a84c22;
-                  color:#c9a84c;
-                  border:1px solid #c9a84c44">
-                  ✓ كتالوج الدورات
-                </span>
-            </div>
-          </div>
-
-          <!-- Action buttons -->
-          <div style="display:flex;gap:8px;border-top:1px solid #1A2E4A;padding-top:12px">
-            <button onclick="openUserModal(0)" class="btn btn-ghost btn-sm" style="flex:1">✏️ تعديل</button>
-            <button onclick="resetUserPassword(0)" style="flex:1;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:7px;color:#C9A84C;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600;font-family:inherit">🔑 إعادة كلمة المرور</button>
-            
-          </div>
-        </div>
-        <div class="card" style="border-top:3px solid #1a7a8a;position:relative">
-          <!-- Badge: current user -->
-          
-
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-            <div style="width:52px;height:52px;border-radius:13px;background:linear-gradient(135deg,#1a7a8a,#1a7a8a88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:18px;flex-shrink:0">مو</div>
-            <div style="flex:1">
-              <div style="color:#F5F7FA;font-weight:700;font-size:15px">محمد الوضاح</div>
-              <div style="color:#6A85A5;font-size:11px;margin-top:2px">مستشار مبيعات</div>
-              <span style="background:#23A0B522;color:#23A0B5;border:1px solid #23A0B533;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;display:inline-block;margin-top:4px">
-                المبيعات
-              </span>
-            </div>
-          </div>
-
-          <!-- Permissions -->
-          <div style="margin-bottom:12px">
-            <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px">الصلاحيات</div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px">
-              
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  إدارة التشغيل
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المستخدمون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#1a7a8a22;
-                  color:#1a7a8a;
-                  border:1px solid #1a7a8a44">
-                  ✓ المبيعات
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المدربين
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  التدريب
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المالية
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#1a7a8a22;
-                  color:#1a7a8a;
-                  border:1px solid #1a7a8a44">
-                  ✓ المتدربون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#1a7a8a22;
-                  color:#1a7a8a;
-                  border:1px solid #1a7a8a44">
-                  ✓ كتالوج الدورات
-                </span>
-            </div>
-          </div>
-
-          <!-- Action buttons -->
-          <div style="display:flex;gap:8px;border-top:1px solid #1A2E4A;padding-top:12px">
-            <button onclick="openUserModal(1)" class="btn btn-ghost btn-sm" style="flex:1">✏️ تعديل</button>
-            <button onclick="resetUserPassword(1)" style="flex:1;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:7px;color:#C9A84C;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600;font-family:inherit">🔑 إعادة كلمة المرور</button>
-            <button onclick="deleteUser(1)" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:7px;color:#E74C3C;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit">🗑</button>
-          </div>
-        </div>
-        <div class="card" style="border-top:3px solid #23a0b5;position:relative">
-          <!-- Badge: current user -->
-          
-
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-            <div style="width:52px;height:52px;border-radius:13px;background:linear-gradient(135deg,#23a0b5,#23a0b588);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:18px;flex-shrink:0">مأ</div>
-            <div style="flex:1">
-              <div style="color:#F5F7FA;font-weight:700;font-size:15px">محمد أسد</div>
-              <div style="color:#6A85A5;font-size:11px;margin-top:2px">مستشار مبيعات</div>
-              <span style="background:#23A0B522;color:#23A0B5;border:1px solid #23A0B533;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;display:inline-block;margin-top:4px">
-                المبيعات
-              </span>
-            </div>
-          </div>
-
-          <!-- Permissions -->
-          <div style="margin-bottom:12px">
-            <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px">الصلاحيات</div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px">
-              
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  إدارة التشغيل
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المستخدمون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#23a0b522;
-                  color:#23a0b5;
-                  border:1px solid #23a0b544">
-                  ✓ المبيعات
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المدربين
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  التدريب
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المالية
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#23a0b522;
-                  color:#23a0b5;
-                  border:1px solid #23a0b544">
-                  ✓ المتدربون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#23a0b522;
-                  color:#23a0b5;
-                  border:1px solid #23a0b544">
-                  ✓ كتالوج الدورات
-                </span>
-            </div>
-          </div>
-
-          <!-- Action buttons -->
-          <div style="display:flex;gap:8px;border-top:1px solid #1A2E4A;padding-top:12px">
-            <button onclick="openUserModal(2)" class="btn btn-ghost btn-sm" style="flex:1">✏️ تعديل</button>
-            <button onclick="resetUserPassword(2)" style="flex:1;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:7px;color:#C9A84C;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600;font-family:inherit">🔑 إعادة كلمة المرور</button>
-            <button onclick="deleteUser(2)" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:7px;color:#E74C3C;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit">🗑</button>
-          </div>
-        </div>
-        <div class="card" style="border-top:3px solid #1a8a5a;position:relative">
-          <!-- Badge: current user -->
-          
-
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-            <div style="width:52px;height:52px;border-radius:13px;background:linear-gradient(135deg,#1a8a5a,#1a8a5a88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:18px;flex-shrink:0">أح</div>
-            <div style="flex:1">
-              <div style="color:#F5F7FA;font-weight:700;font-size:15px">م. أحمد عبد السلام</div>
-              <div style="color:#6A85A5;font-size:11px;margin-top:2px">مدرب</div>
-              <span style="background:#1A8A5A22;color:#1A8A5A;border:1px solid #1A8A5A33;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;display:inline-block;margin-top:4px">
-                مدرب
-              </span>
-            </div>
-          </div>
-
-          <!-- Permissions -->
-          <div style="margin-bottom:12px">
-            <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px">الصلاحيات</div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px">
-              
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  إدارة التشغيل
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المستخدمون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المبيعات
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المدربين
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#1a8a5a22;
-                  color:#1a8a5a;
-                  border:1px solid #1a8a5a44">
-                  ✓ التدريب
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المالية
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#1a8a5a22;
-                  color:#1a8a5a;
-                  border:1px solid #1a8a5a44">
-                  ✓ المتدربون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#1a8a5a22;
-                  color:#1a8a5a;
-                  border:1px solid #1a8a5a44">
-                  ✓ كتالوج الدورات
-                </span>
-            </div>
-          </div>
-
-          <!-- Action buttons -->
-          <div style="display:flex;gap:8px;border-top:1px solid #1A2E4A;padding-top:12px">
-            <button onclick="openUserModal(3)" class="btn btn-ghost btn-sm" style="flex:1">✏️ تعديل</button>
-            <button onclick="resetUserPassword(3)" style="flex:1;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:7px;color:#C9A84C;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600;font-family:inherit">🔑 إعادة كلمة المرور</button>
-            <button onclick="deleteUser(3)" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:7px;color:#E74C3C;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit">🗑</button>
-          </div>
-        </div>
-        <div class="card" style="border-top:3px solid #9b59b6;position:relative">
-          <!-- Badge: current user -->
-          
-
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-            <div style="width:52px;height:52px;border-radius:13px;background:linear-gradient(135deg,#9b59b6,#9b59b688);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:18px;flex-shrink:0">مر</div>
-            <div style="flex:1">
-              <div style="color:#F5F7FA;font-weight:700;font-size:15px">محمد رسام</div>
-              <div style="color:#6A85A5;font-size:11px;margin-top:2px">منسق دورات</div>
-              <span style="background:#C0392B22;color:#C0392B;border:1px solid #C0392B33;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;display:inline-block;margin-top:4px">
-                منسق تدريب
-              </span>
-            </div>
-          </div>
-
-          <!-- Permissions -->
-          <div style="margin-bottom:12px">
-            <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px">الصلاحيات</div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px">
-              
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  إدارة التشغيل
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المستخدمون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المبيعات
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:rgba(30,48,85,.4);
-                  color:#3A5070;
-                  border:1px solid transparent">
-                  المدربين
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#9b59b622;
-                  color:#9b59b6;
-                  border:1px solid #9b59b644">
-                  ✓ التدريب
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#9b59b622;
-                  color:#9b59b6;
-                  border:1px solid #9b59b644">
-                  ✓ المالية
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#9b59b622;
-                  color:#9b59b6;
-                  border:1px solid #9b59b644">
-                  ✓ المتدربون
-                </span>
-                <span style="padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;
-                  background:#9b59b622;
-                  color:#9b59b6;
-                  border:1px solid #9b59b644">
-                  ✓ كتالوج الدورات
-                </span>
-            </div>
-          </div>
-
-          <!-- Action buttons -->
-          <div style="display:flex;gap:8px;border-top:1px solid #1A2E4A;padding-top:12px">
-            <button onclick="openUserModal(4)" class="btn btn-ghost btn-sm" style="flex:1">✏️ تعديل</button>
-            <button onclick="resetUserPassword(4)" style="flex:1;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:7px;color:#C9A84C;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600;font-family:inherit">🔑 إعادة كلمة المرور</button>
-            <button onclick="deleteUser(4)" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:7px;color:#E74C3C;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit">🗑</button>
-          </div>
-        </div>
-    </div>
-
-    <!-- Permissions Matrix -->
-    <div class="card">
-      <div style="color:#F5F7FA;font-weight:700;font-size:14px;margin-bottom:16px;font-family:'Playfair Display',serif">🔒 مصفوفة الصلاحيات</div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:11px">
-          <thead>
-            <tr style="background:rgba(37,53,80,.6)">
-              <th style="padding:10px 12px;color:#6A85A5;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700;white-space:nowrap">المستخدم</th>
-              <th style="padding:10px 8px;color:#6A85A5;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700;font-size:9px;white-space:nowrap">إدارة التشغيل</th><th style="padding:10px 8px;color:#6A85A5;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700;font-size:9px;white-space:nowrap">المستخدمون</th><th style="padding:10px 8px;color:#6A85A5;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700;font-size:9px;white-space:nowrap">المبيعات</th><th style="padding:10px 8px;color:#6A85A5;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700;font-size:9px;white-space:nowrap">المدربين</th><th style="padding:10px 8px;color:#6A85A5;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700;font-size:9px;white-space:nowrap">التدريب</th><th style="padding:10px 8px;color:#6A85A5;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700;font-size:9px;white-space:nowrap">المالية</th><th style="padding:10px 8px;color:#6A85A5;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700;font-size:9px;white-space:nowrap">المتدربون</th><th style="padding:10px 8px;color:#6A85A5;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700;font-size:9px;white-space:nowrap">كتالوج الدورات</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style="border-bottom:1px solid rgba(26,46,74,.3)" onmouseover="this.style.background='rgba(26,46,74,.3)'" onmouseout="this.style.background='transparent'">
-              <td style="padding:10px 12px">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#c9a84c,#c9a84c88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:10px">حق</div>
-                  <div>
-                    <div style="color:#F5F7FA;font-size:12px;font-weight:600">حسين القصبي</div>
-                    <div style="color:#6A85A5;font-size:10px">مدير التشغيل</div>
-                  </div>
-                </div>
-              </td>
-              <td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td>
-            </tr><tr style="border-bottom:1px solid rgba(26,46,74,.3)" onmouseover="this.style.background='rgba(26,46,74,.3)'" onmouseout="this.style.background='transparent'">
-              <td style="padding:10px 12px">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#1a7a8a,#1a7a8a88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:10px">مو</div>
-                  <div>
-                    <div style="color:#F5F7FA;font-size:12px;font-weight:600">محمد الوضاح</div>
-                    <div style="color:#6A85A5;font-size:10px">مستشار مبيعات</div>
-                  </div>
-                </div>
-              </td>
-              <td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td>
-            </tr><tr style="border-bottom:1px solid rgba(26,46,74,.3)" onmouseover="this.style.background='rgba(26,46,74,.3)'" onmouseout="this.style.background='transparent'">
-              <td style="padding:10px 12px">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#23a0b5,#23a0b588);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:10px">مأ</div>
-                  <div>
-                    <div style="color:#F5F7FA;font-size:12px;font-weight:600">محمد أسد</div>
-                    <div style="color:#6A85A5;font-size:10px">مستشار مبيعات</div>
-                  </div>
-                </div>
-              </td>
-              <td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td>
-            </tr><tr style="border-bottom:1px solid rgba(26,46,74,.3)" onmouseover="this.style.background='rgba(26,46,74,.3)'" onmouseout="this.style.background='transparent'">
-              <td style="padding:10px 12px">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#1a8a5a,#1a8a5a88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:10px">أح</div>
-                  <div>
-                    <div style="color:#F5F7FA;font-size:12px;font-weight:600">م. أحمد عبد السلام</div>
-                    <div style="color:#6A85A5;font-size:10px">مدرب</div>
-                  </div>
-                </div>
-              </td>
-              <td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td>
-            </tr><tr style="border-bottom:1px solid rgba(26,46,74,.3)" onmouseover="this.style.background='rgba(26,46,74,.3)'" onmouseout="this.style.background='transparent'">
-              <td style="padding:10px 12px">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#9b59b6,#9b59b688);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:10px">مر</div>
-                  <div>
-                    <div style="color:#F5F7FA;font-size:12px;font-weight:600">محمد رسام</div>
-                    <div style="color:#6A85A5;font-size:10px">منسق دورات</div>
-                  </div>
-                </div>
-              </td>
-              <td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A2E4A;font-size:14px">—</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td><td style="text-align:center;padding:10px 8px">
-                <span style="color:#1A8A5A;font-size:16px">✓</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+      <div id="page-users" class="page"></div>
       <div id="page-salesperf" class="page"></div>
       <div id="page-daily" class="page"></div>
       <div id="page-clients" class="page"></div>
@@ -772,28 +191,28 @@ input[type=date].fc{color-scheme:dark}
       <button onclick="closeModal('modalLead')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>الاسم الكامل</label><input class="fc" id="f-name" placeholder="اسم العميل"></div>
-      <div class="form-group"><label>الشركة</label><input class="fc" id="f-company" placeholder="اسم الشركة"></div>
-      <div class="form-group"><label>الدورة</label><input class="fc" id="f-course" placeholder="اسم الدورة"></div>
-      <div class="form-group"><label>القيمة (ريال)</label><input class="fc" id="f-value" type="number" placeholder="0"></div>
+      <div class="form-group"><label>الاسم الكامل</label><input class="fc" id="f-name" placeholder="اسم العميل"/></div>
+      <div class="form-group"><label>الشركة</label><input class="fc" id="f-company" placeholder="اسم الشركة"/></div>
+      <div class="form-group"><label>الدورة</label><input class="fc" id="f-course" placeholder="اسم الدورة"/></div>
+      <div class="form-group"><label>القيمة (ريال)</label><input class="fc" id="f-value" type="number" placeholder="0"/></div>
       <div class="form-group"><label>المرحلة</label>
         <select class="fc" id="f-stage">
-          <option value="جديد" selected="selected">جديد</option><option value="مؤهل">مؤهل</option>
+          <option value="جديد">جديد</option><option value="مؤهل">مؤهل</option>
           <option value="عرض سعر">عرض سعر</option><option value="تفاوض">تفاوض</option>
           <option value="مُنجَز">مُنجَز</option><option value="خسارة">خسارة</option>
         </select>
       </div>
       <div class="form-group"><label>المسؤول</label>
         <select class="fc" id="f-assignee">
-          <option selected="selected">محمد الوضاح</option><option>محمد أسد</option>
+          <option>محمد الوضاح</option><option>محمد أسد</option>
         </select>
       </div>
       <div class="form-group"><label>المصدر</label>
         <select class="fc" id="f-source">
-          <option selected="selected">واتساب</option><option>بريد إلكتروني</option><option>موقع</option><option>إحالة</option><option>LinkedIn</option><option>هاتف</option>
+          <option>واتساب</option><option>بريد إلكتروني</option><option>موقع</option><option>إحالة</option><option>LinkedIn</option><option>هاتف</option>
         </select>
       </div>
-      <div class="form-group"><label>الهاتف</label><input class="fc" id="f-phone" placeholder="+966 5X XXX XXXX"></div>
+      <div class="form-group"><label>الهاتف</label><input class="fc" id="f-phone" placeholder="+966 5X XXX XXXX"/></div>
     </div>
     <div class="form-row full"><div class="form-group"><label>ملاحظات</label><textarea class="fc" id="f-notes" rows="2"></textarea></div></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
@@ -812,31 +231,31 @@ input[type=date].fc{color-scheme:dark}
     <div class="form-row">
       <div class="form-group"><label>الدورة</label>
         <select class="fc" id="s-course" onchange="autoFillSession()">
-          <option value="" selected="selected">-- اختر دورة --</option>
+          <option value="">-- اختر دورة --</option>
         </select>
       </div>
       <div class="form-group"><label>المدرب</label>
-        <select class="fc" id="s-trainer"><option selected="selected">م. أحمد عبد السلام</option></select>
+        <select class="fc" id="s-trainer"><option>م. أحمد عبد السلام</option></select>
       </div>
       <div class="form-group"><label>نوع التدريب</label>
         <select class="fc" id="s-type" onchange="onSessionTypeChange()">
-          <option value="حضوري" selected="selected">حضوري 🏛️</option>
+          <option value="حضوري">حضوري 🏛️</option>
           <option value="أونلاين">أونلاين 💻</option>
         </select>
       </div>
       <div class="form-group"><label>📅 تاريخ الجلسة</label>
-        <input class="fc" id="s-date" type="date">
+        <input class="fc" id="s-date" type="date" value=""/>
       </div>
-      <div class="form-group"><label>وقت البداية</label><input class="fc" id="s-start" type="time" value="08:00"></div>
-      <div class="form-group"><label>وقت النهاية</label><input class="fc" id="s-end" type="time" value="13:00"></div>
+      <div class="form-group"><label>وقت البداية</label><input class="fc" id="s-start" type="time" value="08:00"/></div>
+      <div class="form-group"><label>وقت النهاية</label><input class="fc" id="s-end" type="time" value="13:00"/></div>
     </div>
 
     <!-- Classroom selector (حضوري) -->
-    <div id="roomRow" class="form-row full">
+    <div id="roomRow" class="form-row full" style="display:none">
       <div class="form-group">
         <label>🏛️ قاعة التدريب</label>
         <select class="fc" id="s-room">
-          <option value="" selected="selected">-- اختر القاعة --</option>
+          <option value="">-- اختر القاعة --</option>
           <option value="قاعة 1">قاعة 1</option>
           <option value="قاعة 2">قاعة 2</option>
           <option value="قاعة 3">قاعة 3</option>
@@ -850,13 +269,13 @@ input[type=date].fc{color-scheme:dark}
       <div class="form-group">
         <label>💻 المنصة</label>
         <select class="fc" id="s-platform" onchange="onPlatformChange()">
-          <option value="Zoom" selected="selected">Zoom</option>
+          <option value="Zoom">Zoom</option>
           <option value="Teams">Microsoft Teams</option>
         </select>
       </div>
       <div class="form-group">
         <label id="s-link-label">🔗 رابط Zoom</label>
-        <input class="fc" id="s-zoom" placeholder="https://zoom.us/j/...">
+        <input class="fc" id="s-zoom" placeholder="https://zoom.us/j/..."/>
       </div>
     </div>
 
@@ -893,10 +312,10 @@ input[type=date].fc{color-scheme:dark}
       <button onclick="closeModal('modalInvoice')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>العميل</label><input class="fc" id="i-client" placeholder="اسم العميل"></div>
-      <div class="form-group"><label>الدورة</label><input class="fc" id="i-course" placeholder="اسم الدورة"></div>
-      <div class="form-group"><label>المبلغ (ريال)</label><input class="fc" id="i-amount" type="number" placeholder="0"></div>
-      <div class="form-group"><label>تاريخ الاستحقاق</label><input class="fc" id="i-due" type="date"></div>
+      <div class="form-group"><label>العميل</label><input class="fc" id="i-client" placeholder="اسم العميل"/></div>
+      <div class="form-group"><label>الدورة</label><input class="fc" id="i-course" placeholder="اسم الدورة"/></div>
+      <div class="form-group"><label>المبلغ (ريال)</label><input class="fc" id="i-amount" type="number" placeholder="0"/></div>
+      <div class="form-group"><label>تاريخ الاستحقاق</label><input class="fc" id="i-due" type="date"/></div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
       <button class="btn btn-ghost" onclick="closeModal('modalInvoice')">إلغاء</button>
@@ -912,10 +331,10 @@ input[type=date].fc{color-scheme:dark}
       <button onclick="closeModal('modalTrainer')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>الاسم</label><input class="fc" id="tr-name" placeholder="اسم المدرب"></div>
-      <div class="form-group"><label>التخصص</label><input class="fc" id="tr-specialty" placeholder="تخصص المدرب"></div>
-      <div class="form-group"><label>الهاتف</label><input class="fc" id="tr-phone" placeholder="+966..."></div>
-      <div class="form-group"><label>البريد</label><input class="fc" id="tr-email" placeholder="email@..."></div>
+      <div class="form-group"><label>الاسم</label><input class="fc" id="tr-name" placeholder="اسم المدرب"/></div>
+      <div class="form-group"><label>التخصص</label><input class="fc" id="tr-specialty" placeholder="تخصص المدرب"/></div>
+      <div class="form-group"><label>الهاتف</label><input class="fc" id="tr-phone" placeholder="+966..."/></div>
+      <div class="form-group"><label>البريد</label><input class="fc" id="tr-email" placeholder="email@..."/></div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
       <button class="btn btn-ghost" onclick="closeModal('modalTrainer')">إلغاء</button>
@@ -927,32 +346,32 @@ input[type=date].fc{color-scheme:dark}
 <div class="modal-overlay" id="modalUser">
   <div class="modal">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <div class="modal-title" id="modalUserTitle">تعديل بيانات المستخدم</div>
+      <div class="modal-title" id="modalUserTitle">إضافة مستخدم</div>
       <button onclick="closeModal('modalUser')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>الاسم الكامل</label><input class="fc" id="u-name" placeholder="اسم المستخدم" value="حسين القصبي"></div>
-      <div class="form-group"><label>الدور / المسمى الوظيفي</label><input class="fc" id="u-role" placeholder="مستشار مبيعات" value="مدير التشغيل"></div>
-      <div class="form-group"><label>📞 رقم الواتساب</label><input class="fc" id="u-phone" placeholder="+966 5X XXX XXXX" value="+966553000861"></div>
-      <div class="form-group"><label>📧 البريد الإلكتروني</label><input class="fc" id="u-email" placeholder="name@tuvti.com.sa" value="husseinelkasaby@tuvti.com.sa"></div>
+      <div class="form-group"><label>الاسم الكامل</label><input class="fc" id="u-name" placeholder="اسم المستخدم"/></div>
+      <div class="form-group"><label>الدور / المسمى الوظيفي</label><input class="fc" id="u-role" placeholder="مستشار مبيعات"/></div>
+      <div class="form-group"><label>📞 رقم الواتساب</label><input class="fc" id="u-phone" placeholder="+966 5X XXX XXXX"/></div>
+      <div class="form-group"><label>📧 البريد الإلكتروني</label><input class="fc" id="u-email" placeholder="name@tuvti.com.sa"/></div>
       <div class="form-group"><label>القسم</label>
         <select class="fc" id="u-dept">
-          <option value="ops" selected="selected">إدارة التشغيل</option>
+          <option value="ops">إدارة التشغيل</option>
           <option value="sales">المبيعات</option>
           <option value="trainers">المدربون</option>
           <option value="training">التدريب</option>
           <option value="finance">المالية</option>
         </select>
       </div>
-      <div class="form-group"><label>كلمة المرور</label><input class="fc" id="u-pw" type="password" placeholder="كلمة المرور"></div>
+      <div class="form-group"><label>كلمة المرور</label><input class="fc" id="u-pw" type="password" placeholder="كلمة المرور"/></div>
       <div class="form-group"><label>لون الحساب</label>
-        <input class="fc" id="u-color" type="color" value="#c9a84c" style="height:40px;padding:4px">
+        <input class="fc" id="u-color" type="color" value="#1A7A8A" style="height:40px;padding:4px"/>
       </div>
-      <div class="form-group"><label>الرمز (حرفان)</label><input class="fc" id="u-avatar" placeholder="مو" maxlength="3" value="حق"></div>
+      <div class="form-group"><label>الرمز (حرفان)</label><input class="fc" id="u-avatar" placeholder="مو" maxlength="3"/></div>
     </div>
     <div class="form-group" style="margin-top:4px">
       <label>الصلاحيات — الأقسام المتاحة</label>
-      <div id="u-pages-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px"><label style="display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: rgba(26, 122, 138, 0.15); border: 1px solid rgba(26, 122, 138, 0.4); border-radius: 8px; cursor: pointer; font-size: 12px; color: rgb(208, 216, 236); transition: 0.15s;"><input type="checkbox" value="ops" checked="checked" style="accent-color:#1A7A8A;width:14px;height:14px"> إدارة التشغيل</label><label style="display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: rgba(26, 122, 138, 0.15); border: 1px solid rgba(26, 122, 138, 0.4); border-radius: 8px; cursor: pointer; font-size: 12px; color: rgb(208, 216, 236); transition: 0.15s;"><input type="checkbox" value="users" checked="checked" style="accent-color:#1A7A8A;width:14px;height:14px"> المستخدمون</label><label style="display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: rgba(26, 122, 138, 0.15); border: 1px solid rgba(26, 122, 138, 0.4); border-radius: 8px; cursor: pointer; font-size: 12px; color: rgb(208, 216, 236); transition: 0.15s;"><input type="checkbox" value="sales" checked="checked" style="accent-color:#1A7A8A;width:14px;height:14px"> المبيعات</label><label style="display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: rgba(26, 122, 138, 0.15); border: 1px solid rgba(26, 122, 138, 0.4); border-radius: 8px; cursor: pointer; font-size: 12px; color: rgb(208, 216, 236); transition: 0.15s;"><input type="checkbox" value="trainers" checked="checked" style="accent-color:#1A7A8A;width:14px;height:14px"> المدربين</label><label style="display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: rgba(26, 122, 138, 0.15); border: 1px solid rgba(26, 122, 138, 0.4); border-radius: 8px; cursor: pointer; font-size: 12px; color: rgb(208, 216, 236); transition: 0.15s;"><input type="checkbox" value="training" checked="checked" style="accent-color:#1A7A8A;width:14px;height:14px"> التدريب</label><label style="display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: rgba(26, 122, 138, 0.15); border: 1px solid rgba(26, 122, 138, 0.4); border-radius: 8px; cursor: pointer; font-size: 12px; color: rgb(208, 216, 236); transition: 0.15s;"><input type="checkbox" value="finance" checked="checked" style="accent-color:#1A7A8A;width:14px;height:14px"> المالية</label><label style="display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: rgba(26, 122, 138, 0.15); border: 1px solid rgba(26, 122, 138, 0.4); border-radius: 8px; cursor: pointer; font-size: 12px; color: rgb(208, 216, 236); transition: 0.15s;"><input type="checkbox" value="trainees" checked="checked" style="accent-color:#1A7A8A;width:14px;height:14px"> المتدربون</label><label style="display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: rgba(26, 122, 138, 0.15); border: 1px solid rgba(26, 122, 138, 0.4); border-radius: 8px; cursor: pointer; font-size: 12px; color: rgb(208, 216, 236); transition: 0.15s;"><input type="checkbox" value="catalog" checked="checked" style="accent-color:#1A7A8A;width:14px;height:14px"> كتالوج الدورات</label></div>
+      <div id="u-pages-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px"></div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-ghost" onclick="closeModal('modalUser')">إلغاء</button>
@@ -968,15 +387,15 @@ input[type=date].fc{color-scheme:dark}
       <button onclick="closeModal('modalTrainee')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>الاسم</label><input class="fc" id="tn-name" placeholder="اسم المتدرب"></div>
-      <div class="form-group"><label>الشركة</label><input class="fc" id="tn-company" placeholder="الشركة"></div>
+      <div class="form-group"><label>الاسم</label><input class="fc" id="tn-name" placeholder="اسم المتدرب"/></div>
+      <div class="form-group"><label>الشركة</label><input class="fc" id="tn-company" placeholder="الشركة"/></div>
       <div class="form-group"><label>الدورة</label>
-        <select class="fc" id="tn-course"><option value="" selected="selected">-- اختر دورة --</option></select>
+        <select class="fc" id="tn-course"><option value="">-- اختر دورة --</option></select>
       </div>
-      <div class="form-group"><label>الهاتف</label><input class="fc" id="tn-phone" placeholder="+966..."></div>
-      <div class="form-group"><label>تاريخ البداية</label><input class="fc" id="tn-start" type="date"></div>
+      <div class="form-group"><label>الهاتف</label><input class="fc" id="tn-phone" placeholder="+966..."/></div>
+      <div class="form-group"><label>تاريخ البداية</label><input class="fc" id="tn-start" type="date"/></div>
       <div class="form-group"><label>الحالة</label>
-        <select class="fc" id="tn-status"><option value="نشط" selected="selected">نشط</option><option value="خريج">خريج</option></select>
+        <select class="fc" id="tn-status"><option value="نشط">نشط</option><option value="خريج">خريج</option></select>
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
@@ -995,24 +414,24 @@ input[type=date].fc{color-scheme:dark}
     <div class="form-row">
       <div class="form-group">
         <label>🏢 Company</label>
-        <input class="fc" id="cl-company" placeholder="اسم الشركة / Company name">
+        <input class="fc" id="cl-company" placeholder="اسم الشركة / Company name"/>
       </div>
       <div class="form-group">
         <label>👤 Employee Name</label>
-        <input class="fc" id="cl-name" placeholder="اسم الموظف المسؤول">
+        <input class="fc" id="cl-name" placeholder="اسم الموظف المسؤول"/>
       </div>
       <div class="form-group">
         <label>📞 Phone Number</label>
-        <input class="fc" id="cl-phone" placeholder="+966 5X XXX XXXX">
+        <input class="fc" id="cl-phone" placeholder="+966 5X XXX XXXX"/>
       </div>
       <div class="form-group">
         <label>📧 Email</label>
-        <input class="fc" id="cl-email" placeholder="name@company.com">
+        <input class="fc" id="cl-email" placeholder="name@company.com"/>
       </div>
       <div class="form-group">
         <label>🏙️ City</label>
         <select class="fc" id="cl-city">
-          <option value="" selected="selected">-- اختر المدينة --</option>
+          <option value="">-- اختر المدينة --</option>
           <option>الرياض</option><option>جدة</option><option>الدمام</option>
           <option>مكة المكرمة</option><option>المدينة المنورة</option>
           <option>الخبر</option><option>الظهران</option><option>القطيف</option>
@@ -1022,7 +441,7 @@ input[type=date].fc{color-scheme:dark}
       <div class="form-group">
         <label>🏷️ القطاع</label>
         <select class="fc" id="cl-sector">
-          <option value="" selected="selected">-- القطاع --</option>
+          <option value="">-- القطاع --</option>
           <option>نفط وغاز</option><option>بتروكيماويات</option>
           <option>إنشاءات</option><option>صناعة</option>
           <option>حكومي</option><option>صحة</option>
@@ -1054,7 +473,7 @@ input[type=date].fc{color-scheme:dark}
     <div style="background:#060F1E;border:1px solid rgba(201,168,76,.2);border-radius:9px;padding:12px;margin-bottom:14px;flex-shrink:0">
       <div style="color:#C9A84C;font-size:11px;font-weight:700;margin-bottom:6px">📋 تعليمات الاستيراد</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
-        ${['Company','Employee Name','Phone Number','Email','City','Sector'].map((col,i)=&gt;`
+        ${['Company','Employee Name','Phone Number','Email','City','Sector'].map((col,i)=>`
           <div style="background:#0D1A2E;border-radius:6px;padding:5px 10px;font-size:11px">
             <span style="color:#6A85A5">العمود ${i+1}:</span>
             <span style="color:#C9A84C;font-weight:700;margin-right:4px">${col}</span>
@@ -1078,7 +497,8 @@ input[type=date].fc{color-scheme:dark}
       <div id="importSummary" style="color:#6A85A5;font-size:12px">—</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="closeModal('modalClientImport')">إلغاء</button>
-        <button id="importConfirmBtn" class="btn btn-teal" onclick="confirmClientImport()" disabled="disabled" style="opacity:.5">✅ استيراد العملاء</button>
+        <button id="importConfirmBtn" class="btn btn-teal" onclick="confirmClientImport()" disabled
+          style="opacity:.5">✅ استيراد العملاء</button>
       </div>
     </div>
   </div>
@@ -4352,23 +3772,35 @@ function openSessionModal(editIdx){
   if(platEl) platEl.value = s ? (s.platform||'Zoom') : 'Zoom';
 
   selectColor(s ? s.color : '#1A7A8A');
-  onSessionTypeChange();
-  onPlatformChange();
-
   // Update title & button
   document.getElementById('modalSessionTitle').textContent = s ? 'تعديل الجلسة' : 'إضافة جلسة تدريبية';
   const btn = document.getElementById('saveSessionBtn');
   if(btn) btn.textContent = s ? '💾 حفظ التعديل' : 'إضافة الجلسة';
 
   openModal('modalSession');
+  // After modal is shown, trigger type change
+  setTimeout(()=>{
+    onSessionTypeChange();
+    onPlatformChange();
+  }, 30);
 }
 function toggleZoom(){ onSessionTypeChange(); }
 function onSessionTypeChange(){
-  const type = document.getElementById('s-type')?.value;
+  const sel = document.getElementById('s-type');
+  if(!sel) return;
+  const type = sel.value;
   const roomRow   = document.getElementById('roomRow');
   const onlineRow = document.getElementById('onlineRow');
-  if(roomRow)   roomRow.style.display   = (type==='حضوري')  ? '' : 'none';
-  if(onlineRow) onlineRow.style.display = (type==='أونلاين') ? '' : 'none';
+  if(roomRow){
+    roomRow.style.cssText = (type==='حضوري')
+      ? 'display:grid;grid-template-columns:1fr;gap:12px'
+      : 'display:none';
+  }
+  if(onlineRow){
+    onlineRow.style.cssText = (type==='أونلاين')
+      ? 'display:grid;grid-template-columns:1fr 1fr;gap:12px'
+      : 'display:none';
+  }
 }
 function onPlatformChange(){
   const pl  = document.getElementById('s-platform')?.value;
@@ -6411,11 +5843,11 @@ initApp();
     <div class="form-row">
       <div class="form-group">
         <label>Gist ID</label>
-        <input class="fc" id="sync-gist-id" placeholder="002b23e3b57bc6..." value="${localStorage.getItem('tf4_gist_id')||''}">
+        <input class="fc" id="sync-gist-id" placeholder="002b23e3b57bc6..." value="${localStorage.getItem('tf4_gist_id')||''}"/>
       </div>
       <div class="form-group">
         <label>GitHub Token (ghp_...)</label>
-        <input class="fc" id="sync-gist-token" type="password" placeholder="ghp_xxxxxxxxxxxx" value="${localStorage.getItem('tf4_gist_token')||''}">
+        <input class="fc" id="sync-gist-token" type="password" placeholder="ghp_xxxxxxxxxxxx" value="${localStorage.getItem('tf4_gist_token')||''}"/>
       </div>
     </div>
     <div style="background:#060F1E;border:1px solid rgba(201,168,76,.2);border-radius:9px;padding:12px;margin-bottom:14px">
@@ -6462,5 +5894,5 @@ function saveGistConfigFromModal(){
   loadFromGistAndRefresh();
 }
 </script>
-
-</body></html>
+</body>
+</html>
