@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0060)file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_127.html -->
+<!-- saved from url=(0060)file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_128.html -->
 <html lang="ar" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrainFlow CRM — معهد TUV التدريبي</title>
-<link href="./index_files/css2" rel="stylesheet">
+<link href="./TrainFlow CRM — معهد TUV التدريبي_files/css2" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;font-family:'Cairo','DM Sans',sans-serif}
@@ -92,7 +92,7 @@ input[type=date].fc{color-scheme:dark}
 .tab{padding:7px 14px;border-radius:7px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;color:#6A85A5;background:transparent}
 .tab.active{background:linear-gradient(135deg,#1A7A8A,#23A0B5);color:#fff}
 </style>
-<script src="./index_files/xlsx.full.min.js.download"></script>
+<script src="./TrainFlow CRM — معهد TUV التدريبي_files/xlsx.full.min.js.download"></script>
 </head>
 <body>
 <div id="loginScreen">
@@ -317,7 +317,7 @@ input[type=date].fc{color-scheme:dark}
             <span style="font-size:16px">📍</span>
             <div>
               <div style="color:#1A8A5A;font-size:11px;font-weight:700">${isAR()?'موقع التدريب مُحدد':'Training location set'}</div>
-              <a id="locationLink" href="file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_127.html#" target="_blank" style="color:#23A0B5;font-size:10px;word-break:break-all"></a>
+              <a id="locationLink" href="file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_128.html#" target="_blank" style="color:#23A0B5;font-size:10px;word-break:break-all"></a>
             </div>
           </div>
         </div>
@@ -910,21 +910,61 @@ async function save(){
   _syncing = true;
   showSyncIndicator('saving');
   try {
-    // Merge current user's quotes into the full list
-    const allQ   = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
-    const data = {
-      leads:      DB.leads,
-      invoices:   DB.invoices,
-      sessions:   DB.sessions,
-      trainers:   DB.trainers,
-      trainees:   DB.trainees,
-      quotes:     allQ,
-      activities: JSON.parse(localStorage.getItem('tf4_activities')||'[]'),
-      dailyReports: JSON.parse(localStorage.getItem('tf4_daily')||'[]'),
-      clients:    JSON.parse(localStorage.getItem('tf4_clients')||'[]'),
-      lastSaved:  new Date().toISOString(),
-      savedBy:    CU ? CU.name : '—',
+    // ── Smart merge: fetch Gist first, merge per-user, then push ──
+    let gistQ=[],gistLeads=[],gistInv=[],gistActs=[],gistDaily=[],gistCls=[];
+    try{
+      const fr = await fetch('https://api.github.com/gists/'+cfg.gistId,{
+        headers:{'Authorization':'Bearer '+cfg.token,'X-GitHub-Api-Version':'2022-11-28'}
+      });
+      if(fr.ok){
+        const gd = await fr.json();
+        const gf = gd.files['trainflow_data.json'];
+        if(gf){
+          const gp   = JSON.parse(gf.content);
+          gistQ      = gp.quotes       || [];
+          gistLeads  = gp.leads        || [];
+          gistInv    = gp.invoices     || [];
+          gistActs   = gp.activities   || [];
+          gistDaily  = gp.dailyReports || [];
+          gistCls    = gp.clients      || [];
+        }
+      }
+    }catch(e){}
+
+    // Merge by ID — remote wins, append local-only
+    const merge = (remote, local, key='id') => {
+      const rIds = new Set(remote.map(x=>x[key]));
+      return [...remote, ...local.filter(x=>!rIds.has(x[key]))];
     };
+
+    const localQ    = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+    const allQ      = merge(gistQ, localQ);
+    localStorage.setItem('tf4_quotes', JSON.stringify(allQ));
+
+    const allLeads  = merge(gistLeads,  DB.leads);
+    const allInv    = merge(gistInv,    DB.invoices);
+    const allActs   = merge(gistActs,   JSON.parse(localStorage.getItem('tf4_activities')||'[]'), 'id');
+    const allCls    = merge(gistCls,    JSON.parse(localStorage.getItem('tf4_clients')||'[]'));
+
+    // Daily reports merged by user — each user owns their records
+    const myName   = CU ? CU.name : '';
+    const localDay = JSON.parse(localStorage.getItem('tf4_daily')||'[]');
+    const allDaily = [...gistDaily.filter(r=>r.user!==myName), ...localDay.map(r=>({...r,user:r.user||myName}))];
+
+    const data = {
+      leads:        allLeads,
+      invoices:     allInv,
+      sessions:     DB.sessions,
+      trainers:     DB.trainers,
+      trainees:     DB.trainees,
+      quotes:       allQ,
+      activities:   allActs,
+      dailyReports: allDaily,
+      clients:      allCls,
+      lastSaved:    new Date().toISOString(),
+      savedBy:      CU ? CU.name : '—',
+    };
+
     const resp = await fetch('https://api.github.com/gists/'+cfg.gistId, {
       method: 'PATCH',
       headers: {
@@ -932,21 +972,19 @@ async function save(){
         'Content-Type':  'application/json',
         'X-GitHub-Api-Version': '2022-11-28',
       },
-      body: JSON.stringify({
-        files: { 'trainflow_data.json': { content: JSON.stringify(data, null, 2) } }
-      }),
+      body: JSON.stringify({ files: { 'trainflow_data.json': { content: JSON.stringify(data) } } })
     });
     if(resp.ok){
-      showSyncIndicator('saved');
-      if(_syncPending){ _syncPending=false; _syncing=false; save(); return; }
+      showSyncIndicator('synced', data.lastSaved, data.savedBy);
     } else {
       showSyncIndicator('error');
     }
   } catch(e){
     showSyncIndicator('error');
-    console.error('Gist sync error:', e);
+  } finally {
+    _syncing = false;
+    if(_syncPending){ _syncPending=false; save(); }
   }
-  _syncing = false;
 }
 
 async function loadFromGist(){
