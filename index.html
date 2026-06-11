@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0060)file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_129.html -->
+<!-- saved from url=(0060)file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_130.html -->
 <html lang="ar" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrainFlow CRM — معهد TUV التدريبي</title>
-<link href="./129_files/css2" rel="stylesheet">
+<link href="./130_files/css2" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;font-family:'Cairo','DM Sans',sans-serif}
@@ -92,7 +92,7 @@ input[type=date].fc{color-scheme:dark}
 .tab{padding:7px 14px;border-radius:7px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;color:#6A85A5;background:transparent}
 .tab.active{background:linear-gradient(135deg,#1A7A8A,#23A0B5);color:#fff}
 </style>
-<script src="./129_files/xlsx.full.min.js.download"></script>
+<script src="./130_files/xlsx.full.min.js.download"></script>
 </head>
 <body>
 <div id="loginScreen">
@@ -317,7 +317,7 @@ input[type=date].fc{color-scheme:dark}
             <span style="font-size:16px">📍</span>
             <div>
               <div style="color:#1A8A5A;font-size:11px;font-weight:700">${isAR()?'موقع التدريب مُحدد':'Training location set'}</div>
-              <a id="locationLink" href="file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_129.html#" target="_blank" style="color:#23A0B5;font-size:10px;word-break:break-all"></a>
+              <a id="locationLink" href="file:///C:/Users/New%20User/Downloads/TrainFlow_CRM_130.html#" target="_blank" style="color:#23A0B5;font-size:10px;word-break:break-all"></a>
             </div>
           </div>
         </div>
@@ -3027,6 +3027,7 @@ function renderQuotes(sc){
               <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.quoteNum}</th>
               <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.customerCol}</th>
               <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.dateCol}</th>
+              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${isAR()?'وقت الإنشاء':'Created At'}</th>
               <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.coursesCol}</th>
               <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.amountCol}</th>
               <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.statusCol}</th>
@@ -3039,7 +3040,8 @@ function renderQuotes(sc){
                   <div style="color:#F5F7FA;font-size:13px;font-weight:600">${q.client}</div>
                   <div style="color:#6A85A5;font-size:10px">${q.salesperson||'—'}</div>
                 </td>
-                <td style="padding:11px 14px;color:#6A85A5;font-size:12px">${q.date}</td>
+                <td style="padding:11px 14px;color:#6A85A5;font-size:12px">${q.date||'—'}</td>
+                <td style="padding:11px 14px;color:#3A5070;font-size:10px;white-space:nowrap;font-family:monospace">${q.createdAt?new Date(q.createdAt).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}):'—'}</td>
                 <td style="padding:11px 14px;color:#D0D8EC;font-size:12px">${q.items.length} ${q.items.length===1?'دورة':'دورات'}</td>
                 <td style="padding:11px 14px;color:#C9A84C;font-size:14px;font-weight:800;font-family:monospace">SAR ${fmt(q.netTotal)}</td>
                 <td style="padding:11px 14px">
@@ -3057,7 +3059,7 @@ function renderQuotes(sc){
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
                     </button>
                     <button onclick="sendQuoteEmail(${i})" style="width:30px;height:30px;border-radius:7px;background:rgba(66,133,244,.15);border:1px solid rgba(66,133,244,.3);color:#4285F4;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="إرسال عبر البريد">📧</button>
-                    <button onclick="deleteQuote(${i})" style="width:30px;height:30px;border-radius:7px;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:#E74C3C;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="${isAR()?'حذف':'Delete'}">🗑</button>
+                    <button onclick="deleteQuote('${q.id}')" style="width:30px;height:30px;border-radius:7px;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:#E74C3C;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="${isAR()?'حذف':'Delete'}">🗑</button>
                   </div>
                 </td>
               </tr>`).join('')}
@@ -3155,7 +3157,15 @@ function editQuote(i){
   _editQuoteIdx = i;
   const q = lsQuotes()[i];
   if(!q) return;
-  openNewQuoteForm(q); // pass existing quote to pre-fill
+  openNewQuoteForm(q);
+}
+
+function editQuoteById(qId){
+  const quotes = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+  const idx = quotes.findIndex(q=>q.id===qId);
+  if(idx<0) return;
+  _editQuoteIdx = idx;
+  openNewQuoteForm(quotes[idx]);
 }
 
 // ── New Quote Form ────────────────────────────────────
@@ -3670,6 +3680,7 @@ function buildQuoteObj(status){
     items: rows,
     gross, vat, netTotal: net,
     status: status||'مسودة',
+    createdAt: (_editQuoteIdx!==null?(lsQuotes()[_editQuoteIdx]||{}).createdAt:null)||new Date().toISOString(),
   };
 }
 
@@ -4319,9 +4330,19 @@ function downloadQuotePDF(i){
   launchQuotePrint(q);
 }
 
-function deleteQuote(i){
+function deleteQuote(idOrIdx){
   if(!confirm(isAR()?'حذف هذا العرض؟':'Delete this quote?')) return;
-  const q=lsQuotes(); q.splice(i,1); ssQuotes(q); renderSales();
+  let quotes = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+  // Try to delete by ID first (stable), fallback to index
+  const byId = quotes.findIndex(q=>q.id===idOrIdx);
+  if(byId >= 0){
+    quotes.splice(byId, 1);
+  } else if(typeof idOrIdx==='number'){
+    quotes.splice(idOrIdx, 1);
+  } else { return; }
+  ssQuotes(quotes);
+  renderSales();
+  showSuccessToast('✅ '+(isAR()?'تم حذف العرض':'Quote deleted'));
 }
 
 function openQuoteModal(){ openNewQuoteForm(); }
