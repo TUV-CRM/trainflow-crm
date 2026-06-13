@@ -980,6 +980,7 @@ async function save(){
       activities:   allActs,
       dailyReports: allDaily,
       clients:      allCls,
+      sessionData:  (()=>{const sd={}; DB.sessions.forEach(s=>{const d=localStorage.getItem('tf4_session_'+s.id); if(d) sd[s.id]=JSON.parse(d);}); return sd;})(),
       dynUsers:     JSON.parse(localStorage.getItem('tf4_dyn_users')||'null'),
       lastSaved:    new Date().toISOString(),
       savedBy:      CU ? CU.name : '—',
@@ -1056,6 +1057,27 @@ async function loadFromGist(){
       localStorage.setItem('tf4_daily', JSON.stringify(merged));
     }
     if(data.clients){      localStorage.setItem('tf4_clients',     JSON.stringify(data.clients)); }
+    // Load session training data (attendance, tests, evaluations)
+    if(data.sessionData){
+      Object.entries(data.sessionData).forEach(([sid, sdata])=>{
+        const existing = JSON.parse(localStorage.getItem('tf4_session_'+sid)||'{}');
+        // Merge: keep larger attendance list, combine tests
+        const merged = {...existing};
+        if(sdata.attendance && (!merged.attendance || sdata.attendance.length > merged.attendance.length)){
+          merged.attendance = sdata.attendance;
+        }
+        ['preTest','postTest','traineeEval'].forEach(key=>{
+          if(sdata[key] && sdata[key].length){
+            const existArr = merged[key]||[];
+            const existNames = new Set(existArr.map(x=>x.name));
+            const newOnes = sdata[key].filter(x=>!existNames.has(x.name));
+            merged[key] = [...existArr, ...newOnes];
+          }
+        });
+        if(sdata.trainerEval) merged.trainerEval = sdata.trainerEval;
+        localStorage.setItem('tf4_session_'+sid, JSON.stringify(merged));
+      });
+    }
     // Sync user permissions from manager (only if set by manager/ops)
     if(data.dynUsers && CU && CU.dept !== 'ops'){
       // Non-ops users get latest permissions from Gist
@@ -4867,6 +4889,589 @@ function renderCoursesTab2(){
   el.appendChild(div);
 }
 
+
+// ════════════════════════════════════════════
+//  TRAINING MANAGEMENT SYSTEM
+// ════════════════════════════════════════════
+
+// ── Training Data Helpers ──
+function getSessionData(sessionId){
+  return JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
+}
+function saveSessionData(sessionId, data){
+  localStorage.setItem('tf4_session_'+sessionId, JSON.stringify(data));
+  save();
+}
+
+// ── Calculate Training Hours ──
+function calcSessionHours(session){
+  if(!session.start||!session.end) return 0;
+  const [sh,sm] = session.start.split(':').map(Number);
+  const [eh,em] = session.end.split(':').map(Number);
+  return Math.max(0, ((eh*60+em)-(sh*60+sm))/60);
+}
+
+function getTrainerTotalHours(trainerName){
+  return DB.sessions.reduce((total,s)=>{
+    if(s.trainer===trainerName) total += calcSessionHours(s);
+    return total;
+  }, 0);
+}
+
+// ── QR Code Generator (simple SVG-based) ──
+function generateQRSVG(text, size){
+  // Simple QR-like pattern using session ID as seed
+  const s = size || 150;
+  const hash = text.split('').reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0),0);
+  const grid = 11;
+  const cell = Math.floor(s/grid);
+  let svg = '<svg viewBox="0 0 '+s+' '+s+'" xmlns="http://www.w3.org/2000/svg">';
+  svg += '<rect width="'+s+'" height="'+s+'" fill="white"/>';
+  // Fixed patterns (position markers)
+  const drawMarker = (x,y,sz)=>{
+    svg += '<rect x="'+x+'" y="'+y+'" width="'+(sz*cell)+'" height="'+(sz*cell)+'" fill="black"/>';
+    svg += '<rect x="'+(x+cell)+'" y="'+(y+cell)+'" width="'+((sz-2)*cell)+'" height="'+((sz-2)*cell)+'" fill="white"/>';
+    svg += '<rect x="'+(x+2*cell)+'" y="'+(y+2*cell)+'" width="'+((sz-4)*cell)+'" height="'+((sz-4)*cell)+'" fill="black"/>';
+  };
+  drawMarker(0,0,7);
+  drawMarker((grid-7)*cell,0,7);
+  drawMarker(0,(grid-7)*cell,7);
+  // Data modules from hash
+  for(let r=0;r<grid;r++){
+    for(let c=0;c<grid;c++){
+      if((r<7&&c<7)||(r<7&&c>=grid-7)||(r>=grid-7&&c<7)) continue;
+      const bit = ((hash>>((r*grid+c)%31))&1);
+      if(bit) svg += '<rect x="'+(c*cell)+'" y="'+(r*cell)+'" width="'+cell+'" height="'+cell+'" fill="black"/>';
+    }
+  }
+  svg += '</svg>';
+  return svg;
+}
+
+// ══════════════════════════════════════
+//  SESSION DETAIL PAGE
+// ══════════════════════════════════════
+function openSessionDetail(sessionIdx){
+  const session = DB.sessions[sessionIdx];
+  if(!session) return;
+  const t = (ar,en) => isAR() ? ar : en;
+  const data = getSessionData(session.id);
+  const hours = calcSessionHours(session);
+
+  // Initialize data structure
+  if(!data.attendance)  data.attendance  = [];
+  if(!data.preTest)     data.preTest     = [];
+  if(!data.postTest)    data.postTest    = [];
+  if(!data.traineeEval) data.traineeEval = [];
+  if(!data.trainerEval) data.trainerEval = {};
+
+  const ex = document.getElementById('sessionDetailOverlay');
+  if(ex) ex.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'sessionDetailOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99998;overflow-y:auto;padding:20px';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#0B1E3D;border-radius:16px;max-width:900px;margin:0 auto;box-shadow:0 24px 80px rgba(0,0,0,.6)';
+
+  // ── Header ──
+  const header = document.createElement('div');
+  header.style.cssText = 'background:linear-gradient(135deg,#1A3570,#2B4FAA);border-radius:16px 16px 0 0;padding:20px 24px;display:flex;justify-content:space-between;align-items:center';
+  header.innerHTML =
+    '<div>'
+    +'<div style="color:white;font-size:17px;font-weight:800">📋 '+session.course+'</div>'
+    +'<div style="color:rgba(255,255,255,.6);font-size:11px;margin-top:4px">'
+    +session.trainer+' · '+session.startDate+' · '+session.start+'-'+session.end+' ('+hours.toFixed(1)+' '+t('ساعة','hrs')+')'
+    +'</div></div>';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:rgba(255,255,255,.2);border:none;color:white;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px';
+  closeBtn.onclick = ()=>overlay.remove();
+  header.appendChild(closeBtn);
+  box.appendChild(header);
+
+  // ── Tab Navigation ──
+  const tabs = [
+    {key:'attendance', label:t('📱 الحضور QR','📱 QR Attendance'), icon:'📱'},
+    {key:'pretest',    label:t('📝 اختبار قبلي','📝 Pre-Test'),    icon:'📝'},
+    {key:'posttest',   label:t('✅ اختبار بعدي','✅ Post-Test'),   icon:'✅'},
+    {key:'eval',       label:t('⭐ التقييم','⭐ Evaluation'),      icon:'⭐'},
+    {key:'report',     label:t('📊 التقرير','📊 Report'),          icon:'📊'},
+  ];
+
+  const tabBar = document.createElement('div');
+  tabBar.style.cssText = 'display:flex;gap:4px;padding:12px 16px;background:#060F1E;overflow-x:auto';
+  const contentDiv = document.createElement('div');
+  contentDiv.style.cssText = 'padding:20px 24px;min-height:400px';
+
+  let activeTab = 'attendance';
+
+  window._currentSessionDetail = session;
+  function renderTab(key){
+    activeTab = key;
+    // Update tab styles
+    tabBar.querySelectorAll('button').forEach(btn=>{
+      const isActive = btn.dataset.key === key;
+      btn.style.background = isActive ? 'rgba(26,122,138,.3)' : 'transparent';
+      btn.style.color      = isActive ? '#23A0B5' : '#6A85A5';
+      btn.style.borderBottom = isActive ? '2px solid #23A0B5' : '2px solid transparent';
+    });
+    // Render content
+    if(key==='attendance')  renderAttendanceTab(contentDiv, session, data);
+    else if(key==='pretest')  renderTestTab(contentDiv, session, data, 'pre');
+    else if(key==='posttest') renderTestTab(contentDiv, session, data, 'post');
+    else if(key==='eval')     renderEvalTab(contentDiv, session, data);
+    else if(key==='report')   renderReportTab(contentDiv, session, data, sessionIdx);
+  }
+
+  tabs.forEach(tab=>{
+    const btn = document.createElement('button');
+    btn.dataset.key = tab.key;
+    btn.style.cssText = 'padding:8px 14px;border:none;border-radius:8px 8px 0 0;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;border-bottom:2px solid transparent;background:transparent;color:#6A85A5';
+    btn.textContent = tab.label;
+    btn.onclick = ()=>renderTab(tab.key);
+    tabBar.appendChild(btn);
+  });
+
+  box.appendChild(tabBar);
+  box.appendChild(contentDiv);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  renderTab('attendance');
+}
+
+// ══ TAB: QR ATTENDANCE ══
+function renderAttendanceTab(el, session, data){
+  const t = (ar,en) => isAR() ? ar : en;
+  const companies = session.companies || [];
+  const allTrainees = companies.flatMap(c=>
+    Array.from({length:c.attendees||0}, (_,i)=>({company:c.company, name:t('متدرب','Trainee')+' '+(i+1)}))
+  );
+
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px';
+
+  // Left: QR Code
+  const qrPanel = document.createElement('div');
+  qrPanel.style.cssText = 'background:#060F1E;border-radius:12px;padding:20px;text-align:center;border:1px solid #1A2E4A';
+  const qrUrl = 'TUVTI-'+session.id+'-'+session.startDate;
+  qrPanel.innerHTML =
+    '<div style="color:#C9A84C;font-size:12px;font-weight:700;margin-bottom:12px">📱 '+t('رمز QR للحضور','QR Attendance Code')+'</div>'
+    +'<div style="background:white;border-radius:12px;padding:16px;display:inline-block;margin-bottom:12px">'
+    +generateQRSVG(qrUrl, 180)
+    +'</div>'
+    +'<div style="color:#6A85A5;font-size:10px;margin-bottom:8px">'+t('رمز الجلسة: ','Session Code: ')+session.id+'</div>'
+    +'<button data-sid="'+session.id+'" onclick="printQRCode(this.dataset.sid)" style="background:#23A0B5;border:none;border-radius:8px;color:white;padding:8px 16px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🖨️ '+t('طباعة QR','Print QR')+'</button>';
+  wrap.appendChild(qrPanel);
+
+  // Right: Attendance List
+  const listPanel = document.createElement('div');
+  listPanel.style.cssText = 'background:#060F1E;border-radius:12px;padding:20px;border:1px solid #1A2E4A';
+  listPanel.innerHTML = '<div style="color:#F5F7FA;font-size:13px;font-weight:700;margin-bottom:12px">👥 '+t('سجل الحضور','Attendance Record')+' <span style="color:#6A85A5;font-size:10px">('+data.attendance.length+' '+t('حاضر','present')+')</span></div>';
+
+  // Add attendee form
+  const addRow = document.createElement('div');
+  addRow.style.cssText = 'display:flex;gap:6px;margin-bottom:12px';
+  const nameInp = document.createElement('input');
+  nameInp.className = 'fc';
+  nameInp.placeholder = t('اسم المتدرب','Trainee name');
+  nameInp.style.cssText = 'flex:1;font-size:11px';
+  nameInp.id = 'att-name';
+  const compInp = document.createElement('input');
+  compInp.className = 'fc';
+  compInp.placeholder = t('الشركة','Company');
+  compInp.style.cssText = 'width:120px;font-size:11px';
+  compInp.id = 'att-company';
+  const addBtn = document.createElement('button');
+  addBtn.style.cssText = 'background:#1A8A5A;border:none;border-radius:7px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap';
+  addBtn.textContent = '+ '+t('تسجيل','Check-in');
+  addBtn.onclick = ()=>{
+    const name = nameInp.value.trim();
+    if(!name) return;
+    data.attendance.push({name, company:compInp.value.trim(), time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}), date:new Date().toISOString().slice(0,10)});
+    saveSessionData(session.id, data);
+    nameInp.value=''; compInp.value='';
+    renderAttendanceTab(el, session, data);
+  };
+  addRow.appendChild(nameInp);
+  addRow.appendChild(compInp);
+  addRow.appendChild(addBtn);
+  listPanel.appendChild(addRow);
+
+  // Attendance list
+  const listDiv = document.createElement('div');
+  listDiv.style.cssText = 'max-height:250px;overflow-y:auto;display:flex;flex-direction:column;gap:4px';
+  data.attendance.forEach((a,i)=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#0D1A2E;border-radius:7px;border:1px solid #1A2E4A';
+    row.innerHTML =
+      '<div><span style="color:#F5F7FA;font-size:12px;font-weight:600">'+a.name+'</span>'
+      +(a.company?'<span style="color:#6A85A5;font-size:10px;margin-right:8px"> · '+a.company+'</span>':'')
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px">'
+      +'<span style="color:#1A8A5A;font-size:10px">✅ '+a.time+'</span>'
+      +'</div>';
+    const delBtn = document.createElement('button');
+    delBtn.style.cssText = 'background:none;border:none;color:#C0392B;cursor:pointer;font-size:11px';
+    delBtn.textContent = '✕';
+    delBtn.onclick = ()=>{ data.attendance.splice(i,1); saveSessionData(session.id,data); renderAttendanceTab(el,session,data); };
+    row.querySelector('div:last-child').appendChild(delBtn);
+    listDiv.appendChild(row);
+  });
+  listPanel.appendChild(listDiv);
+  wrap.appendChild(listPanel);
+  el.appendChild(wrap);
+}
+
+// ══ TAB: TESTS (Pre/Post) ══
+function renderTestTab(el, session, data, type){
+  const t = (ar,en) => isAR() ? ar : en;
+  const key = type==='pre' ? 'preTest' : 'postTest';
+  const results = data[key] || [];
+  const title = type==='pre' ? t('اختبار قبلي','Pre-Test') : t('اختبار بعدي','Post-Test');
+
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px';
+  hdr.innerHTML = '<div style="color:#F5F7FA;font-size:14px;font-weight:700">'+(type==='pre'?'📝':'✅')+' '+title+'</div>'
+    +'<div style="color:#6A85A5;font-size:11px">'+t('المتقدمين: ','Submissions: ')+results.length+'</div>';
+  wrap.appendChild(hdr);
+
+  // Add result form
+  const form = document.createElement('div');
+  form.style.cssText = 'background:#060F1E;border-radius:10px;padding:16px;border:1px solid #1A2E4A;margin-bottom:16px';
+  form.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr 100px;gap:10px;align-items:end">'
+    +'<div class="form-group" style="margin:0"><label style="font-size:10px">'+t('اسم المتدرب','Trainee Name')+'</label>'
+    +'<input class="fc" id="test-name-'+type+'" style="font-size:11px" placeholder="'+t('الاسم...','Name...')+'"/></div>'
+    +'<div class="form-group" style="margin:0"><label style="font-size:10px">'+t('الدرجة من 100','Score /100')+'</label>'
+    +'<input class="fc" id="test-score-'+type+'" type="number" min="0" max="100" style="font-size:11px;text-align:center" placeholder="0"/></div>'
+    +'<button id="test-add-'+type+'" style="background:#23A0B5;border:none;border-radius:7px;color:white;padding:8px;font-size:11px;font-weight:700;cursor:pointer;height:38px">+ '+t('إضافة','Add')+'</button>'
+    +'</div>';
+  wrap.appendChild(form);
+
+  // Results table
+  const tblWrap = document.createElement('div');
+  tblWrap.style.cssText = 'background:#060F1E;border-radius:10px;border:1px solid #1A2E4A;overflow:hidden';
+  let avg = results.length ? Math.round(results.reduce((s,r)=>s+r.score,0)/results.length) : 0;
+  let passCount = results.filter(r=>r.score>=60).length;
+  tblWrap.innerHTML =
+    '<div style="display:flex;gap:16px;padding:12px 16px;border-bottom:1px solid #1A2E4A">'
+    +'<div style="color:#6A85A5;font-size:10px">'+t('المتوسط:','Avg:')+' <strong style="color:'+(avg>=60?'#1A8A5A':'#C0392B')+'">'+avg+'%</strong></div>'
+    +'<div style="color:#6A85A5;font-size:10px">'+t('ناجح:','Pass:')+' <strong style="color:#1A8A5A">'+passCount+'/'+results.length+'</strong></div>'
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right">#</th>'
+    +'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right">'+t('المتدرب','Trainee')+'</th>'
+    +'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:center">'+t('الدرجة','Score')+'</th>'
+    +'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:center">'+t('النتيجة','Result')+'</th>'
+    +'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:center">'+t('إجراء','Action')+'</th>'
+    +'</tr></thead><tbody>'
+    +results.map((r,i)=>{
+      const pass = r.score>=60;
+      return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
+        +'<td style="padding:8px 12px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+        +'<td style="padding:8px 12px;color:#F5F7FA;font-size:12px;font-weight:600">'+r.name+'</td>'
+        +'<td style="padding:8px 12px;text-align:center"><span style="background:'+(pass?'#1A8A5A':'#C0392B')+'22;color:'+(pass?'#1A8A5A':'#C0392B')+';border-radius:5px;padding:2px 10px;font-size:12px;font-weight:700">'+r.score+'%</span></td>'
+        +'<td style="padding:8px 12px;text-align:center;font-size:11px;color:'+(pass?'#1A8A5A':'#C0392B')+'">'+(pass?'✅ '+t('ناجح','Pass'):'❌ '+t('راسب','Fail'))+'</td>'
+        +'<td style="padding:8px 12px;text-align:center"><button data-type="'+type+'" data-idx="'+i+'" onclick="deleteTestResult(this)" style="background:none;border:none;color:#C0392B;cursor:pointer;font-size:11px">🗑</button></td>'
+        +'</tr>';
+    }).join('')
+    +(results.length===0?'<tr><td colspan="5" style="padding:30px;text-align:center;color:#6A85A5">'+t('لا توجد نتائج بعد','No results yet')+'</td></tr>':'')
+    +'</tbody></table>';
+  wrap.appendChild(tblWrap);
+  el.appendChild(wrap);
+
+  // Wire add button
+  setTimeout(()=>{
+    const addBtn = document.getElementById('test-add-'+type);
+    if(addBtn) addBtn.onclick = ()=>{
+      const name  = document.getElementById('test-name-'+type).value.trim();
+      const score = parseInt(document.getElementById('test-score-'+type).value)||0;
+      if(!name) return;
+      data[key].push({name, score: Math.min(100,Math.max(0,score)), date:new Date().toISOString().slice(0,10)});
+      saveSessionData(session.id, data);
+      renderTestTab(el, session, data, type);
+    };
+  },50);
+}
+
+// Delete test result helper
+function deleteTestResult(btn){
+  const type = btn.dataset.type;
+  const idx  = parseInt(btn.dataset.idx);
+  const overlay = document.getElementById('sessionDetailOverlay');
+  // Find session from the overlay context
+  // Re-render would need session reference — store globally
+  if(window._currentSessionDetail){
+    const data = getSessionData(window._currentSessionDetail.id);
+    const key = type==='pre'?'preTest':'postTest';
+    data[key].splice(idx,1);
+    saveSessionData(window._currentSessionDetail.id, data);
+    const el = overlay.querySelector('div[style*="min-height:400px"]');
+    if(el) renderTestTab(el, window._currentSessionDetail, data, type);
+  }
+}
+
+// ══ TAB: EVALUATION ══
+function renderEvalTab(el, session, data){
+  const t = (ar,en) => isAR() ? ar : en;
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:16px';
+
+  // Left: Trainee evaluates Trainer
+  const trainerEvalPanel = document.createElement('div');
+  trainerEvalPanel.style.cssText = 'background:#060F1E;border-radius:12px;padding:20px;border:1px solid #1A2E4A';
+  const criteria = [
+    {key:'knowledge',  label:t('المعرفة والخبرة','Knowledge & Expertise')},
+    {key:'delivery',   label:t('أسلوب الشرح','Delivery Style')},
+    {key:'interaction',label:t('التفاعل مع المتدربين','Interaction')},
+    {key:'materials',  label:t('المحتوى التدريبي','Training Materials')},
+    {key:'time',       label:t('إدارة الوقت','Time Management')},
+    {key:'overall',    label:t('التقييم العام','Overall Rating')},
+  ];
+
+  const trainerRatings = data.trainerEval || {};
+  trainerEvalPanel.innerHTML = '<div style="color:#C9A84C;font-size:13px;font-weight:700;margin-bottom:14px">⭐ '+t('تقييم المدرب','Trainer Evaluation')+'</div>';
+
+  criteria.forEach(c=>{
+    const val = trainerRatings[c.key]||0;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(26,46,74,.2)';
+    row.innerHTML = '<span style="color:#D0D8EC;font-size:12px">'+c.label+'</span>';
+    const stars = document.createElement('div');
+    stars.style.cssText = 'display:flex;gap:3px';
+    for(let i=1;i<=5;i++){
+      const star = document.createElement('span');
+      star.style.cssText = 'cursor:pointer;font-size:18px;transition:transform .15s';
+      star.textContent = i<=val?'⭐':'☆';
+      star.onmouseover = ()=>star.style.transform='scale(1.3)';
+      star.onmouseout  = ()=>star.style.transform='scale(1)';
+      star.onclick = ()=>{
+        data.trainerEval[c.key] = i;
+        saveSessionData(session.id, data);
+        renderEvalTab(el, session, data);
+      };
+      stars.appendChild(star);
+    }
+    row.appendChild(stars);
+    trainerEvalPanel.appendChild(row);
+  });
+
+  // Average
+  const vals = Object.values(trainerRatings).filter(v=>typeof v==='number'&&v>0);
+  const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '—';
+  const avgDiv = document.createElement('div');
+  avgDiv.style.cssText = 'margin-top:12px;text-align:center;padding:12px;background:#0D1A2E;border-radius:8px';
+  avgDiv.innerHTML = '<div style="color:#6A85A5;font-size:10px;margin-bottom:4px">'+t('المتوسط العام','Overall Average')+'</div>'
+    +'<div style="color:#C9A84C;font-size:24px;font-weight:800">'+avg+' <span style="font-size:14px">/ 5</span></div>';
+  trainerEvalPanel.appendChild(avgDiv);
+  wrap.appendChild(trainerEvalPanel);
+
+  // Right: Trainer evaluates Trainees
+  const traineeEvalPanel = document.createElement('div');
+  traineeEvalPanel.style.cssText = 'background:#060F1E;border-radius:12px;padding:20px;border:1px solid #1A2E4A';
+  traineeEvalPanel.innerHTML = '<div style="color:#23A0B5;font-size:13px;font-weight:700;margin-bottom:14px">👥 '+t('تقييم المتدربين','Trainee Evaluation')+'</div>';
+
+  // Add trainee eval form
+  const addForm = document.createElement('div');
+  addForm.style.cssText = 'display:grid;grid-template-columns:1fr 80px 80px;gap:6px;margin-bottom:12px;align-items:end';
+  addForm.innerHTML =
+    '<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('المتدرب','Trainee')+'</label>'
+    +'<input class="fc" id="teval-name" style="font-size:11px" placeholder="'+t('الاسم','Name')+'"/></div>'
+    +'<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('الحضور %','Attend %')+'</label>'
+    +'<input class="fc" id="teval-att" type="number" min="0" max="100" value="100" style="font-size:11px;text-align:center"/></div>'
+    +'<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('الأداء /5','Perf /5')+'</label>'
+    +'<input class="fc" id="teval-perf" type="number" min="1" max="5" value="3" style="font-size:11px;text-align:center"/></div>';
+  traineeEvalPanel.appendChild(addForm);
+
+  const addEvalBtn = document.createElement('button');
+  addEvalBtn.style.cssText = 'background:#23A0B5;border:none;border-radius:7px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;width:100%;margin-bottom:12px;font-family:inherit';
+  addEvalBtn.textContent = '+ '+t('إضافة تقييم','Add Evaluation');
+  addEvalBtn.onclick = ()=>{
+    const name = document.getElementById('teval-name').value.trim();
+    if(!name) return;
+    data.traineeEval.push({
+      name,
+      attendance: parseInt(document.getElementById('teval-att').value)||100,
+      performance: parseInt(document.getElementById('teval-perf').value)||3,
+      date: new Date().toISOString().slice(0,10)
+    });
+    saveSessionData(session.id, data);
+    renderEvalTab(el, session, data);
+  };
+  traineeEvalPanel.appendChild(addEvalBtn);
+
+  // List
+  const evalList = document.createElement('div');
+  evalList.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-height:250px;overflow-y:auto';
+  (data.traineeEval||[]).forEach((te,i)=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#0D1A2E;border-radius:7px';
+    row.innerHTML =
+      '<div style="color:#F5F7FA;font-size:12px;font-weight:600">'+te.name+'</div>'
+      +'<div style="display:flex;gap:8px;align-items:center">'
+      +'<span style="color:#6A85A5;font-size:10px">'+t('حضور:','Att:')+' '+te.attendance+'%</span>'
+      +'<span style="color:#C9A84C;font-size:10px">'+'⭐'.repeat(te.performance)+'</span>'
+      +'</div>';
+    evalList.appendChild(row);
+  });
+  traineeEvalPanel.appendChild(evalList);
+  wrap.appendChild(traineeEvalPanel);
+  el.appendChild(wrap);
+}
+
+// ══ TAB: REPORT + PDF ══
+function renderReportTab(el, session, data, sessionIdx){
+  const t = (ar,en) => isAR() ? ar : en;
+  const hours = calcSessionHours(session);
+  const preResults  = data.preTest  || [];
+  const postResults = data.postTest || [];
+  const preAvg  = preResults.length  ? Math.round(preResults.reduce((s,r)=>s+r.score,0)/preResults.length) : 0;
+  const postAvg = postResults.length ? Math.round(postResults.reduce((s,r)=>s+r.score,0)/postResults.length) : 0;
+  const improvement = preAvg>0 ? Math.round(((postAvg-preAvg)/preAvg)*100) : 0;
+  const trainerVals = Object.values(data.trainerEval||{}).filter(v=>typeof v==='number');
+  const trainerAvg  = trainerVals.length ? (trainerVals.reduce((a,b)=>a+b,0)/trainerVals.length).toFixed(1) : '—';
+
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+
+  // Summary cards
+  const cards = document.createElement('div');
+  cards.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px';
+  const cardData = [
+    {label:t('ساعات التدريب','Training Hours'),val:hours.toFixed(1),color:'#23A0B5',icon:'⏱️'},
+    {label:t('الحضور','Attendance'),val:data.attendance.length,color:'#1A8A5A',icon:'👥'},
+    {label:t('متوسط الاختبار القبلي','Pre-Test Avg'),val:preAvg+'%',color:'#C9A84C',icon:'📝'},
+    {label:t('متوسط الاختبار البعدي','Post-Test Avg'),val:postAvg+'%',color:postAvg>=60?'#1A8A5A':'#C0392B',icon:'✅'},
+  ];
+  cards.innerHTML = cardData.map(c=>
+    '<div style="background:#060F1E;border-radius:10px;padding:14px;border:1px solid #1A2E4A;text-align:center">'
+    +'<div style="font-size:18px;margin-bottom:4px">'+c.icon+'</div>'
+    +'<div style="color:'+c.color+';font-size:20px;font-weight:800;font-family:monospace">'+c.val+'</div>'
+    +'<div style="color:#6A85A5;font-size:9px;margin-top:3px">'+c.label+'</div>'
+    +'</div>'
+  ).join('');
+  wrap.appendChild(cards);
+
+  // Improvement + Trainer rating
+  const row2 = document.createElement('div');
+  row2.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px';
+  row2.innerHTML =
+    '<div style="background:#060F1E;border-radius:10px;padding:16px;border:1px solid #1A2E4A;text-align:center">'
+    +'<div style="color:#6A85A5;font-size:10px;margin-bottom:6px">📈 '+t('نسبة التحسن','Improvement')+'</div>'
+    +'<div style="color:'+(improvement>0?'#1A8A5A':'#C0392B')+';font-size:28px;font-weight:800">'+(improvement>0?'+':'')+improvement+'%</div>'
+    +'</div>'
+    +'<div style="background:#060F1E;border-radius:10px;padding:16px;border:1px solid #1A2E4A;text-align:center">'
+    +'<div style="color:#6A85A5;font-size:10px;margin-bottom:6px">⭐ '+t('تقييم المدرب','Trainer Rating')+'</div>'
+    +'<div style="color:#C9A84C;font-size:28px;font-weight:800">'+trainerAvg+' / 5</div>'
+    +'</div>';
+  wrap.appendChild(row2);
+
+  // Export PDF button
+  const exportBtn = document.createElement('button');
+  exportBtn.style.cssText = 'background:linear-gradient(135deg,#C0392B,#E74C3C);border:none;border-radius:10px;color:white;padding:12px 24px;font-size:13px;font-weight:700;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit';
+  exportBtn.innerHTML = '📄 '+t('تصدير التقرير PDF','Export Report PDF');
+  exportBtn.onclick = ()=>exportTrainingReportPDF(session, data);
+  wrap.appendChild(exportBtn);
+  el.appendChild(wrap);
+}
+
+// ── Print QR Code ──
+function printQRCode(sessionId){
+  const session = DB.sessions.find(s=>s.id===sessionId);
+  if(!session) return;
+  const w = window.open('','_blank','width=400,height=500');
+  w.document.write('<html><head><title>QR - '+session.course+'</title><style>body{text-align:center;font-family:Arial;padding:40px}svg{width:200px;height:200px}</style></head><body>'
+    +'<h2>'+session.course+'</h2>'
+    +'<p>'+session.trainer+' · '+session.startDate+'</p>'
+    +generateQRSVG('TUVTI-'+sessionId+'-'+session.startDate, 200)
+    +'<p style="margin-top:20px;color:#666;font-size:12px">Session: '+sessionId+'</p>'
+    +'</body></html>');
+  w.document.close();
+  w.print();
+}
+
+// ── Export Training Report PDF ──
+function exportTrainingReportPDF(session, data){
+  const t = (ar,en) => isAR() ? ar : en;
+  const hours = calcSessionHours(session);
+  const preR  = data.preTest||[];
+  const postR = data.postTest||[];
+  const preAvg  = preR.length  ? Math.round(preR.reduce((s,r)=>s+r.score,0)/preR.length) : 0;
+  const postAvg = postR.length ? Math.round(postR.reduce((s,r)=>s+r.score,0)/postR.length) : 0;
+  const improvement = preAvg>0 ? Math.round(((postAvg-preAvg)/preAvg)*100) : 0;
+  const trainerVals = Object.values(data.trainerEval||{}).filter(v=>typeof v==='number');
+  const trainerAvg  = trainerVals.length ? (trainerVals.reduce((a,b)=>a+b,0)/trainerVals.length).toFixed(1) : '—';
+
+  const html = '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"/><title>Training Report</title>'
+    +'<style>*{box-sizing:border-box;margin:0;padding:0} body{font-family:Arial,sans-serif;padding:20px;color:#1A2E4A;direction:rtl}'
+    +'table{width:100%;border-collapse:collapse;margin:12px 0} th,td{border:1px solid #ccc;padding:8px;text-align:center;font-size:11px}'
+    +'th{background:#1A3570;color:white} .card{display:inline-block;background:#f5f7fa;border-radius:8px;padding:12px 20px;margin:4px;text-align:center}'
+    +'h1{color:#1A3570;font-size:18px;margin-bottom:4px} h2{color:#1A3570;font-size:14px;margin:16px 0 8px;border-bottom:2px solid #1A3570;padding-bottom:4px}'
+    +'@media print{@page{size:A4;margin:15mm}}</style></head><body>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1A3570;padding-bottom:12px;margin-bottom:16px">'
+    +'<div><h1>'+t('تقرير الدورة التدريبية','Training Course Report')+'</h1>'
+    +'<div style="color:#6A85A5;font-size:11px">TUV Training Institute</div></div>'
+    +'<div style="text-align:left;font-size:11px;color:#6A85A5">'+t('التاريخ: ','Date: ')+session.startDate+'</div></div>'
+
+    // Course info
+    +'<h2>'+t('معلومات الدورة','Course Information')+'</h2>'
+    +'<table><tr><th>'+t('الدورة','Course')+'</th><th>'+t('المدرب','Trainer')+'</th><th>'+t('التاريخ','Date')+'</th><th>'+t('الوقت','Time')+'</th><th>'+t('الساعات','Hours')+'</th><th>'+t('النوع','Type')+'</th></tr>'
+    +'<tr><td>'+session.course+'</td><td>'+session.trainer+'</td><td>'+session.startDate+'</td><td>'+session.start+'-'+session.end+'</td><td>'+hours.toFixed(1)+'</td><td>'+session.type+'</td></tr></table>'
+
+    // KPIs
+    +'<div style="display:flex;gap:8px;margin:16px 0;justify-content:center">'
+    +'<div class="card"><div style="font-size:10px;color:#6A85A5">'+t('الحضور','Attendance')+'</div><div style="font-size:20px;font-weight:700;color:#1A3570">'+data.attendance.length+'</div></div>'
+    +'<div class="card"><div style="font-size:10px;color:#6A85A5">'+t('اختبار قبلي','Pre-Test')+'</div><div style="font-size:20px;font-weight:700;color:#C9A84C">'+preAvg+'%</div></div>'
+    +'<div class="card"><div style="font-size:10px;color:#6A85A5">'+t('اختبار بعدي','Post-Test')+'</div><div style="font-size:20px;font-weight:700;color:'+(postAvg>=60?'#1A8A5A':'#C0392B')+'">'+postAvg+'%</div></div>'
+    +'<div class="card"><div style="font-size:10px;color:#6A85A5">'+t('التحسن','Improvement')+'</div><div style="font-size:20px;font-weight:700;color:'+(improvement>0?'#1A8A5A':'#C0392B')+'">'+(improvement>0?'+':'')+improvement+'%</div></div>'
+    +'<div class="card"><div style="font-size:10px;color:#6A85A5">'+t('تقييم المدرب','Trainer')+'</div><div style="font-size:20px;font-weight:700;color:#C9A84C">'+trainerAvg+'/5</div></div>'
+    +'</div>'
+
+    // Attendance list
+    +'<h2>'+t('سجل الحضور','Attendance Record')+'</h2>'
+    +'<table><tr><th>#</th><th>'+t('الاسم','Name')+'</th><th>'+t('الشركة','Company')+'</th><th>'+t('الوقت','Time')+'</th></tr>'
+    +data.attendance.map((a,i)=>'<tr><td>'+(i+1)+'</td><td>'+a.name+'</td><td>'+(a.company||'—')+'</td><td>'+a.time+'</td></tr>').join('')
+    +'</table>'
+
+    // Test results
+    +'<h2>'+t('نتائج الاختبارات','Test Results')+'</h2>'
+    +'<table><tr><th>'+t('المتدرب','Trainee')+'</th><th>'+t('قبلي','Pre')+'</th><th>'+t('بعدي','Post')+'</th><th>'+t('التحسن','Δ')+'</th></tr>'
+    +(()=>{
+      const names = [...new Set([...preR.map(r=>r.name),...postR.map(r=>r.name)])];
+      return names.map(n=>{
+        const pre  = preR.find(r=>r.name===n)?.score||0;
+        const post = postR.find(r=>r.name===n)?.score||0;
+        const diff = post-pre;
+        return '<tr><td>'+n+'</td><td>'+pre+'%</td><td>'+post+'%</td><td style="color:'+(diff>0?'green':'red')+'">'+(diff>0?'+':'')+diff+'%</td></tr>';
+      }).join('');
+    })()
+    +'</table>'
+
+    // Trainer evaluation
+    +'<h2>'+t('تقييم المدرب','Trainer Evaluation')+' — '+trainerAvg+'/5</h2>'
+    +'<table><tr><th>'+t('المعيار','Criteria')+'</th><th>'+t('التقييم','Rating')+'</th></tr>'
+    +Object.entries(data.trainerEval||{}).map(([k,v])=>'<tr><td>'+k+'</td><td>'+'⭐'.repeat(v)+' ('+v+'/5)</td></tr>').join('')
+    +'</table>'
+
+    +'<div style="margin-top:30px;text-align:center;color:#6A85A5;font-size:10px;border-top:1px solid #ccc;padding-top:10px">'
+    +'TUV Training Institute · TrainFlow CRM · '+new Date().toLocaleDateString()+'</div>'
+    +'</body></html>';
+
+  const w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(), 500);
+}
+
+
 function renderWeeklySchedule(){
   const el = document.getElementById('trainingContent');
 
@@ -4919,6 +5524,8 @@ function renderWeeklySchedule(){
       + 'onclick="openSessionModal('+idx+')">'
       // Edit/Delete + Company PDF
       + '<div style="position:absolute;top:6px;left:6px;display:flex;gap:3px">'
+      + '<button data-di="'+idx+'" onclick="event.stopPropagation();openSessionDetail(parseInt(this.dataset.di))" '
+      + 'style="width:22px;height:22px;border-radius:5px;background:rgba(26,122,138,.2);border:1px solid rgba(26,122,138,.3);color:#23A0B5;cursor:pointer;font-size:9px" title="'+(isAR()?'تفاصيل':'Details')+'">📋</button>'
       + '<button onclick="event.stopPropagation();openSessionModal('+idx+')" '
       + 'style="width:22px;height:22px;border-radius:5px;background:rgba(26,122,138,.7);border:none;color:white;cursor:pointer;font-size:10px" title="'+(isAR()?'تعديل':'Edit')+'">✏️</button>'
       + '<button onclick="event.stopPropagation();deleteSession('+idx+')" '
