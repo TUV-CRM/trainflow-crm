@@ -93,6 +93,7 @@ input[type=date].fc{color-scheme:dark}
 .tab.active{background:linear-gradient(135deg,#1A7A8A,#23A0B5);color:#fff}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <div id="loginScreen">
@@ -5057,13 +5058,24 @@ function renderAttendanceTab(el, session, data){
   const qrPanel = document.createElement('div');
   qrPanel.style.cssText = 'background:#060F1E;border-radius:12px;padding:20px;text-align:center;border:1px solid #1A2E4A';
   const qrUrl = 'TUVTI-'+session.id+'-'+session.startDate;
-  qrPanel.innerHTML =
-    '<div style="color:#C9A84C;font-size:12px;font-weight:700;margin-bottom:12px">📱 '+t('رمز QR للحضور','QR Attendance Code')+'</div>'
-    +'<div style="background:white;border-radius:12px;padding:16px;display:inline-block;margin-bottom:12px">'
-    +generateQRSVG(qrUrl, 180)
-    +'</div>'
-    +'<div style="color:#6A85A5;font-size:10px;margin-bottom:8px">'+t('رمز الجلسة: ','Session Code: ')+session.id+'</div>'
-    +'<button data-sid="'+session.id+'" onclick="printQRCode(this.dataset.sid)" style="background:#23A0B5;border:none;border-radius:8px;color:white;padding:8px 16px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🖨️ '+t('طباعة QR','Print QR')+'</button>';
+      const baseUrl = window.location.origin + window.location.pathname;
+    const attendUrl = baseUrl + '#attend/' + session.id;
+
+    qrPanel.innerHTML = '<div style="color:#C9A84C;font-size:12px;font-weight:700;margin-bottom:12px">📱 '+t('رمز QR للحضور','QR Attendance Code')+'</div>'
+      +'<div id="qrCodeReal" style="background:white;border-radius:12px;padding:16px;display:inline-block;margin-bottom:12px"></div>'
+      +'<div style="color:#6A85A5;font-size:10px;margin-bottom:8px">'+t('رمز الجلسة: ','Session Code: ')+session.id+'</div>'
+      +'<div style="display:flex;gap:6px;justify-content:center">'
+      +'<button id="printQRReal" style="background:#23A0B5;border:none;border-radius:8px;color:white;padding:8px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🖨️ '+t('طباعة','Print')+'</button>'
+      +'<button id="copyLinkReal" style="background:rgba(26,138,90,.2);border:1px solid rgba(26,138,90,.3);border-radius:8px;color:#1A8A5A;padding:8px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🔗 '+t('نسخ الرابط','Copy Link')+'</button>'
+      +'</div>';
+    setTimeout(()=>{
+      const qrEl = document.getElementById('qrCodeReal');
+      if(qrEl && typeof QRCode!=='undefined'){ new QRCode(qrEl,{text:attendUrl,width:180,height:180,colorDark:'#1A3570',colorLight:'#ffffff'}); }
+      const pb = document.getElementById('printQRReal');
+      if(pb) pb.onclick = ()=>printQRCode(session.id, attendUrl);
+      const cb = document.getElementById('copyLinkReal');
+      if(cb) cb.onclick = ()=>{navigator.clipboard.writeText(attendUrl).then(()=>{cb.textContent='✅ '+t('تم!','Done!');setTimeout(()=>cb.textContent='🔗 '+t('نسخ الرابط','Copy Link'),2000);});};
+    }, 150);
   wrap.appendChild(qrPanel);
 
   // Right: Attendance List
@@ -5384,18 +5396,38 @@ function renderReportTab(el, session, data, sessionIdx){
 }
 
 // ── Print QR Code ──
-function printQRCode(sessionId){
+function printQRCode(sessionId, attendUrl){
   const session = DB.sessions.find(s=>s.id===sessionId);
   if(!session) return;
-  const w = window.open('','_blank','width=400,height=500');
-  w.document.write('<html><head><title>QR - '+session.course+'</title><style>body{text-align:center;font-family:Arial;padding:40px}svg{width:200px;height:200px}</style></head><body>'
-    +'<h2>'+session.course+'</h2>'
-    +'<p>'+session.trainer+' · '+session.startDate+'</p>'
-    +generateQRSVG('TUVTI-'+sessionId+'-'+session.startDate, 200)
-    +'<p style="margin-top:20px;color:#666;font-size:12px">Session: '+sessionId+'</p>'
+  const url = attendUrl || (window.location.origin+window.location.pathname+'#attend/'+sessionId);
+  const w = window.open('','_blank','width=500,height=700');
+  w.document.write('<html><head><title>QR - '+session.course+'</title>'
+    +'<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>'
+    +'<style>body{text-align:center;font-family:Arial,sans-serif;padding:30px;direction:rtl}'
+    +'.card{border:2px solid #1A3570;border-radius:16px;padding:30px;max-width:350px;margin:0 auto}'
+    +'h1{color:#1A3570;font-size:20px;margin-bottom:4px}'
+    +'h2{color:#6A85A5;font-size:14px;font-weight:400;margin-bottom:20px}'
+    +'.info{color:#3A5070;font-size:12px;margin-top:16px;line-height:1.8}'
+    +'.url{color:#23A0B5;font-size:9px;word-break:break-all;margin-top:12px}'
+    +'@media print{body{padding:10px}}</style></head><body>'
+    +'<div class="card">'
+    +'<div style="color:#C9A84C;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:12px">TUV TRAINING INSTITUTE</div>'
+    +'<h1>'+session.course+'</h1>'
+    +'<h2>'+session.trainer+'</h2>'
+    +'<div id="qr" style="display:inline-block;margin:10px auto"></div>'
+    +'<div class="info">'
+    +'📅 '+session.startDate+'<br>'
+    +'⏰ '+session.start+' - '+session.end+'<br>'
+    +(session.room?'🏛️ '+session.room+'<br>':'')
+    +'</div>'
+    +'<div style="margin-top:16px;background:#1A3570;color:white;border-radius:8px;padding:8px;font-size:12px;font-weight:700">'
+    +'📱 امسح الرمز لتسجيل الحضور'
+    +'</div>'
+    +'<div class="url">'+url+'</div>'
+    +'</div>'
+    +'<script>window.addEventListener("load",function(){new QRCode(document.getElementById("qr"),{text:"'+url+'",width:200,height:200,colorDark:"#1A3570",colorLight:"#ffffff"});setTimeout(function(){window.print()},800);})<\/script>'
     +'</body></html>');
   w.document.close();
-  w.print();
 }
 
 // ── Export Training Report PDF ──
@@ -10064,6 +10096,158 @@ function saveGistConfigFromModal(){
   // Sync immediately
   loadFromGistAndRefresh();
 }
+
+// ════════════════════════════════════════════
+//  QR ATTENDANCE PAGE (for scanned QR)
+// ════════════════════════════════════════════
+function checkAttendanceMode(){
+  const hash = window.location.hash;
+  if(!hash.startsWith('#attend/')) return false;
+  const sessionId = hash.replace('#attend/', '');
+  showAttendancePage(sessionId);
+  return true;
+}
+
+function showAttendancePage(sessionId){
+  const session = DB.sessions.find(s=>s.id===sessionId);
+  const t = (ar,en) => isAR() ? ar : en;
+
+  // Hide login, show attendance form
+  const loginScreen = document.getElementById('loginScreen');
+  if(loginScreen) loginScreen.style.display = 'none';
+  const app = document.getElementById('app');
+  if(app) app.style.display = 'none';
+
+  // Create attendance page
+  let page = document.getElementById('attendancePage');
+  if(page) page.remove();
+
+  page = document.createElement('div');
+  page.id = 'attendancePage';
+  page.style.cssText = 'position:fixed;inset:0;background:linear-gradient(180deg,#060F1E 0%,#0D1A2E 100%);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'background:#0B1E3D;border:1px solid #1A2E4A;border-radius:20px;padding:30px;width:400px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center';
+
+  if(!session){
+    card.innerHTML =
+      '<div style="font-size:40px;margin-bottom:16px">❌</div>'
+      +'<div style="color:#E74C3C;font-size:16px;font-weight:700">'+t('الجلسة غير موجودة','Session not found')+'</div>'
+      +'<div style="color:#6A85A5;font-size:12px;margin-top:8px">'+t('تأكد من صلاحية رمز QR','Please verify the QR code')+'</div>'
+      +'<button onclick="window.location.hash=\'\';window.location.reload()" style="margin-top:20px;background:#23A0B5;border:none;border-radius:10px;color:white;padding:12px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">'
+      +t('العودة للنظام','Go to System')+'</button>';
+    page.appendChild(card);
+    document.body.appendChild(page);
+    return;
+  }
+
+  const hours = calcSessionHours(session);
+  const data  = getSessionData(session.id);
+  if(!data.attendance) data.attendance = [];
+
+  card.innerHTML =
+    // Header
+    '<div style="margin-bottom:20px">'
+    +'<div style="width:50px;height:50px;border-radius:13px;background:linear-gradient(135deg,#C9A84C,#8A6F2E);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#0B1E3D;margin:0 auto 12px">T</div>'
+    +'<div style="color:#C9A84C;font-size:9px;font-weight:700;letter-spacing:2px">TUV TRAINING INSTITUTE</div>'
+    +'</div>'
+
+    // Course info
+    +'<div style="background:#060F1E;border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid #1A2E4A">'
+    +'<div style="color:#23A0B5;font-size:16px;font-weight:800;margin-bottom:8px">'+session.course+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:4px;font-size:12px">'
+    +'<div style="color:#D0D8EC">👨‍🏫 '+session.trainer+'</div>'
+    +'<div style="color:#6A85A5">📅 '+session.startDate+' · ⏰ '+session.start+'-'+session.end+'</div>'
+    +'<div style="color:#6A85A5">⏱️ '+hours.toFixed(1)+' '+t('ساعة','hours')
+    +(session.room?' · 🏛️ '+session.room:'')+'</div>'
+    +'</div></div>'
+
+    // Registration form
+    +'<div style="text-align:right;margin-bottom:16px">'
+    +'<div style="color:#F5F7FA;font-size:14px;font-weight:700;margin-bottom:12px;text-align:center">📝 '+t('تسجيل الحضور','Check-in')+'</div>'
+    +'<div class="form-group" style="margin-bottom:10px"><label style="color:#6A85A5;font-size:11px">'+t('الاسم الكامل *','Full Name *')+'</label>'
+    +'<input class="fc" id="att-qr-name" style="font-size:14px;padding:12px;text-align:center" placeholder="'+t('اكتب اسمك هنا','Enter your name')+'"/></div>'
+    +'<div class="form-group" style="margin-bottom:10px"><label style="color:#6A85A5;font-size:11px">'+t('الشركة','Company')+'</label>'
+    +'<input class="fc" id="att-qr-company" style="font-size:14px;padding:12px;text-align:center" placeholder="'+t('اسم الشركة','Company name')+'"/></div>'
+    +'<div class="form-group" style="margin-bottom:10px"><label style="color:#6A85A5;font-size:11px">'+t('رقم الهوية / الإقامة','ID / Iqama Number')+'</label>'
+    +'<input class="fc" id="att-qr-id" style="font-size:14px;padding:12px;text-align:center" placeholder="'+t('اختياري','Optional')+'"/></div>'
+    +'</div>'
+
+    // Submit button
+    +'<button id="att-qr-submit" style="background:linear-gradient(135deg,#1A8A5A,#27AE60);border:none;border-radius:12px;color:white;padding:14px;font-size:15px;font-weight:800;cursor:pointer;width:100%;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">'
+    +'✅ '+t('تسجيل حضوري','Confirm Attendance')+'</button>'
+
+    // Attendance count
+    +'<div style="margin-top:16px;color:#6A85A5;font-size:11px">👥 '+t('عدد الحاضرين: ','Attendees: ')+'<strong style="color:#1A8A5A">'+data.attendance.length+'</strong></div>';
+
+  page.appendChild(card);
+  document.body.appendChild(page);
+
+  // Wire submit
+  setTimeout(()=>{
+    const submitBtn = document.getElementById('att-qr-submit');
+    if(submitBtn) submitBtn.onclick = ()=>{
+      const name    = document.getElementById('att-qr-name').value.trim();
+      const company = document.getElementById('att-qr-company').value.trim();
+      const idNum   = document.getElementById('att-qr-id').value.trim();
+      if(!name){ alert(t('أدخل اسمك','Enter your name')); return; }
+
+      // Check duplicate
+      const existing = data.attendance.find(a=>a.name.toLowerCase()===name.toLowerCase());
+      if(existing){
+        showAttendanceSuccess(session, name, true);
+        return;
+      }
+
+      // Save attendance
+      data.attendance.push({
+        name,
+        company,
+        idNumber: idNum,
+        time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+        date: new Date().toISOString().slice(0,10),
+        method: 'QR'
+      });
+      saveSessionData(session.id, data);
+      showAttendanceSuccess(session, name, false);
+    };
+  }, 100);
+}
+
+function showAttendanceSuccess(session, name, isDuplicate){
+  const t = (ar,en) => isAR() ? ar : en;
+  const page = document.getElementById('attendancePage');
+  if(!page) return;
+
+  const card = page.querySelector('div');
+  if(!card) return;
+
+  card.innerHTML =
+    '<div style="margin:20px 0">'
+    +'<div style="font-size:60px;margin-bottom:16px">'+(isDuplicate?'⚠️':'✅')+'</div>'
+    +'<div style="color:'+(isDuplicate?'#C9A84C':'#1A8A5A')+';font-size:20px;font-weight:800;margin-bottom:8px">'
+    +(isDuplicate
+      ? t('تم تسجيلك مسبقاً!','Already registered!')
+      : t('تم تسجيل حضورك بنجاح!','Attendance confirmed!'))
+    +'</div>'
+    +'<div style="color:#F5F7FA;font-size:16px;font-weight:700;margin-bottom:4px">'+name+'</div>'
+    +'<div style="color:#23A0B5;font-size:14px;margin-bottom:16px">'+session.course+'</div>'
+    +'<div style="background:#060F1E;border-radius:12px;padding:14px;border:1px solid #1A2E4A;display:flex;flex-direction:column;gap:6px">'
+    +'<div style="color:#6A85A5;font-size:12px">📅 '+session.startDate+'</div>'
+    +'<div style="color:#6A85A5;font-size:12px">⏰ '+session.start+' - '+session.end+'</div>'
+    +'<div style="color:#6A85A5;font-size:12px">👨‍🏫 '+session.trainer+'</div>'
+    +'</div>'
+    +'<div style="margin-top:20px;color:#6A85A5;font-size:10px">TUV Training Institute · TrainFlow CRM</div>'
+    +'</div>';
+}
+
+// ── Listen for hash changes ──
+window.addEventListener('hashchange', ()=>{
+  if(window.location.hash.startsWith('#attend/')){
+    checkAttendanceMode();
+  }
+});
+
 // ════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════
@@ -10073,9 +10257,9 @@ window.onerror = function(msg, src, line, col, err){
   d.textContent = '⚠️ JS Error: '+msg+' (line '+line+')';
   document.body.appendChild(d);
 };
-try { initApp(); } catch(e){ 
+if(!checkAttendanceMode()){ try { initApp(); } catch(e){ 
   document.body.innerHTML = '<div style="padding:40px;text-align:center;color:white;background:#0B1E3D;min-height:100vh"><h2>⚠️ خطأ في التحميل</h2><p>'+e.message+'</p><p style="color:#6A85A5;font-size:11px">Line: '+e.stack+'</p></div>';
-}
+} }
 </script>
 
 <div class="modal-overlay" id="modalSyncSetup">
