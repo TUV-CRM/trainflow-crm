@@ -1533,6 +1533,7 @@ function _old_initDefaultClients_disabled(){
 }
 
 function launchApp(){
+  loadDemoData(); // Load demo data on first boot
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').style.display='flex';
   // Apply saved language
@@ -5993,6 +5994,10 @@ function checkExpiringCertificates(){
 
 function renderReportsPage(sc){
   const t = (ar,en) => isAR() ? ar : en;
+  // Detect sub-page from sidebar click or manual selection
+  if(typeof activeChild==='string' && activeChild.startsWith('reports-')){
+    window._reportsSubPage = activeChild.replace('reports-','');
+  }
   const subPage = window._reportsSubPage || 'dashboard';
   sc.innerHTML = '';
   const wrap = document.createElement('div');
@@ -6019,14 +6024,20 @@ function renderReportsPage(sc){
   wrap.appendChild(tabBar);
 
   // Content
-  const content = document.createElement('div');
-  if(subPage==='dashboard')  renderExecDashboard(content);
-  else if(subPage==='revenue')   renderRevenueReport(content);
-  else if(subPage==='occupancy') renderOccupancyReport(content);
-  else if(subPage==='clients')   renderClientReport(content);
-  else if(subPage==='collection')renderCollectionReport(content);
-  else if(subPage==='export')    renderExportPage(content);
-  wrap.appendChild(content);
+  const reportContent = document.createElement('div');
+  try {
+    if(subPage==='dashboard')  renderExecDashboard(reportContent);
+    else if(subPage==='revenue')   renderRevenueReport(reportContent);
+    else if(subPage==='occupancy') renderOccupancyReport(reportContent);
+    else if(subPage==='clients')   renderClientReport(reportContent);
+    else if(subPage==='collection')renderCollectionReport(reportContent);
+    else if(subPage==='export')    renderExportPage(reportContent);
+  } catch(e){
+    reportContent.innerHTML = '<div style="background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:10px;padding:20px;text-align:center">'
+      +'<div style="color:#E74C3C;font-size:14px;font-weight:700;margin-bottom:8px">⚠️ '+(isAR()?'خطأ في تحميل التقرير':'Error loading report')+'</div>'
+      +'<div style="color:#6A85A5;font-size:11px">'+e.message+'</div></div>';
+  }
+  wrap.appendChild(reportContent);
   sc.appendChild(wrap);
 }
 
@@ -6149,6 +6160,20 @@ function renderExecDashboard(el){
       +'<div style="background:#1A2E4A;border-radius:4px;height:6px;overflow:hidden"><div style="height:6px;border-radius:4px;background:linear-gradient(90deg,#9B59B6,#23A0B5);width:'+barW+'%"></div></div></div>';
   });
   el.appendChild(teamDiv);
+
+  // Empty state check
+  if(!d.quotes.length && !d.sessions.length && !d.leads.length){
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.cssText = 'background:rgba(26,122,138,.08);border:1px solid rgba(26,122,138,.3);border-radius:12px;padding:24px;text-align:center;margin-top:10px';
+    emptyMsg.innerHTML = '<div style="font-size:36px;margin-bottom:12px">📊</div>'
+      +'<div style="color:#23A0B5;font-size:15px;font-weight:700;margin-bottom:6px">'+(isAR()?'ابدأ بإضافة البيانات':'Start adding data')+'</div>'
+      +'<div style="color:#6A85A5;font-size:12px;line-height:1.8">'
+      +(isAR()
+        ?'أضف عروض أسعار وفواتير وجلسات تدريبية من الأقسام الأخرى<br>وستظهر التقارير تلقائياً هنا'
+        :'Add quotes, invoices, and training sessions from other sections<br>Reports will appear here automatically')
+      +'</div>';
+    el.appendChild(emptyMsg);
+  }
 
   // Expiring certificates alert
   const expiring = checkExpiringCertificates();
@@ -11277,6 +11302,138 @@ window.addEventListener('hashchange', ()=>{
     checkAttendanceMode();
   }
 });
+
+
+// ════════════════════════════════════════════
+//  DEMO DATA LOADER
+// ════════════════════════════════════════════
+function loadDemoData(){
+  if(localStorage.getItem('tf4_demo_loaded')==='v2') return;
+
+  // ── Demo Clients ──
+  const demoClients = [
+    {id:'CLT-D1',company:'Saudi Aramco',name:'فهد الغامدي',phone:'0501234567',email:'fahad@aramco.com',city:'الظهران',sector:'النفط والغاز'},
+    {id:'CLT-D2',company:'SABIC',name:'خالد العمري',phone:'0509876543',email:'khaled@sabic.com',city:'الجبيل',sector:'البتروكيماويات'},
+    {id:'CLT-D3',company:'STC',name:'عبدالله الشمري',phone:'0551112233',email:'abdullah@stc.com.sa',city:'الرياض',sector:'الاتصالات'},
+    {id:'CLT-D4',company:'SEC - الكهرباء',name:'محمد القحطاني',phone:'0553334455',email:'mohammed@se.com.sa',city:'الدمام',sector:'الطاقة'},
+    {id:'CLT-D5',company:'Ma\'aden',name:'سلطان الدوسري',phone:'0557778899',email:'sultan@maaden.com',city:'رأس الخير',sector:'التعدين'},
+    {id:'CLT-D6',company:'SWCC التحلية',name:'أحمد الحربي',phone:'0559990011',email:'ahmed@swcc.gov.sa',city:'الجبيل',sector:'المياه'},
+    {id:'CLT-D7',company:'Sadara Chemical',name:'يوسف البلوي',phone:'0552223344',email:'yousuf@sadara.com',city:'الجبيل',sector:'الكيماويات'},
+    {id:'CLT-D8',company:'SAFCO',name:'ماجد الشهري',phone:'0554445566',email:'majed@safco.com',city:'الجبيل',sector:'الأسمدة'},
+  ];
+  localStorage.setItem('tf4_clients', JSON.stringify(demoClients));
+
+  // ── Demo Quotes ──
+  const demoQuotes = [
+    {id:'QUO-2026-01-001',client:'Saudi Aramco',salesperson:'محمد الوضاح',createdBy:'محمد الوضاح',date:'2026-01-15',status:'مقبول',items:[{course:'OSHA 30 Hours',qty:15,price:1800,discount:0,duration:'5 Days',lineTotal:27000}],gross:27000,vat:4050,netTotal:31050,createdAt:'2026-01-15T08:30:00',attn:'فهد الغامدي',phone:'0501234567',paymentTerms:'Net 30'},
+    {id:'QUO-2026-01-002',client:'SABIC',salesperson:'محمد الوضاح',createdBy:'محمد الوضاح',date:'2026-01-20',status:'مقبول',items:[{course:'PMP Certification',qty:8,price:2500,discount:5,duration:'5 Days',lineTotal:19000}],gross:19000,vat:2850,netTotal:21850,createdAt:'2026-01-20T09:15:00',attn:'خالد العمري'},
+    {id:'QUO-2026-02-003',client:'STC',salesperson:'محمد أسد',createdBy:'محمد أسد',date:'2026-02-05',status:'مقبول',items:[{course:'Data Analytics',qty:12,price:2200,discount:0,duration:'3 Days',lineTotal:26400}],gross:26400,vat:3960,netTotal:30360,createdAt:'2026-02-05T10:00:00'},
+    {id:'QUO-2026-02-004',client:'SEC - الكهرباء',salesperson:'محمد الوضاح',createdBy:'محمد الوضاح',date:'2026-02-10',status:'مقبول',items:[{course:'Electrical Safety',qty:20,price:1500,discount:10,duration:'3 Days',lineTotal:27000}],gross:27000,vat:4050,netTotal:31050,createdAt:'2026-02-10T11:30:00'},
+    {id:'QUO-2026-03-005',client:'Ma\'aden',salesperson:'محمد أسد',createdBy:'محمد أسد',date:'2026-03-01',status:'مُرسَل',items:[{course:'Confined Space Entry',qty:10,price:1800,discount:0,duration:'2 Days',lineTotal:18000}],gross:18000,vat:2700,netTotal:20700,createdAt:'2026-03-01T08:00:00'},
+    {id:'QUO-2026-03-006',client:'SWCC التحلية',salesperson:'محمد الوضاح',createdBy:'محمد الوضاح',date:'2026-03-15',status:'مقبول',items:[{course:'Fire Fighting',qty:25,price:1200,discount:5,duration:'2 Days',lineTotal:28500}],gross:28500,vat:4275,netTotal:32775,createdAt:'2026-03-15T09:45:00'},
+    {id:'QUO-2026-04-007',client:'Sadara Chemical',salesperson:'محمد أسد',createdBy:'محمد أسد',date:'2026-04-01',status:'تفاوض',items:[{course:'Process Safety Management',qty:15,price:2000,discount:0,duration:'3 Days',lineTotal:30000}],gross:30000,vat:4500,netTotal:34500,createdAt:'2026-04-01T10:20:00'},
+    {id:'QUO-2026-04-008',client:'Saudi Aramco',salesperson:'محمد الوضاح',createdBy:'محمد الوضاح',date:'2026-04-10',status:'مقبول',items:[{course:'H2S Safety',qty:30,price:800,discount:0,duration:'1 Day',lineTotal:24000}],gross:24000,vat:3600,netTotal:27600,createdAt:'2026-04-10T07:30:00'},
+    {id:'QUO-2026-05-009',client:'SAFCO',salesperson:'محمد أسد',createdBy:'محمد أسد',date:'2026-05-01',status:'مسودة',items:[{course:'First Aid & CPR',qty:20,price:1000,discount:0,duration:'2 Days',lineTotal:20000}],gross:20000,vat:3000,netTotal:23000,createdAt:'2026-05-01T08:15:00'},
+    {id:'QUO-2026-05-010',client:'SABIC',salesperson:'محمد الوضاح',createdBy:'محمد الوضاح',date:'2026-05-15',status:'مقبول',items:[{course:'Leadership Program',qty:10,price:3500,discount:10,duration:'5 Days',lineTotal:31500}],gross:31500,vat:4725,netTotal:36225,createdAt:'2026-05-15T11:00:00'},
+    {id:'QUO-2026-06-011',client:'STC',salesperson:'محمد أسد',createdBy:'محمد أسد',date:'2026-06-01',status:'مُرسَل',items:[{course:'Cybersecurity Awareness',qty:15,price:2800,discount:0,duration:'3 Days',lineTotal:42000}],gross:42000,vat:6300,netTotal:48300,createdAt:'2026-06-01T09:30:00'},
+    {id:'QUO-2026-06-012',client:'SEC - الكهرباء',salesperson:'محمد الوضاح',createdBy:'محمد الوضاح',date:'2026-06-10',status:'مرفوض',items:[{course:'Welding Safety',qty:8,price:1500,discount:0,duration:'2 Days',lineTotal:12000}],gross:12000,vat:1800,netTotal:13800,createdAt:'2026-06-10T10:45:00'},
+  ];
+  localStorage.setItem('tf4_quotes', JSON.stringify(demoQuotes));
+
+  // ── Demo Invoices ──
+  DB.invoices = [
+    {id:'INV-2026-001',client:'Saudi Aramco',amount:31050,status:'مدفوع',date:'2026-01-20',dueDate:'2026-02-20',quoteId:'QUO-2026-01-001'},
+    {id:'INV-2026-002',client:'SABIC',amount:21850,status:'مدفوع',date:'2026-01-25',dueDate:'2026-02-25',quoteId:'QUO-2026-01-002'},
+    {id:'INV-2026-003',client:'STC',amount:30360,status:'مدفوع',date:'2026-02-10',dueDate:'2026-03-10',quoteId:'QUO-2026-02-003'},
+    {id:'INV-2026-004',client:'SEC - الكهرباء',amount:31050,status:'متأخر',date:'2026-02-15',dueDate:'2026-03-15',quoteId:'QUO-2026-02-004'},
+    {id:'INV-2026-005',client:'SWCC التحلية',amount:32775,status:'مدفوع',date:'2026-03-20',dueDate:'2026-04-20',quoteId:'QUO-2026-03-006'},
+    {id:'INV-2026-006',client:'Saudi Aramco',amount:27600,status:'مدفوع',date:'2026-04-15',dueDate:'2026-05-15',quoteId:'QUO-2026-04-008'},
+    {id:'INV-2026-007',client:'SABIC',amount:36225,status:'معلق',date:'2026-05-20',dueDate:'2026-06-20',quoteId:'QUO-2026-05-010'},
+  ];
+
+  // ── Demo Leads ──
+  DB.leads = [
+    {id:'LD-D1',name:'فهد الغامدي',company:'Saudi Aramco',course:'NEBOSH IGC',value:45000,stage:'مُنجَز',source:'إحالة',assignee:'محمد الوضاح',phone:'0501234567',date:'2026-01-10',nextFollowup:'',activityLog:[{type:'📞 مكالمة',note:'تم الاتفاق على NEBOSH',date:'2026-01-12T10:00:00',user:'محمد الوضاح'}]},
+    {id:'LD-D2',name:'خالد العمري',company:'SABIC',course:'PMP Certification',value:21850,stage:'مُنجَز',source:'بريد إلكتروني',assignee:'محمد الوضاح',phone:'0509876543',date:'2026-01-18',activityLog:[]},
+    {id:'LD-D3',name:'عبدالله الشمري',company:'STC',course:'Data Analytics',value:30360,stage:'مُنجَز',source:'واتساب',assignee:'محمد أسد',phone:'0551112233',date:'2026-02-01',activityLog:[]},
+    {id:'LD-D4',name:'محمد القحطاني',company:'SEC - الكهرباء',course:'Electrical Safety',value:31050,stage:'تفاوض',source:'موقع إلكتروني',assignee:'محمد الوضاح',phone:'0553334455',date:'2026-02-08',nextFollowup:'2026-06-15',activityLog:[{type:'🤝 اجتماع',note:'اجتماع في مقر SEC',date:'2026-02-09T14:00:00',user:'محمد الوضاح'},{type:'📧 بريد',note:'إرسال العرض',date:'2026-02-10T09:00:00',user:'محمد الوضاح'}]},
+    {id:'LD-D5',name:'سلطان الدوسري',company:'Ma\'aden',course:'Confined Space',value:20700,stage:'عرض سعر',source:'إحالة',assignee:'محمد أسد',phone:'0557778899',date:'2026-03-01',nextFollowup:'2026-06-14',activityLog:[]},
+    {id:'LD-D6',name:'أحمد الحربي',company:'SWCC التحلية',course:'Fire Fighting',value:32775,stage:'مُنجَز',source:'معرض',assignee:'محمد الوضاح',phone:'0559990011',date:'2026-03-10',activityLog:[]},
+    {id:'LD-D7',name:'يوسف البلوي',company:'Sadara Chemical',course:'Process Safety',value:34500,stage:'تفاوض',source:'واتساب',assignee:'محمد أسد',phone:'0552223344',date:'2026-04-01',nextFollowup:'2026-06-16',activityLog:[{type:'📱 WhatsApp',note:'ارسال تفاصيل الدورة',date:'2026-04-02T08:00:00',user:'محمد أسد'}]},
+    {id:'LD-D8',name:'ماجد الشهري',company:'SAFCO',course:'First Aid',value:23000,stage:'اتصال أولي',source:'بريد إلكتروني',assignee:'محمد أسد',phone:'0554445566',date:'2026-05-01',nextFollowup:'2026-06-13',activityLog:[]},
+    {id:'LD-D9',name:'تركي المطيري',company:'SATORP',course:'OSHA 30',value:28000,stage:'جديد',source:'موقع إلكتروني',assignee:'محمد الوضاح',phone:'0556667788',date:'2026-06-05',activityLog:[]},
+    {id:'LD-D10',name:'عمر الزهراني',company:'Yanbu Aramco Sinopec',course:'H2S Safety',value:18500,stage:'خسارة',source:'إحالة',assignee:'محمد أسد',phone:'0558889900',date:'2026-04-15',activityLog:[{type:'📝 ملاحظة',note:'اختاروا مزود آخر — سعر أقل',date:'2026-05-01T10:00:00',user:'محمد أسد'}]},
+  ];
+
+  // ── Demo Sessions ──
+  DB.sessions = [
+    {id:'ses-d1',course:'OSHA 30 Hours',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الأحد',startDate:'2026-01-19',start:'08:00',end:'16:00',color:'#23A0B5',room:'قاعة 1',companies:[{company:'Saudi Aramco',attendees:15}]},
+    {id:'ses-d2',course:'PMP Certification',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الاثنين',startDate:'2026-02-02',start:'09:00',end:'17:00',color:'#C9A84C',room:'قاعة 2',companies:[{company:'SABIC',attendees:8}]},
+    {id:'ses-d3',course:'Data Analytics',trainer:'Ahmed Abdel Salam',type:'أونلاين',day:'الثلاثاء',startDate:'2026-02-16',start:'09:00',end:'14:00',color:'#1A8A5A',room:'',platform:'Zoom',companies:[{company:'STC',attendees:12}]},
+    {id:'ses-d4',course:'Electrical Safety',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الأربعاء',startDate:'2026-03-02',start:'08:00',end:'14:00',color:'#E67E22',room:'قاعة 1',companies:[{company:'SEC - الكهرباء',attendees:20}]},
+    {id:'ses-d5',course:'Fire Fighting',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الأحد',startDate:'2026-03-23',start:'08:00',end:'16:00',color:'#C0392B',room:'قاعة 3',companies:[{company:'SWCC التحلية',attendees:25}]},
+    {id:'ses-d6',course:'H2S Safety',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الاثنين',startDate:'2026-04-13',start:'08:00',end:'12:00',color:'#9B59B6',room:'قاعة 1',companies:[{company:'Saudi Aramco',attendees:30}]},
+    {id:'ses-d7',course:'First Aid & CPR',trainer:'Rawnak Training Center',type:'حضوري',day:'الثلاثاء',startDate:'2026-05-05',start:'08:00',end:'16:00',color:'#1A8A5A',room:'قاعة 2',companies:[{company:'SABIC',attendees:10},{company:'SAFCO',attendees:8}]},
+    {id:'ses-d8',course:'Leadership Program',trainer:'Ahmed Abdel Salam',type:'هجين',day:'الأحد',startDate:'2026-05-18',start:'09:00',end:'15:00',color:'#C9A84C',room:'قاعة 1',platform:'Zoom',companies:[{company:'SABIC',attendees:10}]},
+    {id:'ses-d9',course:'OSHA 10 Hours',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الأربعاء',startDate:'2026-06-11',start:'08:00',end:'16:00',color:'#23A0B5',room:'قاعة 1',companies:[{company:'Ma\'aden',attendees:10},{company:'Sadara Chemical',attendees:8}]},
+  ];
+
+  // ── Demo Session Training Data (attendance, tests) ──
+  const sessionTrainingData = {
+    'ses-d1': {
+      attendance: Array.from({length:15},(_,i)=>({name:'متدرب أرامكو '+(i+1),company:'Saudi Aramco',time:'08:0'+(i<10?i:'0'),date:'2026-01-19',method:'QR'})),
+      preTest: Array.from({length:15},(_,i)=>({name:'متدرب أرامكو '+(i+1),score:30+Math.floor(Math.random()*40),date:'2026-01-19'})),
+      postTest: Array.from({length:15},(_,i)=>({name:'متدرب أرامكو '+(i+1),score:55+Math.floor(Math.random()*40),date:'2026-01-23'})),
+      trainerEval:{knowledge:5,delivery:4,interaction:5,materials:4,time:4,overall:5},
+    },
+    'ses-d4': {
+      attendance: Array.from({length:20},(_,i)=>({name:'فني كهرباء '+(i+1),company:'SEC',time:'08:0'+(i%10),date:'2026-03-02',method:'Excel'})),
+      preTest: Array.from({length:20},(_,i)=>({name:'فني كهرباء '+(i+1),score:25+Math.floor(Math.random()*35),date:'2026-03-02'})),
+      postTest: Array.from({length:20},(_,i)=>({name:'فني كهرباء '+(i+1),score:60+Math.floor(Math.random()*35),date:'2026-03-04'})),
+      trainerEval:{knowledge:5,delivery:5,interaction:4,materials:5,time:3,overall:5},
+    },
+    'ses-d5': {
+      attendance: Array.from({length:25},(_,i)=>({name:'متدرب تحلية '+(i+1),company:'SWCC',time:'08:0'+(i%10),date:'2026-03-23',method:'Manual'})),
+      trainerEval:{knowledge:4,delivery:4,interaction:5,materials:4,time:4,overall:4},
+    },
+  };
+
+  Object.entries(sessionTrainingData).forEach(([sid,sdata])=>{
+    localStorage.setItem('tf4_session_'+sid, JSON.stringify(sdata));
+  });
+
+  // ── Demo Daily Reports ──
+  const demoDays = [
+    {date:'2026-06-10',user:'محمد الوضاح',activities:'اتصال بأرامكو لمتابعة دورة NEBOSH\nإرسال عرض سعر لـ STC\nاجتماع مع SEC',calls:5,meetings:1,proposals:2},
+    {date:'2026-06-11',user:'محمد أسد',activities:'متابعة Ma\'aden لدورة Confined Space\nاتصال بـ SAFCO\nتحديث Pipeline',calls:4,meetings:0,proposals:1},
+    {date:'2026-06-12',user:'محمد الوضاح',activities:'إرسال فاتورة SABIC\nمتابعة تحصيل SEC\nاجتماع فريق المبيعات',calls:3,meetings:2,proposals:0},
+  ];
+  localStorage.setItem('tf4_daily', JSON.stringify(demoDays));
+
+  // ── Demo Trainee Profiles with Certificates ──
+  const demoProfiles = [
+    {name:'متدرب أرامكو 1',company:'Saudi Aramco',certificates:[
+      {name:'OSHA 30 Hours',issued:'2026-01-23',expiry:'2029-01-23'},
+      {name:'H2S Safety',issued:'2025-06-15',expiry:'2026-06-15'},
+    ]},
+    {name:'متدرب أرامكو 5',company:'Saudi Aramco',certificates:[
+      {name:'OSHA 30 Hours',issued:'2026-01-23',expiry:'2029-01-23'},
+      {name:'First Aid',issued:'2025-03-10',expiry:'2026-03-10'},
+    ]},
+    {name:'فني كهرباء 1',company:'SEC',certificates:[
+      {name:'Electrical Safety',issued:'2026-03-04',expiry:'2027-03-04'},
+    ]},
+  ];
+  localStorage.setItem('tf4_trainee_profiles', JSON.stringify(demoProfiles));
+
+  // Save to DB
+  ss('invoices', DB.invoices);
+  ss('leads', DB.leads);
+  ss('sessions', DB.sessions);
+
+  localStorage.setItem('tf4_demo_loaded','v2');
+  console.log('✅ Demo data loaded successfully');
+}
 
 // ════════════════════════════════════════════
 //  BOOT
