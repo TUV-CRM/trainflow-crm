@@ -199,13 +199,13 @@ input[type=date].fc{color-scheme:dark}
       <button onclick="closeModal('modalLead')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>${isAR()?'الاسم الكامل':'Full Name'}</label><input class="fc" id="f-name" placeholder="اسم العميل"/></div>
+      <div class="form-group"><label>الاسم الكامل</label><input class="fc" id="f-name" placeholder="اسم العميل"/></div>
       <!-- Company picker with search -->
       <div class="form-group">
-        <label>${isAR()?'الشركة':'Company'}</label>
+        <label>الشركة</label>
         <div style="position:relative">
           <input class="fc" id="f-company" autocomplete="off"
-            placeholder="${isAR()?'ابحث أو اكتب اسم الشركة...':'Search or type company name...'}"
+            placeholder="ابحث أو اكتب اسم الشركة..."
             oninput="filterLeadCompany(this.value)"
             onfocus="showLeadCompanyDrop()"
             onblur="setTimeout(()=>hideLeadCompanyDrop(),200)"/>
@@ -216,10 +216,10 @@ input[type=date].fc{color-scheme:dark}
       </div>
       <!-- Course picker with search -->
       <div class="form-group">
-        <label>${isAR()?'الدورة':'Course'}</label>
+        <label>الدورة</label>
         <div style="position:relative">
           <input class="fc" id="f-course" autocomplete="off"
-            placeholder="${isAR()?'ابحث عن الدورة...':'Search for course...'}"
+            placeholder="ابحث عن الدورة..."
             oninput="filterLeadCourse(this.value)"
             onfocus="showLeadCourseDrop()"
             onblur="setTimeout(()=>hideLeadCourseDrop(),200)"/>
@@ -259,7 +259,7 @@ input[type=date].fc{color-scheme:dark}
 <div class="modal-overlay" id="modalSession">
   <div class="modal" style="width:600px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <div class="modal-title" id="modalSessionTitle">${isAR()?'إضافة جلسة تدريبية':'Add Training Session'}</div>
+      <div class="modal-title" id="modalSessionTitle">إضافة جلسة تدريبية</div>
       <button onclick="closeModal('modalSession')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
@@ -269,9 +269,9 @@ input[type=date].fc{color-scheme:dark}
         </select>
       </div>
       <div class="form-group">
-        <label>${isAR()?'المدرب':'Trainer'}</label>
+        <label>المدرب</label>
         <select class="fc" id="s-trainer" onchange="autoFillTrainerLocation(this.value)">
-          <option value="">-- ${isAR()?'اختر مدرباً':'Select Trainer'} --</option>
+          <option value="">-- اختر مدرباً --</option>
         </select>
       </div>
       <div class="form-group"><label>نوع التدريب</label>
@@ -291,11 +291,11 @@ input[type=date].fc{color-scheme:dark}
     <div style="background:#060F1E;border:1px solid rgba(155,89,182,.3);border-radius:10px;padding:13px;margin-bottom:4px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div style="color:#9B59B6;font-size:11px;font-weight:700">
-          🏢 ${isAR()?'الشركات والموظفون الحاضرون':'Attending Companies & Employees'}
+          🏢 الشركات والموظفون الحاضرون
         </div>
         <button type="button" onclick="addSessionCompanyRow()"
           style="background:rgba(155,89,182,.2);border:1px solid rgba(155,89,182,.4);border-radius:6px;color:#9B59B6;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer">
-          + ${isAR()?'إضافة شركة':'Add Company'}
+          + إضافة شركة
         </button>
       </div>
       <div id="sessionCompanyRows" style="display:flex;flex-direction:column;gap:7px">
@@ -307,31 +307,31 @@ input[type=date].fc{color-scheme:dark}
     <!-- Classroom selector (حضوري) -->
     <div id="roomRow" class="form-row" style="display:none">
       <div class="form-group">
-        <label>🏛️ ${isAR()?'قاعة التدريب':'Training Room'}</label>
+        <label>🏛️ قاعة التدريب</label>
         <select class="fc" id="s-room">
-          <option value="">-- ${isAR()?'اختر القاعة':'Select Room'} --</option>
-          <option value="قاعة 1">${isAR()?'قاعة 1':'Room 1'}</option>
-          <option value="قاعة 2">${isAR()?'قاعة 2':'Room 2'}</option>
-          <option value="قاعة 3">${isAR()?'قاعة 3':'Room 3'}</option>
-          <option value="قاعة 4">${isAR()?'قاعة 4':'Room 4'}</option>
+          <option value="">-- اختر القاعة --</option>
+          <option value="قاعة 1">قاعة 1</option>
+          <option value="قاعة 2">قاعة 2</option>
+          <option value="قاعة 3">قاعة 3</option>
+          <option value="قاعة 4">قاعة 4</option>
         </select>
       </div>
       <div class="form-group">
-        <label>📍 ${isAR()?'موقع التدريب':'Training Location'}</label>
+        <label>📍 موقع التدريب</label>
         <div style="position:relative;display:flex;gap:8px;align-items:center">
-          <input class="fc" id="s-location" placeholder="${isAR()?'رابط Google Maps لموقع التدريب':'Google Maps link for training location'}"
+          <input class="fc" id="s-location" placeholder="رابط Google Maps لموقع التدريب"
             style="flex:1;font-size:12px" oninput="updateLocationPreview()"/>
           <button type="button" onclick="openGoogleMapsSearch()"
             style="background:linear-gradient(135deg,#1A8A5A,#27AE60);border:none;border-radius:8px;color:white;padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap;display:flex;align-items:center;gap:5px;font-family:inherit;font-size:11px;font-weight:700"
-            title="${isAR()?'فتح Google Maps':'Open Google Maps'}">
-            🗺️ ${isAR()?'فتح الخريطة':'Maps'}
+            title="فتح Google Maps">
+            🗺️ فتح الخريطة
           </button>
         </div>
         <div id="locationPreview" style="display:none;margin-top:6px;background:rgba(26,138,90,.1);border:1px solid rgba(26,138,90,.3);border-radius:7px;padding:8px 12px">
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:16px">📍</span>
             <div>
-              <div style="color:#1A8A5A;font-size:11px;font-weight:700">${isAR()?'موقع التدريب مُحدد':'Training location set'}</div>
+              <div style="color:#1A8A5A;font-size:11px;font-weight:700">موقع التدريب مُحدد</div>
               <a id="locationLink" href="#" target="_blank" style="color:#23A0B5;font-size:10px;word-break:break-all"></a>
             </div>
           </div>
@@ -425,7 +425,7 @@ input[type=date].fc{color-scheme:dark}
       <button onclick="closeModal('modalUser')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>${isAR()?'الاسم الكامل':'Full Name'}</label><input class="fc" id="u-name" placeholder="اسم المستخدم"/></div>
+      <div class="form-group"><label>الاسم الكامل</label><input class="fc" id="u-name" placeholder="اسم المستخدم"/></div>
       <div class="form-group"><label>الدور / المسمى الوظيفي</label><input class="fc" id="u-role" placeholder="مستشار مبيعات"/></div>
       <div class="form-group"><label>📞 رقم الواتساب</label><input class="fc" id="u-phone" placeholder="+966 5X XXX XXXX"/></div>
       <div class="form-group"><label>📧 البريد الإلكتروني</label><input class="fc" id="u-email" placeholder="name@tuvti.com.sa"/></div>
@@ -483,20 +483,20 @@ input[type=date].fc{color-scheme:dark}
 <div class="modal-overlay" id="modalClient">
   <div class="modal" style="width:600px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <div class="modal-title" id="modalClientTitle">${isAR()?'إضافة عميل جديد':'Add New Client'}</div>
+      <div class="modal-title" id="modalClientTitle">إضافة عميل جديد</div>
       <button onclick="closeModal('modalClient')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>🏢 ${isAR()?'الاسم بالعربي':'Company Name (Arabic)'}</label>
+        <label>🏢 الاسم بالعربي</label>
         <input class="fc" id="cl-company" placeholder="اسم الشركة / Company name in Arabic"/>
       </div>
       <div class="form-group">
-        <label>🌐 ${isAR()?'الاسم بالإنجليزي (اختياري)':'Company Name (English)'}</label>
+        <label>🌐 الاسم بالإنجليزي (اختياري)</label>
         <input class="fc" id="cl-company-en" placeholder="Company name in English (optional)"/>
       </div>
       <div class="form-group">
-        <label>👤 ${isAR()?'اسم الموظف المسؤول':'Employee Name'}</label>
+        <label>👤 اسم الموظف المسؤول</label>
         <input class="fc" id="cl-name" placeholder="اسم الموظف المسؤول"/>
       </div>
       <div class="form-group">
@@ -510,7 +510,7 @@ input[type=date].fc{color-scheme:dark}
       <div class="form-group">
         <label>🏙️ City</label>
         <select class="fc" id="cl-city">
-          <option value="">-- ${isAR()?'اختر المدينة':'Select City'} --</option>
+          <option value="">-- اختر المدينة --</option>
           <option>الرياض</option><option>جدة</option><option>الدمام</option>
           <option>مكة المكرمة</option><option>المدينة المنورة</option>
           <option>الخبر</option><option>الظهران</option><option>القطيف</option>
@@ -520,7 +520,7 @@ input[type=date].fc{color-scheme:dark}
       <div class="form-group">
         <label>🏷️ القطاع</label>
         <select class="fc" id="cl-sector">
-          <option value="">-- ${isAR()?'القطاع':'Sector'} --</option>
+          <option value="">-- القطاع --</option>
           <option>نفط وغاز</option><option>بتروكيماويات</option>
           <option>إنشاءات</option><option>صناعة</option>
           <option>حكومي</option><option>صحة</option>
@@ -535,8 +535,8 @@ input[type=date].fc{color-scheme:dark}
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
-      <button class="btn btn-ghost" onclick="closeModal('modalClient')">${isAR()?'إلغاء':'Cancel'}</button>
-      <button class="btn btn-teal" onclick="saveClient()">${isAR()?'💾 حفظ العميل':'💾 Save Client'}</button>
+      <button class="btn btn-ghost" onclick="closeModal('modalClient')">إلغاء</button>
+      <button class="btn btn-teal" onclick="saveClient()">💾 حفظ العميل</button>
     </div>
   </div>
 </div>
@@ -552,11 +552,13 @@ input[type=date].fc{color-scheme:dark}
     <div style="background:#060F1E;border:1px solid rgba(201,168,76,.2);border-radius:9px;padding:12px;margin-bottom:14px;flex-shrink:0">
       <div style="color:#C9A84C;font-size:11px;font-weight:700;margin-bottom:6px">📋 تعليمات الاستيراد</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
-        ${['Company','Employee Name','Phone Number','Email','City','Sector'].map((col,i)=>`
-          <div style="background:#0D1A2E;border-radius:6px;padding:5px 10px;font-size:11px">
-            <span style="color:#6A85A5">العمود ${i+1}:</span>
-            <span style="color:#C9A84C;font-weight:700;margin-right:4px">${col}</span>
-          </div>`).join('')}
+        
+          <div style="background:#0D1A2E;border-radius:6px;padding:5px 10px;font-size:11px"><span style="color:#6A85A5">العمود 1:</span><span style="color:#C9A84C;font-weight:700;margin-right:4px">Company</span></div>
+          <div style="background:#0D1A2E;border-radius:6px;padding:5px 10px;font-size:11px"><span style="color:#6A85A5">العمود 2:</span><span style="color:#C9A84C;font-weight:700;margin-right:4px">Employee Name</span></div>
+          <div style="background:#0D1A2E;border-radius:6px;padding:5px 10px;font-size:11px"><span style="color:#6A85A5">العمود 3:</span><span style="color:#C9A84C;font-weight:700;margin-right:4px">Phone Number</span></div>
+          <div style="background:#0D1A2E;border-radius:6px;padding:5px 10px;font-size:11px"><span style="color:#6A85A5">العمود 4:</span><span style="color:#C9A84C;font-weight:700;margin-right:4px">Email</span></div>
+          <div style="background:#0D1A2E;border-radius:6px;padding:5px 10px;font-size:11px"><span style="color:#6A85A5">العمود 5:</span><span style="color:#C9A84C;font-weight:700;margin-right:4px">City</span></div>
+          <div style="background:#0D1A2E;border-radius:6px;padding:5px 10px;font-size:11px"><span style="color:#6A85A5">العمود 6:</span><span style="color:#C9A84C;font-weight:700;margin-right:4px">Sector</span></div>
       </div>
       <div style="color:#6A85A5;font-size:10px;margin-top:8px">• الصف الأول يجب أن يكون عناوين الأعمدة (headers) · الملفات المقبولة: .xlsx · .xls · .csv</div>
     </div>
@@ -586,41 +588,44 @@ input[type=date].fc{color-scheme:dark}
 <div class="modal-overlay" id="modalCourse">
   <div class="modal" style="width:580px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <div class="modal-title" id="modalCourseTitle">${isAR()?'إضافة دورة جديدة':'Add New Course'}</div>
+      <div class="modal-title" id="modalCourseTitle">إضافة دورة جديدة</div>
       <button onclick="closeModal('modalCourse')" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>${isAR()?'اسم الدورة':'Course Name'} *</label>
-        <input class="fc" id="cr-name" placeholder="${isAR()?'اسم الدورة...':'Course name...'}"/>
+        <label>اسم الدورة *</label>
+        <input class="fc" id="cr-name" placeholder="اسم الدورة..."/>
       </div>
       <div class="form-group">
-        <label>${isAR()?'الفئة':'Category'}</label>
+        <label>الفئة</label>
         <select class="fc" id="cr-cat">
-          ${TUV_CATEGORIES.map(c=>`<option value="${c.id}">${isAR()?c.nameAr:c.nameEn}</option>`).join('')}
-          <option value="cat_custom">${isAR()?'دورات مضافة':'Custom Courses'}</option>
+          <option value="cat1">برامج المهن التقنية (CWQAP)</option>
+          <option value="cat2">برامج الصحة والسلامة</option>
+          <option value="cat3">برامج السلامة</option>
+          <option value="cat4">برامج OSHAcademy</option>
+          <option value="cat_custom">دورات مضافة</option>
         </select>
       </div>
       <div class="form-group">
-        <label>${isAR()?'السعر (SAR)':'Price (SAR)'}</label>
+        <label>السعر (SAR)</label>
         <input class="fc" id="cr-price" type="number" min="0" placeholder="0" style="text-align:center"/>
       </div>
       <div class="form-group">
-        <label>${isAR()?'المدة':'Duration'}</label>
-        <input class="fc" id="cr-duration" placeholder="${isAR()?'مثال: 3 أيام':'e.g. 3 Days'}"/>
+        <label>المدة</label>
+        <input class="fc" id="cr-duration" placeholder="مثال: 3 أيام"/>
       </div>
       <div class="form-group">
-        <label>${isAR()?'عدد الساعات':'Hours'}</label>
-        <input class="fc" id="cr-hours" placeholder="${isAR()?'مثال: 24 ساعة':'e.g. 24 Hrs'}"/>
+        <label>عدد الساعات</label>
+        <input class="fc" id="cr-hours" placeholder="مثال: 24 ساعة"/>
       </div>
       <div class="form-group">
-        <label>${isAR()?'صلاحية الشهادة':'Certificate Validity'}</label>
-        <input class="fc" id="cr-valid" placeholder="${isAR()?'مثال: 3 سنوات':'e.g. 3 Years'}"/>
+        <label>صلاحية الشهادة</label>
+        <input class="fc" id="cr-valid" placeholder="مثال: 3 سنوات"/>
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
-      <button class="btn btn-ghost" onclick="closeModal('modalCourse')">${isAR()?'إلغاء':'Cancel'}</button>
-      <button class="btn btn-teal" onclick="saveCourse()">💾 ${isAR()?'حفظ الدورة':'Save Course'}</button>
+      <button class="btn btn-ghost" onclick="closeModal('modalCourse')">إلغاء</button>
+      <button class="btn btn-teal" onclick="saveCourse()">💾 حفظ الدورة</button>
     </div>
   </div>
 </div>
@@ -909,6 +914,27 @@ let DB = {
   ]),
   trainees: ls('trainees',[{id:'tn1',name:'سعد المطيري',company:'أرامكو',course:'OSHA 30 Hrs. General Industry',phone:'+966502222222',start:'2025-06-01',status:'نشط'},{id:'tn2',name:'نورة العتيبي',company:'سابك',course:'BLS – Saudi Heart Association',phone:'+966503333333',start:'2025-05-15',status:'خريج'},{id:'tn3',name:'محمد الغامدي',company:'NEOM',course:'Fire Watch Training (5 Cards + 1 Certificate)',phone:'+966504444444',start:'2025-06-10',status:'نشط'}]),
 };
+
+// ── Ensure trainers are always available ──
+(function(){
+  const DEFAULT_TRAINERS = [
+    {id:'tr1',name:'Ahmed Abdel Salam',specialty:'السلامة والصحة المهنية / Occupational Health & Safety',phone:'0554012516',email:'ahmed.abdelsalam@tuvti.com.sa',sessions:12,rating:4.8,location:'https://maps.app.goo.gl/PhYHnG3znh7vqQCv5'},
+    {id:'tr2',name:'Rawnak Training Center',specialty:'دورات صحية',phone:'0500066600',email:'MR@RAWNAQ.COM',sessions:0,rating:0,location:'https://maps.app.goo.gl/zDeyjFeMr2omDGbh6'},
+    {id:'tr3',name:'TECHNICAL HIGHER INSTITUTE FOR ENGINEERING & PETROLEUM (THEIP)',specialty:'WPR',phone:'0500003300',email:'WPR@THEIP.COM',sessions:0,rating:0,location:'https://maps.app.goo.gl/7ZFGKzTJLfkhAkRc8'},
+  ];
+  if(!DB.trainers || DB.trainers.length === 0){
+    DB.trainers = DEFAULT_TRAINERS;
+  } else {
+    // Ensure defaults exist
+    DEFAULT_TRAINERS.forEach(dt=>{
+      if(!DB.trainers.find(t=>t.id===dt.id)){
+        DB.trainers.push(dt);
+      }
+    });
+  }
+})();
+
+
 
 function saveLocal(){
   ss('leads',DB.leads);
@@ -3496,7 +3522,7 @@ function openNewQuoteForm(existingQuote){
                   <option value="">-- اختر العميل --</option>
                 </select>`+`
                 <button type="button" onclick="openQuickAddClient()"
-                  title="${isAR()?'إضافة عميل جديد':'Add New Client'}"
+                  title="إضافة عميل جديد"
                   style="flex-shrink:0;width:38px;height:38px;border-radius:8px;background:rgba(26,138,90,.2);
                   border:1px solid rgba(26,138,90,.4);color:#1A8A5A;cursor:pointer;font-size:20px;font-weight:700;
                   display:flex;align-items:center;justify-content:center">+</button>
@@ -5112,6 +5138,100 @@ function renderAttendanceTab(el, session, data){
   addRow.appendChild(addBtn);
   listPanel.appendChild(addRow);
 
+  // Excel upload row
+  const uploadRow = document.createElement('div');
+  uploadRow.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;align-items:center';
+  const fileInp = document.createElement('input');
+  fileInp.type = 'file';
+  fileInp.accept = '.xlsx,.xls,.csv';
+  fileInp.id = 'att-excel-file';
+  fileInp.style.cssText = 'display:none';
+  const uploadBtn = document.createElement('button');
+  uploadBtn.style.cssText = 'flex:1;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:7px;color:#C9A84C;padding:8px 14px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit';
+  uploadBtn.innerHTML = '📥 '+t('رفع ملف حضور Excel','Upload Attendance Excel');
+  uploadBtn.onclick = ()=>fileInp.click();
+  fileInp.onchange = (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      try {
+        const wb = XLSX.read(ev.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+        if(rows.length < 2){ alert(t('الملف فارغ','File is empty')); return; }
+
+        // Try to detect columns
+        const headers = rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+        let nameCol = headers.findIndex(h=>h.includes('name')||h.includes('اسم')||h.includes('الاسم'));
+        let compCol = headers.findIndex(h=>h.includes('company')||h.includes('شركة')||h.includes('الشركة')||h.includes('جهة'));
+        let idCol   = headers.findIndex(h=>h.includes('id')||h.includes('هوية')||h.includes('إقامة')||h.includes('رقم'));
+
+        if(nameCol < 0) nameCol = 0; // Default: first column = name
+        if(compCol < 0) compCol = 1; // Second column = company
+
+        let added = 0;
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+        const dateStr = now.toISOString().slice(0,10);
+
+        for(let i=1; i<rows.length; i++){
+          const row = rows[i];
+          const name = (row[nameCol]||'').toString().trim();
+          if(!name) continue;
+          const company = compCol >= 0 ? (row[compCol]||'').toString().trim() : '';
+          const idNum   = idCol >= 0   ? (row[idCol]||'').toString().trim()   : '';
+
+          // Skip duplicates
+          if(data.attendance.find(a=>a.name.toLowerCase()===name.toLowerCase())) continue;
+
+          data.attendance.push({
+            name,
+            company,
+            idNumber: idNum,
+            time: timeStr,
+            date: dateStr,
+            method: 'Excel'
+          });
+          added++;
+        }
+
+        saveSessionData(session.id, data);
+        renderAttendanceTab(el, session, data);
+        if(added > 0){
+          showSuccessToast('✅ '+t('تم إضافة ','Added ')+added+t(' متدرب من Excel',' trainees from Excel'));
+        } else {
+          showSuccessToast('⚠️ '+t('لم يتم إضافة أحد (ربما مكرر)','No new trainees added (duplicates)'));
+        }
+      } catch(err){
+        alert(t('خطأ في قراءة الملف: ','Error reading file: ')+err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    fileInp.value = '';
+  };
+
+  // Template download button
+  const templateBtn = document.createElement('button');
+  templateBtn.style.cssText = 'background:rgba(26,122,138,.15);border:1px solid rgba(26,122,138,.3);border-radius:7px;color:#23A0B5;padding:8px 10px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit';
+  templateBtn.textContent = '📄 '+t('تحميل قالب','Template');
+  templateBtn.onclick = ()=>{
+    const wsData = [
+      [t('الاسم الكامل','Full Name'), t('الشركة','Company'), t('رقم الهوية','ID Number')],
+      ['أحمد محمد', 'أرامكو', '1234567890'],
+      ['خالد علي', 'سابك', '0987654321'],
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(wsData);
+    const wb2 = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb2, ws2, 'Attendance');
+    XLSX.writeFile(wb2, 'Attendance_Template_'+session.id+'.xlsx');
+  };
+
+  uploadRow.appendChild(fileInp);
+  uploadRow.appendChild(uploadBtn);
+  uploadRow.appendChild(templateBtn);
+  listPanel.appendChild(uploadRow);
+
   // Attendance list
   const listDiv = document.createElement('div');
   listDiv.style.cssText = 'max-height:250px;overflow-y:auto;display:flex;flex-direction:column;gap:4px';
@@ -6353,7 +6473,7 @@ function _generateCompanyPDF(session, company, allCompanies){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div style="background:#F8FAFC;border-radius:7px;padding:11px 14px">
           <div style="color:#8BABC9;font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">
-            👨‍🏫 ${isAR()?'المدرب':'Trainer'}
+            👨‍🏫 المدرب
           </div>
           <div style="color:#1A2E4A;font-size:12px;font-weight:600">${session.trainer||'—'}</div>
         </div>
@@ -10177,6 +10297,14 @@ function showAttendancePage(sessionId){
     +'<button id="att-qr-submit" style="background:linear-gradient(135deg,#1A8A5A,#27AE60);border:none;border-radius:12px;color:white;padding:14px;font-size:15px;font-weight:800;cursor:pointer;width:100%;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">'
     +'✅ '+t('تسجيل حضوري','Confirm Attendance')+'</button>'
 
+    // Excel upload on QR page
+    +'<div style="margin-top:12px;text-align:center">'
+    +'<div style="color:#6A85A5;font-size:10px;margin-bottom:6px">── '+t('أو','or')+' ──</div>'
+    +'<input type="file" id="att-qr-excel" accept=".xlsx,.xls,.csv" style="display:none"/>'
+    +'<button id="att-qr-excel-btn" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:10px;color:#C9A84C;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;width:100%;font-family:inherit">'
+    +'📥 '+t('رفع ملف حضور Excel','Upload Attendance Excel')+'</button>'
+    +'</div>'
+
     // Attendance count
     +'<div style="margin-top:16px;color:#6A85A5;font-size:11px">👥 '+t('عدد الحاضرين: ','Attendees: ')+'<strong style="color:#1A8A5A">'+data.attendance.length+'</strong></div>';
 
@@ -10185,6 +10313,61 @@ function showAttendancePage(sessionId){
 
   // Wire submit
   setTimeout(()=>{
+    // Wire Excel upload on QR page
+    const excelInput = document.getElementById('att-qr-excel');
+    const excelBtn   = document.getElementById('att-qr-excel-btn');
+    if(excelBtn && excelInput){
+      excelBtn.onclick = ()=>excelInput.click();
+      excelInput.onchange = (ev)=>{
+        const file = ev.target.files[0];
+        if(!file) return;
+        // Load XLSX library if not loaded
+        const processFile = ()=>{
+          const reader2 = new FileReader();
+          reader2.onload = (e2)=>{
+            try{
+              const wb = XLSX.read(e2.target.result, {type:'array'});
+              const ws = wb.Sheets[wb.SheetNames[0]];
+              const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+              if(rows.length < 2){ alert(t('الملف فارغ','File is empty')); return; }
+              const headers = rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+              let nameCol = headers.findIndex(h=>h.includes('name')||h.includes('اسم'));
+              let compCol = headers.findIndex(h=>h.includes('company')||h.includes('شركة'));
+              let idCol2  = headers.findIndex(h=>h.includes('id')||h.includes('هوية'));
+              if(nameCol<0) nameCol=0;
+              if(compCol<0) compCol=1;
+              const now2 = new Date();
+              let added2 = 0;
+              for(let i=1;i<rows.length;i++){
+                const name = (rows[i][nameCol]||'').toString().trim();
+                if(!name) continue;
+                if(data.attendance.find(a=>a.name.toLowerCase()===name.toLowerCase())) continue;
+                data.attendance.push({
+                  name,
+                  company: compCol>=0?(rows[i][compCol]||'').toString().trim():'',
+                  idNumber: idCol2>=0?(rows[i][idCol2]||'').toString().trim():'',
+                  time: now2.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+                  date: now2.toISOString().slice(0,10),
+                  method:'Excel-QR'
+                });
+                added2++;
+              }
+              saveSessionData(session.id, data);
+              showAttendanceExcelSuccess(session, added2, data.attendance.length);
+            }catch(err2){ alert('Error: '+err2.message); }
+          };
+          reader2.readAsArrayBuffer(file);
+        };
+        if(typeof XLSX==='undefined'){
+          const s=document.createElement('script');
+          s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload=processFile;
+          document.head.appendChild(s);
+        } else { processFile(); }
+        excelInput.value='';
+      };
+    }
+
     const submitBtn = document.getElementById('att-qr-submit');
     if(submitBtn) submitBtn.onclick = ()=>{
       const name    = document.getElementById('att-qr-name').value.trim();
@@ -10236,6 +10419,31 @@ function showAttendanceSuccess(session, name, isDuplicate){
     +'<div style="color:#6A85A5;font-size:12px">📅 '+session.startDate+'</div>'
     +'<div style="color:#6A85A5;font-size:12px">⏰ '+session.start+' - '+session.end+'</div>'
     +'<div style="color:#6A85A5;font-size:12px">👨‍🏫 '+session.trainer+'</div>'
+    +'</div>'
+    +'<div style="margin-top:20px;color:#6A85A5;font-size:10px">TUV Training Institute · TrainFlow CRM</div>'
+    +'</div>';
+}
+
+function showAttendanceExcelSuccess(session, added, total){
+  const t = (ar,en) => isAR() ? ar : en;
+  const page = document.getElementById('attendancePage');
+  if(!page) return;
+  const card = page.querySelector('div');
+  if(!card) return;
+  card.innerHTML =
+    '<div style="margin:20px 0">'
+    +'<div style="font-size:60px;margin-bottom:16px">'+(added>0?'✅':'⚠️')+'</div>'
+    +'<div style="color:'+(added>0?'#1A8A5A':'#C9A84C')+';font-size:20px;font-weight:800;margin-bottom:8px">'
+    +(added>0
+      ? t('تم رفع الحضور بنجاح!','Attendance uploaded!')
+      : t('لا يوجد متدربين جدد','No new trainees'))
+    +'</div>'
+    +'<div style="color:#F5F7FA;font-size:16px;font-weight:700;margin-bottom:4px">'
+    +(added>0? '📥 '+added+' '+t('متدرب تم تسجيلهم','trainees registered') : t('جميع الأسماء مسجلة مسبقاً','All names already registered'))
+    +'</div>'
+    +'<div style="color:#23A0B5;font-size:14px;margin-bottom:16px">'+session.course+'</div>'
+    +'<div style="background:#060F1E;border-radius:12px;padding:14px;border:1px solid #1A2E4A">'
+    +'<div style="color:#6A85A5;font-size:12px">👥 '+t('إجمالي الحاضرين: ','Total attendees: ')+'<strong style="color:#1A8A5A">'+total+'</strong></div>'
     +'</div>'
     +'<div style="margin-top:20px;color:#6A85A5;font-size:10px">TUV Training Institute · TrainFlow CRM</div>'
     +'</div>';
