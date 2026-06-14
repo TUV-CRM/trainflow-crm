@@ -805,7 +805,7 @@ const TUV_TERMS = {
 // ════════════════════════════════════════════
 const USERS = [
   {id:'u1',name:'حسين القصبي',role:'مدير التشغيل',dept:'ops',pw:'director2025',avatar:'حق',color:'#C9A84C',phone:'+966500000001',email:'hussein@tuvti.com.sa',
-   pages:['ops','users','sales','trainers','training','finance','trainees','catalog','salesperf','clients','daily','prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev']},
+   pages:['ops','users','sales','trainers','training','finance','trainees','catalog','salesperf','clients','daily','reports','prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev']},
   {id:'u2',name:'محمد الوضاح',role:'مستشار مبيعات',dept:'sales',pw:'waddah2025',avatar:'مو',color:'#1A7A8A',phone:'+966500000002',email:'waddah@tuvti.com.sa',
    pages:['sales','catalog','trainees','clients','daily','finance']},
   {id:'u3',name:'محمد أسد',role:'مستشار مبيعات',dept:'sales',pw:'asad2025',avatar:'مأ',color:'#23A0B5',phone:'+966500000003',email:'asad@tuvti.com.sa',
@@ -882,7 +882,17 @@ const NAV = [
     children:[
       {key:'clients-main', label:'قائمة العملاء', icon:'🏢', page:'clients'},
     ]
-  },
+  },,
+  {key:'reports', label:'التقارير', icon:'📊', color:'#9B59B6', badge:'reports',
+    children:[
+      {key:'reports-dashboard', label:'لوحة القيادة', icon:'📊', page:'reports'},
+      {key:'reports-revenue',   label:'تقارير الإيرادات', icon:'💰', page:'reports'},
+      {key:'reports-occupancy', label:'نسب الإشغال', icon:'📈', page:'reports'},
+      {key:'reports-clients',   label:'تقارير العملاء', icon:'🏢', page:'reports'},
+      {key:'reports-collection',label:'تقارير التحصيل', icon:'💳', page:'reports'},
+      {key:'reports-export',    label:'تصدير البيانات', icon:'📤', page:'reports'},
+    ]
+  }
 ];
 
 // ════════════════════════════════════════════
@@ -1007,6 +1017,7 @@ async function save(){
       activities:   allActs,
       dailyReports: allDaily,
       clients:      allCls,
+      traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
       sessionData:  (()=>{const sd={}; DB.sessions.forEach(s=>{const d=localStorage.getItem('tf4_session_'+s.id); if(d) sd[s.id]=JSON.parse(d);}); return sd;})(),
       dynUsers:     JSON.parse(localStorage.getItem('tf4_dyn_users')||'null'),
       lastSaved:    new Date().toISOString(),
@@ -1084,6 +1095,13 @@ async function loadFromGist(){
       localStorage.setItem('tf4_daily', JSON.stringify(merged));
     }
     if(data.clients){      localStorage.setItem('tf4_clients',     JSON.stringify(data.clients)); }
+    // Load trainee profiles
+    if(data.traineeProfiles && data.traineeProfiles.length){
+      const localP = JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]');
+      const localNames = new Set(localP.map(p=>p.name.toLowerCase()));
+      const newP = data.traineeProfiles.filter(p=>!localNames.has(p.name.toLowerCase()));
+      localStorage.setItem('tf4_trainee_profiles', JSON.stringify([...localP, ...newP]));
+    }
     // Load session training data (attendance, tests, evaluations)
     if(data.sessionData){
       Object.entries(data.sessionData).forEach(([sid, sdata])=>{
@@ -5239,12 +5257,18 @@ function renderAttendanceTab(el, session, data){
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#0D1A2E;border-radius:7px;border:1px solid #1A2E4A';
     row.innerHTML =
-      '<div><span style="color:#F5F7FA;font-size:12px;font-weight:600">'+a.name+'</span>'
-      +(a.company?'<span style="color:#6A85A5;font-size:10px;margin-right:8px"> · '+a.company+'</span>':'')
+      '<div style="display:flex;align-items:center;gap:6px"><span style="color:#F5F7FA;font-size:12px;font-weight:600">'+a.name+'</span>'
+      +(a.company?'<span style="color:#6A85A5;font-size:10px"> · '+a.company+'</span>':'')
       +'</div>'
       +'<div style="display:flex;align-items:center;gap:6px">'
       +'<span style="color:#1A8A5A;font-size:10px">✅ '+a.time+'</span>'
       +'</div>';
+    const profBtn = document.createElement('button');
+    profBtn.style.cssText='background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.2);border-radius:5px;color:#C9A84C;padding:2px 6px;font-size:9px;cursor:pointer;margin-right:4px';
+    profBtn.textContent='👤';
+    profBtn.title=t('الملف التدريبي','Training Profile');
+    profBtn.onclick=(e)=>{e.stopPropagation();openTraineeProfile(a.name);};
+    row.querySelector('div:last-child').prepend(profBtn);
     const delBtn = document.createElement('button');
     delBtn.style.cssText = 'background:none;border:none;color:#C0392B;cursor:pointer;font-size:11px';
     delBtn.textContent = '✕';
@@ -5621,6 +5645,804 @@ function exportTrainingReportPDF(session, data){
   w.document.write(html);
   w.document.close();
   setTimeout(()=>w.print(), 500);
+}
+
+
+// ════════════════════════════════════════════
+//  TRAINEE PORTAL & PROFILE SYSTEM
+// ════════════════════════════════════════════
+
+// ── Trainee Data Store ──
+function getTraineeProfiles(){
+  return JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]');
+}
+function saveTraineeProfiles(profiles){
+  localStorage.setItem('tf4_trainee_profiles', JSON.stringify(profiles));
+  save();
+}
+function findTraineeProfile(name){
+  return getTraineeProfiles().find(p=>p.name.toLowerCase()===name.toLowerCase());
+}
+
+// ── Build Trainee Profile from all sessions ──
+function buildTraineeHistory(traineeName){
+  const name = traineeName.toLowerCase();
+  const history = {courses:[], totalHours:0, certificates:[], attendance:[], testResults:[], evaluations:[]};
+
+  DB.sessions.forEach(s=>{
+    const sd = JSON.parse(localStorage.getItem('tf4_session_'+s.id)||'{}');
+    const hours = calcSessionHours(s);
+    // Check attendance
+    const att = (sd.attendance||[]).find(a=>a.name.toLowerCase()===name);
+    if(att){
+      history.courses.push({course:s.course, date:s.startDate, trainer:s.trainer, hours, sessionId:s.id, type:s.type});
+      history.totalHours += hours;
+      history.attendance.push({course:s.course, date:att.date||s.startDate, time:att.time, method:att.method||'Manual'});
+    }
+    // Check tests
+    (sd.preTest||[]).forEach(t=>{ if(t.name.toLowerCase()===name) history.testResults.push({course:s.course, type:'Pre-Test', score:t.score, date:t.date||s.startDate}); });
+    (sd.postTest||[]).forEach(t=>{ if(t.name.toLowerCase()===name) history.testResults.push({course:s.course, type:'Post-Test', score:t.score, date:t.date||s.startDate}); });
+    // Check trainee evaluations
+    (sd.traineeEval||[]).forEach(te=>{ if(te.name.toLowerCase()===name) history.evaluations.push({course:s.course, attendance:te.attendance, performance:te.performance, date:te.date||s.startDate}); });
+  });
+
+  // Get certificates from profile
+  const profile = findTraineeProfile(traineeName);
+  if(profile && profile.certificates){
+    history.certificates = profile.certificates;
+  }
+  return history;
+}
+
+// ══ TRAINEE PROFILE PAGE ══
+function openTraineeProfile(traineeName){
+  const t = (ar,en) => isAR() ? ar : en;
+  const history = buildTraineeHistory(traineeName);
+  let profile = findTraineeProfile(traineeName) || {name:traineeName, company:'', phone:'', email:'', idNumber:'', certificates:[], notifications:[]};
+
+  const ex = document.getElementById('traineeProfileOverlay');
+  if(ex) ex.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'traineeProfileOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99998;overflow-y:auto;padding:20px';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#0B1E3D;border-radius:16px;max-width:950px;margin:0 auto;box-shadow:0 24px 80px rgba(0,0,0,.6)';
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'background:linear-gradient(135deg,#1A3570,#2B4FAA);border-radius:16px 16px 0 0;padding:20px 24px;display:flex;justify-content:space-between;align-items:center';
+  const initials = traineeName.split(' ').map(w=>w[0]).join('').slice(0,2);
+  hdr.innerHTML =
+    '<div style="display:flex;align-items:center;gap:14px">'
+    +'<div style="width:48px;height:48px;border-radius:12px;background:rgba(201,168,76,.3);display:flex;align-items:center;justify-content:center;color:#C9A84C;font-weight:900;font-size:18px">'+initials+'</div>'
+    +'<div><div style="color:white;font-size:17px;font-weight:800">'+traineeName+'</div>'
+    +'<div style="color:rgba(255,255,255,.6);font-size:11px">'+(profile.company||t('لا توجد شركة','No company'))+' · '+history.courses.length+' '+t('دورات','courses')+' · '+history.totalHours.toFixed(1)+' '+t('ساعة','hrs')+'</div>'
+    +'</div></div>';
+  const closeBtn2 = document.createElement('button');
+  closeBtn2.textContent='✕';
+  closeBtn2.style.cssText='background:rgba(255,255,255,.2);border:none;color:white;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px';
+  closeBtn2.onclick=()=>overlay.remove();
+  hdr.appendChild(closeBtn2);
+  box.appendChild(hdr);
+
+  // Tabs
+  const tabs2 = [
+    {key:'file',    label:t('📁 الملف التدريبي','📁 Training File')},
+    {key:'certs',   label:t('🏅 الشهادات','🏅 Certificates')},
+    {key:'attend2', label:t('📋 الحضور','📋 Attendance')},
+    {key:'tests',   label:t('📝 الاختبارات','📝 Tests')},
+    {key:'evals',   label:t('⭐ التقييمات','⭐ Evaluations')},
+  ];
+
+  const tabBar2 = document.createElement('div');
+  tabBar2.style.cssText = 'display:flex;gap:4px;padding:12px 16px;background:#060F1E;overflow-x:auto';
+  const contentDiv2 = document.createElement('div');
+  contentDiv2.style.cssText = 'padding:20px 24px;min-height:400px';
+  let activeTab2 = 'file';
+
+  function renderProfileTab(key){
+    activeTab2 = key;
+    tabBar2.querySelectorAll('button').forEach(btn=>{
+      const isA = btn.dataset.key===key;
+      btn.style.background = isA?'rgba(201,168,76,.2)':'transparent';
+      btn.style.color = isA?'#C9A84C':'#6A85A5';
+      btn.style.borderBottom = isA?'2px solid #C9A84C':'2px solid transparent';
+    });
+    if(key==='file')    renderTrainingFile(contentDiv2, traineeName, history, profile);
+    else if(key==='certs')   renderCertsTab(contentDiv2, traineeName, history, profile);
+    else if(key==='attend2') renderAttendanceHistory(contentDiv2, history);
+    else if(key==='tests')   renderTestHistory(contentDiv2, history);
+    else if(key==='evals')   renderEvalHistory(contentDiv2, history);
+  }
+
+  tabs2.forEach(tab=>{
+    const btn2 = document.createElement('button');
+    btn2.dataset.key = tab.key;
+    btn2.style.cssText='padding:8px 14px;border:none;border-radius:8px 8px 0 0;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;border-bottom:2px solid transparent;background:transparent;color:#6A85A5';
+    btn2.textContent = tab.label;
+    btn2.onclick = ()=>renderProfileTab(tab.key);
+    tabBar2.appendChild(btn2);
+  });
+
+  box.appendChild(tabBar2);
+  box.appendChild(contentDiv2);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  renderProfileTab('file');
+}
+
+// ── Training File Tab ──
+function renderTrainingFile(el, name, history, profile){
+  const t = (ar,en) => isAR() ? ar : en;
+  el.innerHTML = '';
+  // KPI cards
+  const kpis = document.createElement('div');
+  kpis.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px';
+  const preScores = history.testResults.filter(r=>r.type==='Pre-Test');
+  const postScores = history.testResults.filter(r=>r.type==='Post-Test');
+  const avgPre  = preScores.length  ? Math.round(preScores.reduce((s,r)=>s+r.score,0)/preScores.length) : 0;
+  const avgPost = postScores.length ? Math.round(postScores.reduce((s,r)=>s+r.score,0)/postScores.length) : 0;
+  [{l:t('الدورات','Courses'),v:history.courses.length,c:'#23A0B5',i:'📚'},
+   {l:t('ساعات التدريب','Training Hours'),v:history.totalHours.toFixed(1),c:'#C9A84C',i:'⏱️'},
+   {l:t('الشهادات','Certificates'),v:(profile.certificates||[]).length,c:'#1A8A5A',i:'🏅'},
+   {l:t('متوسط الاختبارات','Avg Score'),v:avgPost?avgPost+'%':avgPre?avgPre+'%':'—',c:'#9B59B6',i:'📊'}
+  ].forEach(k=>{
+    kpis.innerHTML += '<div style="background:#060F1E;border-radius:10px;padding:14px;border:1px solid #1A2E4A;text-align:center">'
+      +'<div style="font-size:16px;margin-bottom:4px">'+k.i+'</div>'
+      +'<div style="color:'+k.c+';font-size:20px;font-weight:800;font-family:monospace">'+k.v+'</div>'
+      +'<div style="color:#6A85A5;font-size:9px;margin-top:3px">'+k.l+'</div></div>';
+  });
+  el.appendChild(kpis);
+
+  // Courses timeline
+  const tl = document.createElement('div');
+  tl.style.cssText = 'background:#060F1E;border-radius:12px;padding:16px;border:1px solid #1A2E4A';
+  tl.innerHTML = '<div style="color:#F5F7FA;font-size:13px;font-weight:700;margin-bottom:12px">📚 '+t('السجل التدريبي','Training Record')+'</div>';
+  if(history.courses.length===0){
+    tl.innerHTML += '<div style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد دورات مسجلة','No courses recorded')+'</div>';
+  } else {
+    history.courses.forEach((c,i)=>{
+      tl.innerHTML += '<div style="display:flex;gap:12px;padding:10px 0;'+(i<history.courses.length-1?'border-bottom:1px solid rgba(26,46,74,.3)':'')+'">'
+        +'<div style="width:8px;height:8px;border-radius:50%;background:#23A0B5;margin-top:6px;flex-shrink:0"></div>'
+        +'<div style="flex:1"><div style="color:#F5F7FA;font-size:12px;font-weight:600">'+c.course+'</div>'
+        +'<div style="color:#6A85A5;font-size:10px;margin-top:2px">👨‍🏫 '+c.trainer+' · 📅 '+c.date+' · ⏱️ '+c.hours.toFixed(1)+' '+t('ساعة','hrs')+'</div></div>'
+        +'<span style="color:#23A0B5;font-size:9px;background:rgba(26,122,138,.15);padding:2px 8px;border-radius:4px;height:fit-content">'+c.type+'</span>'
+        +'</div>';
+    });
+  }
+  el.appendChild(tl);
+}
+
+// ── Certificates Tab ──
+function renderCertsTab(el, name, history, profile){
+  const t = (ar,en) => isAR() ? ar : en;
+  el.innerHTML = '';
+  const certs = profile.certificates || [];
+  const today = new Date().toISOString().slice(0,10);
+
+  // Add cert form
+  const form = document.createElement('div');
+  form.style.cssText = 'background:#060F1E;border-radius:10px;padding:16px;border:1px solid #1A2E4A;margin-bottom:16px';
+  form.innerHTML =
+    '<div style="color:#C9A84C;font-size:12px;font-weight:700;margin-bottom:10px">🏅 '+t('إضافة شهادة','Add Certificate')+'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">'
+    +'<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('اسم الشهادة','Certificate')+'</label><input class="fc" id="cert-name" style="font-size:11px"/></div>'
+    +'<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('تاريخ الإصدار','Issue Date')+'</label><input class="fc" id="cert-issue" type="date" style="font-size:11px"/></div>'
+    +'<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('تاريخ الانتهاء','Expiry Date')+'</label><input class="fc" id="cert-expiry" type="date" style="font-size:11px"/></div>'
+    +'<button id="cert-add-btn" style="background:#1A8A5A;border:none;border-radius:7px;color:white;padding:8px 14px;font-size:11px;font-weight:700;cursor:pointer;height:38px;white-space:nowrap">+ '+t('إضافة','Add')+'</button>'
+    +'</div>';
+  el.appendChild(form);
+
+  // Cert list
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+  certs.forEach((c,i)=>{
+    const isExpired = c.expiry && c.expiry < today;
+    const isExpiringSoon = c.expiry && !isExpired && c.expiry <= new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+    const statusColor = isExpired ? '#C0392B' : isExpiringSoon ? '#C9A84C' : '#1A8A5A';
+    const statusText  = isExpired ? t('منتهية ❌','Expired ❌') : isExpiringSoon ? t('تنتهي قريباً ⚠️','Expiring Soon ⚠️') : t('سارية ✅','Valid ✅');
+
+    list.innerHTML += '<div style="background:#060F1E;border-radius:10px;padding:14px;border:1px solid #1A2E4A;border-right:3px solid '+statusColor+'">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center">'
+      +'<div><div style="color:#F5F7FA;font-size:13px;font-weight:700">🏅 '+c.name+'</div>'
+      +'<div style="color:#6A85A5;font-size:10px;margin-top:3px">'+t('صدرت: ','Issued: ')+c.issued+(c.expiry?' · '+t('تنتهي: ','Expires: ')+c.expiry:'')+'</div></div>'
+      +'<div style="text-align:left"><span style="color:'+statusColor+';font-size:11px;font-weight:700">'+statusText+'</span>'
+      +'<br><button data-ci="'+i+'" onclick="deleteCert(this)" style="background:none;border:none;color:#C0392B;font-size:10px;cursor:pointer;margin-top:3px">🗑 '+t('حذف','Delete')+'</button></div>'
+      +'</div></div>';
+  });
+  if(certs.length===0){
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:#6A85A5;background:#060F1E;border-radius:10px">'+t('لا توجد شهادات مسجلة','No certificates registered')+'</div>';
+  }
+  el.appendChild(list);
+
+  // Expiry alerts
+  const expiring = certs.filter(c=>c.expiry && c.expiry>today && c.expiry<=new Date(Date.now()+90*86400000).toISOString().slice(0,10));
+  if(expiring.length){
+    const alertDiv = document.createElement('div');
+    alertDiv.style.cssText = 'background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.3);border-radius:10px;padding:12px;margin-top:12px';
+    alertDiv.innerHTML = '<div style="color:#C9A84C;font-weight:700;font-size:11px;margin-bottom:6px">⏰ '+t('شهادات تنتهي خلال 90 يوم','Certificates expiring in 90 days')+'</div>'
+      +expiring.map(c=>'<div style="color:#D0D8EC;font-size:11px;padding:3px 0">🏅 '+c.name+' — '+c.expiry+'</div>').join('');
+    el.appendChild(alertDiv);
+  }
+
+  // Wire add button
+  setTimeout(()=>{
+    const addBtn = document.getElementById('cert-add-btn');
+    if(addBtn) addBtn.onclick = ()=>{
+      const cn = document.getElementById('cert-name').value.trim();
+      const ci = document.getElementById('cert-issue').value;
+      const ce = document.getElementById('cert-expiry').value;
+      if(!cn) return;
+      if(!profile.certificates) profile.certificates=[];
+      profile.certificates.push({name:cn,issued:ci||today,expiry:ce||''});
+      // Save to profiles
+      const profiles = getTraineeProfiles();
+      const idx = profiles.findIndex(p=>p.name.toLowerCase()===name.toLowerCase());
+      if(idx>=0) profiles[idx]=profile; else profiles.push(profile);
+      saveTraineeProfiles(profiles);
+      renderCertsTab(el, name, history, profile);
+    };
+  },50);
+}
+
+function deleteCert(btn){
+  const idx = parseInt(btn.dataset.ci);
+  const overlay = document.getElementById('traineeProfileOverlay');
+  // Find current profile name from header
+  const nameEl = overlay?.querySelector('div[style*="font-size:17px"]');
+  if(!nameEl) return;
+  const name = nameEl.textContent;
+  const profiles = getTraineeProfiles();
+  const pIdx = profiles.findIndex(p=>p.name===name);
+  if(pIdx>=0 && profiles[pIdx].certificates){
+    profiles[pIdx].certificates.splice(idx,1);
+    saveTraineeProfiles(profiles);
+  }
+}
+
+// ── Attendance History Tab ──
+function renderAttendanceHistory(el, history){
+  const t = (ar,en) => isAR() ? ar : en;
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow:hidden';
+  wrap.innerHTML =
+    '<div style="padding:12px 16px;border-bottom:1px solid #1A2E4A;color:#F5F7FA;font-weight:700;font-size:13px">📋 '+t('سجل الحضور','Attendance Record')+' <span style="color:#6A85A5;font-size:10px">('+history.attendance.length+')</span></div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +['#',t('الدورة','Course'),t('التاريخ','Date'),t('الوقت','Time'),t('الطريقة','Method')].map(h=>'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+    +(history.attendance.length?history.attendance.map((a,i)=>
+      '<tr style="border-bottom:1px solid rgba(26,46,74,.3)"><td style="padding:8px 12px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+      +'<td style="padding:8px 12px;color:#F5F7FA;font-size:12px">'+a.course+'</td>'
+      +'<td style="padding:8px 12px;color:#6A85A5;font-size:11px">'+a.date+'</td>'
+      +'<td style="padding:8px 12px;color:#1A8A5A;font-size:11px">'+a.time+'</td>'
+      +'<td style="padding:8px 12px"><span style="background:rgba(26,122,138,.15);color:#23A0B5;padding:2px 8px;border-radius:4px;font-size:10px">'+a.method+'</span></td></tr>'
+    ).join(''):'<tr><td colspan="5" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا يوجد سجل حضور','No attendance records')+'</td></tr>')
+    +'</tbody></table>';
+  el.appendChild(wrap);
+}
+
+// ── Test History Tab ──
+function renderTestHistory(el, history){
+  const t = (ar,en) => isAR() ? ar : en;
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow:hidden';
+  wrap.innerHTML =
+    '<div style="padding:12px 16px;border-bottom:1px solid #1A2E4A;color:#F5F7FA;font-weight:700;font-size:13px">📝 '+t('نتائج الاختبارات','Test Results')+'</div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +['#',t('الدورة','Course'),t('النوع','Type'),t('الدرجة','Score'),t('النتيجة','Result'),t('التاريخ','Date')].map(h=>'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+    +(history.testResults.length?history.testResults.map((r,i)=>{
+      const pass = r.score>=60;
+      return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)"><td style="padding:8px 12px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+        +'<td style="padding:8px 12px;color:#F5F7FA;font-size:12px">'+r.course+'</td>'
+        +'<td style="padding:8px 12px"><span style="background:'+(r.type==='Pre-Test'?'rgba(201,168,76,.15)':'rgba(26,138,90,.15)')+';color:'+(r.type==='Pre-Test'?'#C9A84C':'#1A8A5A')+';padding:2px 8px;border-radius:4px;font-size:10px">'+r.type+'</span></td>'
+        +'<td style="padding:8px 12px;text-align:center"><span style="background:'+(pass?'#1A8A5A':'#C0392B')+'22;color:'+(pass?'#1A8A5A':'#C0392B')+';padding:2px 10px;border-radius:5px;font-size:12px;font-weight:700">'+r.score+'%</span></td>'
+        +'<td style="padding:8px 12px;color:'+(pass?'#1A8A5A':'#C0392B')+';font-size:11px">'+(pass?'✅ '+t('ناجح','Pass'):'❌ '+t('راسب','Fail'))+'</td>'
+        +'<td style="padding:8px 12px;color:#6A85A5;font-size:11px">'+r.date+'</td></tr>';
+    }).join(''):'<tr><td colspan="6" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد نتائج','No test results')+'</td></tr>')
+    +'</tbody></table>';
+  el.appendChild(wrap);
+}
+
+// ── Evaluation History Tab ──
+function renderEvalHistory(el, history){
+  const t = (ar,en) => isAR() ? ar : en;
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow:hidden';
+  wrap.innerHTML =
+    '<div style="padding:12px 16px;border-bottom:1px solid #1A2E4A;color:#F5F7FA;font-weight:700;font-size:13px">⭐ '+t('التقييمات','Evaluations')+'</div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +['#',t('الدورة','Course'),t('الحضور %','Attend %'),t('الأداء','Performance'),t('التاريخ','Date')].map(h=>'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+    +(history.evaluations.length?history.evaluations.map((ev,i)=>
+      '<tr style="border-bottom:1px solid rgba(26,46,74,.3)"><td style="padding:8px 12px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+      +'<td style="padding:8px 12px;color:#F5F7FA;font-size:12px">'+ev.course+'</td>'
+      +'<td style="padding:8px 12px;color:'+(ev.attendance>=80?'#1A8A5A':'#C0392B')+';font-size:12px;font-weight:700;text-align:center">'+ev.attendance+'%</td>'
+      +'<td style="padding:8px 12px;text-align:center;color:#C9A84C">'+'⭐'.repeat(ev.performance)+'</td>'
+      +'<td style="padding:8px 12px;color:#6A85A5;font-size:11px">'+ev.date+'</td></tr>'
+    ).join(''):'<tr><td colspan="5" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد تقييمات','No evaluations')+'</td></tr>')
+    +'</tbody></table>';
+  el.appendChild(wrap);
+}
+
+// ── Certificate Expiry Checker (global) ──
+function checkExpiringCertificates(){
+  const profiles = getTraineeProfiles();
+  const today = new Date().toISOString().slice(0,10);
+  const soon  = new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+  const expiring = [];
+  profiles.forEach(p=>{
+    (p.certificates||[]).forEach(c=>{
+      if(c.expiry && c.expiry > today && c.expiry <= soon){
+        expiring.push({trainee:p.name, cert:c.name, expiry:c.expiry});
+      }
+    });
+  });
+  return expiring;
+}
+
+
+// ════════════════════════════════════════════
+//  REPORTS & EXECUTIVE DASHBOARD
+// ════════════════════════════════════════════
+
+function renderReportsPage(sc){
+  const t = (ar,en) => isAR() ? ar : en;
+  const subPage = window._reportsSubPage || 'dashboard';
+  sc.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:14px';
+
+  // Sub-nav tabs
+  const subTabs = [
+    {key:'dashboard', label:t('📊 لوحة القيادة','📊 Executive Dashboard')},
+    {key:'revenue',   label:t('💰 الإيرادات','💰 Revenue')},
+    {key:'occupancy', label:t('📈 الإشغال','📈 Occupancy')},
+    {key:'clients',   label:t('🏢 العملاء','🏢 Clients')},
+    {key:'collection',label:t('💳 التحصيل','💳 Collection')},
+    {key:'export',    label:t('📤 تصدير','📤 Export')},
+  ];
+  const tabBar = document.createElement('div');
+  tabBar.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap';
+  subTabs.forEach(tab=>{
+    const btn = document.createElement('button');
+    btn.style.cssText = 'padding:8px 14px;border-radius:8px;border:1px solid '+(subPage===tab.key?'#9B59B6':'#1A2E4A')+';background:'+(subPage===tab.key?'rgba(155,89,182,.2)':'transparent')+';color:'+(subPage===tab.key?'#9B59B6':'#6A85A5')+';cursor:pointer;font-size:11px;font-weight:700;font-family:inherit';
+    btn.textContent = tab.label;
+    btn.onclick = ()=>{ window._reportsSubPage=tab.key; renderReportsPage(sc); };
+    tabBar.appendChild(btn);
+  });
+  wrap.appendChild(tabBar);
+
+  // Content
+  const content = document.createElement('div');
+  if(subPage==='dashboard')  renderExecDashboard(content);
+  else if(subPage==='revenue')   renderRevenueReport(content);
+  else if(subPage==='occupancy') renderOccupancyReport(content);
+  else if(subPage==='clients')   renderClientReport(content);
+  else if(subPage==='collection')renderCollectionReport(content);
+  else if(subPage==='export')    renderExportPage(content);
+  wrap.appendChild(content);
+  sc.appendChild(wrap);
+}
+
+// ── Helper: Get all financial data ──
+function getReportData(){
+  const quotes   = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+  const invoices = DB.invoices || [];
+  const leads    = DB.leads || [];
+  const sessions = DB.sessions || [];
+  const clients  = JSON.parse(localStorage.getItem('tf4_clients')||'[]');
+  const daily    = JSON.parse(localStorage.getItem('tf4_daily')||'[]');
+
+  const wonLeads    = leads.filter(l=>l.stage==='مُنجَز');
+  const lostLeads   = leads.filter(l=>l.stage==='خسارة');
+  const activeLeads = leads.filter(l=>l.stage!=='مُنجَز'&&l.stage!=='خسارة');
+
+  const totalQuoted   = quotes.reduce((s,q)=>s+(q.netTotal||0),0);
+  const acceptedQ     = quotes.filter(q=>q.status==='مقبول');
+  const totalAccepted = acceptedQ.reduce((s,q)=>s+(q.netTotal||0),0);
+  const totalInvoiced = invoices.reduce((s,inv)=>s+(inv.amount||0),0);
+  const paidInvoices  = invoices.filter(inv=>inv.status==='مدفوع');
+  const totalPaid     = paidInvoices.reduce((s,inv)=>s+(inv.amount||0),0);
+  const unpaid        = totalInvoiced - totalPaid;
+
+  const totalHours = sessions.reduce((s,ses)=>s+calcSessionHours(ses),0);
+  const convRate   = leads.length ? Math.round(wonLeads.length/leads.length*100) : 0;
+
+  return {quotes,invoices,leads,sessions,clients,daily,wonLeads,lostLeads,activeLeads,totalQuoted,acceptedQ,totalAccepted,totalInvoiced,paidInvoices,totalPaid,unpaid,totalHours,convRate};
+}
+
+// ══ EXECUTIVE DASHBOARD ══
+function renderExecDashboard(el){
+  const t = (ar,en) => isAR() ? ar : en;
+  const d = getReportData();
+  el.innerHTML = '';
+
+  // KPI Row 1 — Financial
+  const kpi1 = document.createElement('div');
+  kpi1.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px';
+  [{l:t('إجمالي العروض','Total Quoted'),v:'SAR '+fmt(d.totalQuoted),c:'#23A0B5',i:'📄',sub:d.quotes.length+' '+t('عرض','quotes')},
+   {l:t('العروض المقبولة','Accepted'),v:'SAR '+fmt(d.totalAccepted),c:'#1A8A5A',i:'✅',sub:d.acceptedQ.length+' '+t('مقبول','accepted')},
+   {l:t('إجمالي الفواتير','Total Invoiced'),v:'SAR '+fmt(d.totalInvoiced),c:'#C9A84C',i:'🧾',sub:d.invoices.length+' '+t('فاتورة','invoices')},
+   {l:t('المحصّل','Collected'),v:'SAR '+fmt(d.totalPaid),c:'#1A8A5A',i:'💰',sub:t('متبقي: ','Remaining: ')+'SAR '+fmt(d.unpaid)},
+  ].forEach(k=>{
+    kpi1.innerHTML += '<div class="kpi" style="padding:14px"><div style="display:flex;align-items:center;gap:10px">'
+      +'<div style="width:40px;height:40px;border-radius:10px;background:'+k.c+'18;display:flex;align-items:center;justify-content:center;font-size:18px">'+k.i+'</div>'
+      +'<div><div style="color:#6A85A5;font-size:9px;text-transform:uppercase;letter-spacing:.5px">'+k.l+'</div>'
+      +'<div style="color:#F5F7FA;font-size:18px;font-weight:800;font-family:monospace">'+k.v+'</div>'
+      +'<div style="color:#3A5070;font-size:9px">'+k.sub+'</div></div></div></div>';
+  });
+  el.appendChild(kpi1);
+
+  // KPI Row 2 — Operations
+  const kpi2 = document.createElement('div');
+  kpi2.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px';
+  [{l:t('الجلسات التدريبية','Sessions'),v:d.sessions.length,c:'#23A0B5',i:'📅'},
+   {l:t('ساعات التدريب','Training Hours'),v:d.totalHours.toFixed(0),c:'#C9A84C',i:'⏱️'},
+   {l:t('نسبة التحويل','Conversion Rate'),v:d.convRate+'%',c:d.convRate>30?'#1A8A5A':'#C0392B',i:'📈'},
+   {l:t('العملاء','Clients'),v:d.clients.length,c:'#9B59B6',i:'🏢'},
+  ].forEach(k=>{
+    kpi2.innerHTML += '<div class="kpi" style="padding:14px"><div style="display:flex;align-items:center;gap:10px">'
+      +'<div style="width:40px;height:40px;border-radius:10px;background:'+k.c+'18;display:flex;align-items:center;justify-content:center;font-size:18px">'+k.i+'</div>'
+      +'<div><div style="color:#6A85A5;font-size:9px;text-transform:uppercase;letter-spacing:.5px">'+k.l+'</div>'
+      +'<div style="color:#F5F7FA;font-size:22px;font-weight:800;font-family:monospace">'+k.v+'</div></div></div></div>';
+  });
+  el.appendChild(kpi2);
+
+  // Revenue Chart (bar chart using divs)
+  const chartDiv = document.createElement('div');
+  chartDiv.className = 'card';
+  chartDiv.innerHTML = '<div style="color:#F5F7FA;font-weight:700;font-size:13px;margin-bottom:14px">💰 '+t('الإيرادات الشهرية','Monthly Revenue')+'</div>';
+  const months = [];
+  for(let m=0;m<6;m++){
+    const d2 = new Date(); d2.setMonth(d2.getMonth()-5+m);
+    const key = d2.toISOString().slice(0,7);
+    const label = d2.toLocaleDateString('ar-SA',{month:'short'});
+    const rev = d.invoices.filter(inv=>inv.date&&inv.date.startsWith(key)&&inv.status==='مدفوع').reduce((s,inv)=>s+(inv.amount||0),0);
+    const quoted = d.quotes.filter(q=>q.date&&q.date.startsWith(key)).reduce((s,q)=>s+(q.netTotal||0),0);
+    months.push({key,label,rev,quoted});
+  }
+  const maxRev = Math.max(...months.map(m=>Math.max(m.rev,m.quoted)),1);
+  const barsHtml = months.map(m=>{
+    const hRev = Math.round((m.rev/maxRev)*120);
+    const hQ   = Math.round((m.quoted/maxRev)*120);
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">'
+      +'<div style="display:flex;gap:2px;align-items:flex-end;height:130px">'
+      +'<div style="width:16px;height:'+hQ+'px;background:#23A0B522;border:1px solid #23A0B5;border-radius:3px 3px 0 0" title="'+t('عروض: ','Quoted: ')+'SAR '+fmt(m.quoted)+'"></div>'
+      +'<div style="width:16px;height:'+hRev+'px;background:#1A8A5A;border-radius:3px 3px 0 0" title="'+t('محصّل: ','Collected: ')+'SAR '+fmt(m.rev)+'"></div>'
+      +'</div>'
+      +'<div style="color:#6A85A5;font-size:9px">'+m.label+'</div>'
+      +'</div>';
+  }).join('');
+  chartDiv.innerHTML += '<div style="display:flex;gap:8px;align-items:flex-end;padding:10px 0">'+barsHtml+'</div>'
+    +'<div style="display:flex;gap:16px;justify-content:center;margin-top:8px">'
+    +'<span style="color:#23A0B5;font-size:10px">□ '+t('عروض أسعار','Quoted')+'</span>'
+    +'<span style="color:#1A8A5A;font-size:10px">■ '+t('محصّل','Collected')+'</span></div>';
+  el.appendChild(chartDiv);
+
+  // Sales team performance
+  const teamDiv = document.createElement('div');
+  teamDiv.className = 'card';
+  teamDiv.innerHTML = '<div style="color:#F5F7FA;font-weight:700;font-size:13px;margin-bottom:14px">👥 '+t('أداء فريق المبيعات','Sales Team Performance')+'</div>';
+  const salesUsers = getDynUsers().filter(u=>u.dept==='sales');
+  salesUsers.forEach(u=>{
+    const uQuotes = d.quotes.filter(q=>q.createdBy===u.name||q.salesperson===u.name);
+    const uAccepted = uQuotes.filter(q=>q.status==='مقبول');
+    const uRev = uAccepted.reduce((s,q)=>s+(q.netTotal||0),0);
+    const uLeads = d.leads.filter(l=>l.assignee===u.name);
+    const uWon = uLeads.filter(l=>l.stage==='مُنجَز');
+    const uConv = uLeads.length?Math.round(uWon.length/uLeads.length*100):0;
+    const barW = d.totalAccepted>0?Math.round((uRev/d.totalAccepted)*100):0;
+    teamDiv.innerHTML += '<div style="padding:10px 0;border-bottom:1px solid rgba(26,46,74,.3)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+      +'<span style="color:#F5F7FA;font-size:12px;font-weight:600">'+u.name+'</span>'
+      +'<div style="display:flex;gap:12px">'
+      +'<span style="color:#6A85A5;font-size:10px">'+uQuotes.length+' '+t('عرض','quotes')+'</span>'
+      +'<span style="color:#1A8A5A;font-size:10px;font-weight:700">SAR '+fmt(uRev)+'</span>'
+      +'<span style="color:'+(uConv>30?'#1A8A5A':'#C0392B')+';font-size:10px">'+uConv+'% '+t('تحويل','conv.')+'</span>'
+      +'</div></div>'
+      +'<div style="background:#1A2E4A;border-radius:4px;height:6px;overflow:hidden"><div style="height:6px;border-radius:4px;background:linear-gradient(90deg,#9B59B6,#23A0B5);width:'+barW+'%"></div></div></div>';
+  });
+  el.appendChild(teamDiv);
+
+  // Expiring certificates alert
+  const expiring = checkExpiringCertificates();
+  if(expiring.length){
+    const certAlert = document.createElement('div');
+    certAlert.style.cssText = 'background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.3);border-radius:10px;padding:14px';
+    certAlert.innerHTML = '<div style="color:#C9A84C;font-weight:700;font-size:12px;margin-bottom:8px">⚠️ '+t('شهادات تنتهي قريباً','Certificates Expiring Soon')+' ('+expiring.length+')</div>'
+      +expiring.map(e=>'<div style="color:#D0D8EC;font-size:11px;padding:3px 0">🏅 '+e.trainee+' — '+e.cert+' — <span style="color:#C9A84C">'+e.expiry+'</span></div>').join('');
+    el.appendChild(certAlert);
+  }
+}
+
+// ══ REVENUE REPORT ══
+function renderRevenueReport(el){
+  const t = (ar,en) => isAR() ? ar : en;
+  const d = getReportData();
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow:hidden';
+  wrap.innerHTML =
+    '<div style="padding:14px 16px;border-bottom:1px solid #1A2E4A;display:flex;justify-content:space-between;align-items:center">'
+    +'<div style="color:#F5F7FA;font-weight:700;font-size:13px">💰 '+t('تقرير الإيرادات التفصيلي','Detailed Revenue Report')+'</div>'
+    +'<div style="color:#6A85A5;font-size:10px">'+t('إجمالي: ','Total: ')+'<strong style="color:#C9A84C">SAR '+fmt(d.totalAccepted)+'</strong></div></div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +['#',t('العميل','Client'),t('الدورة','Course'),t('المبلغ','Amount'),t('الحالة','Status'),t('الموظف','Staff'),t('التاريخ','Date')].map(h=>'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right;white-space:nowrap">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+    +d.quotes.filter(q=>q.status==='مقبول').map((q,i)=>
+      '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
+      +'<td style="padding:8px 12px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+      +'<td style="padding:8px 12px;color:#F5F7FA;font-size:12px">'+q.client+'</td>'
+      +'<td style="padding:8px 12px;color:#8BABC9;font-size:11px">'+(q.items?q.items.map(it=>it.course).join(', '):'—')+'</td>'
+      +'<td style="padding:8px 12px;color:#C9A84C;font-weight:700;font-size:11px;font-family:monospace">SAR '+fmt(q.netTotal)+'</td>'
+      +'<td style="padding:8px 12px"><span style="background:rgba(26,138,90,.15);color:#1A8A5A;padding:2px 8px;border-radius:4px;font-size:10px">مقبول</span></td>'
+      +'<td style="padding:8px 12px;color:#6A85A5;font-size:11px">'+(q.salesperson||q.createdBy||'—')+'</td>'
+      +'<td style="padding:8px 12px;color:#6A85A5;font-size:11px">'+q.date+'</td></tr>'
+    ).join('')
+    +'</tbody></table>';
+  el.appendChild(wrap);
+}
+
+// ══ OCCUPANCY REPORT ══
+function renderOccupancyReport(el){
+  const t = (ar,en) => isAR() ? ar : en;
+  const d = getReportData();
+  el.innerHTML = '';
+
+  // Training by type
+  const byType = {};
+  d.sessions.forEach(s=>{ byType[s.type]=(byType[s.type]||0)+1; });
+
+  // Training by trainer
+  const byTrainer = {};
+  d.sessions.forEach(s=>{ byTrainer[s.trainer]=(byTrainer[s.trainer]||0)+calcSessionHours(s); });
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px';
+
+  // Sessions by type
+  const typeDiv = document.createElement('div');
+  typeDiv.className = 'card';
+  typeDiv.innerHTML = '<div style="color:#F5F7FA;font-weight:700;font-size:13px;margin-bottom:14px">📅 '+t('الجلسات حسب النوع','Sessions by Type')+'</div>'
+    +Object.entries(byType).map(([type,count])=>{
+      const pct = d.sessions.length?Math.round(count/d.sessions.length*100):0;
+      return '<div style="padding:8px 0;border-bottom:1px solid rgba(26,46,74,.2)">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#D0D8EC;font-size:12px">'+type+'</span><span style="color:#23A0B5;font-size:11px;font-weight:700">'+count+' ('+pct+'%)</span></div>'
+        +'<div style="background:#1A2E4A;border-radius:4px;height:6px"><div style="height:6px;border-radius:4px;background:#23A0B5;width:'+pct+'%"></div></div></div>';
+    }).join('');
+  wrap.appendChild(typeDiv);
+
+  // Hours by trainer
+  const trainerDiv = document.createElement('div');
+  trainerDiv.className = 'card';
+  const maxH = Math.max(...Object.values(byTrainer),1);
+  trainerDiv.innerHTML = '<div style="color:#F5F7FA;font-weight:700;font-size:13px;margin-bottom:14px">👨‍🏫 '+t('ساعات التدريب حسب المدرب','Hours by Trainer')+'</div>'
+    +Object.entries(byTrainer).map(([tr,hrs])=>{
+      const pct = Math.round(hrs/maxH*100);
+      return '<div style="padding:8px 0;border-bottom:1px solid rgba(26,46,74,.2)">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#D0D8EC;font-size:11px">'+tr.slice(0,25)+'</span><span style="color:#C9A84C;font-size:11px;font-weight:700">'+hrs.toFixed(1)+' '+t('ساعة','hrs')+'</span></div>'
+        +'<div style="background:#1A2E4A;border-radius:4px;height:6px"><div style="height:6px;border-radius:4px;background:#C9A84C;width:'+pct+'%"></div></div></div>';
+    }).join('');
+  wrap.appendChild(trainerDiv);
+  el.appendChild(wrap);
+}
+
+// ══ CLIENT REPORT ══
+function renderClientReport(el){
+  const t = (ar,en) => isAR() ? ar : en;
+  const d = getReportData();
+  el.innerHTML = '';
+  // Revenue by client
+  const byClient = {};
+  d.quotes.forEach(q=>{
+    if(!byClient[q.client]) byClient[q.client]={quoted:0,accepted:0,count:0};
+    byClient[q.client].quoted += (q.netTotal||0);
+    byClient[q.client].count++;
+    if(q.status==='مقبول') byClient[q.client].accepted += (q.netTotal||0);
+  });
+  const sorted = Object.entries(byClient).sort((a,b)=>b[1].accepted-a[1].accepted);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow:hidden';
+  wrap.innerHTML =
+    '<div style="padding:14px 16px;border-bottom:1px solid #1A2E4A;color:#F5F7FA;font-weight:700;font-size:13px">🏢 '+t('تقرير العملاء','Client Report')+'</div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +['#',t('العميل','Client'),t('العروض','Quotes'),t('المعروض','Quoted'),t('المقبول','Accepted'),t('نسبة القبول','Accept %')].map(h=>'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+    +sorted.map(([client,data2],i)=>{
+      const pct = data2.quoted?Math.round(data2.accepted/data2.quoted*100):0;
+      return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
+        +'<td style="padding:8px 12px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+        +'<td style="padding:8px 12px;color:#F5F7FA;font-size:12px;font-weight:600">'+client+'</td>'
+        +'<td style="padding:8px 12px;color:#6A85A5;font-size:11px;text-align:center">'+data2.count+'</td>'
+        +'<td style="padding:8px 12px;color:#23A0B5;font-size:11px;font-family:monospace">SAR '+fmt(data2.quoted)+'</td>'
+        +'<td style="padding:8px 12px;color:#1A8A5A;font-size:11px;font-weight:700;font-family:monospace">SAR '+fmt(data2.accepted)+'</td>'
+        +'<td style="padding:8px 12px;text-align:center"><span style="background:'+(pct>50?'#1A8A5A':'#C0392B')+'22;color:'+(pct>50?'#1A8A5A':'#C0392B')+';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+pct+'%</span></td></tr>';
+    }).join('')
+    +'</tbody></table>';
+  el.appendChild(wrap);
+}
+
+// ══ COLLECTION REPORT ══
+function renderCollectionReport(el){
+  const t = (ar,en) => isAR() ? ar : en;
+  const d = getReportData();
+  el.innerHTML = '';
+  const collectionRate = d.totalInvoiced?Math.round(d.totalPaid/d.totalInvoiced*100):0;
+
+  // KPIs
+  const kpis = document.createElement('div');
+  kpis.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px';
+  [{l:t('إجمالي المُفوتر','Total Invoiced'),v:'SAR '+fmt(d.totalInvoiced),c:'#23A0B5'},
+   {l:t('المحصّل','Collected'),v:'SAR '+fmt(d.totalPaid),c:'#1A8A5A'},
+   {l:t('المتبقي','Outstanding'),v:'SAR '+fmt(d.unpaid),c:d.unpaid>0?'#C0392B':'#1A8A5A'},
+  ].forEach(k=>{
+    kpis.innerHTML += '<div class="kpi" style="padding:14px;text-align:center">'
+      +'<div style="color:#6A85A5;font-size:9px;text-transform:uppercase">'+k.l+'</div>'
+      +'<div style="color:'+k.c+';font-size:22px;font-weight:800;font-family:monospace;margin-top:4px">'+k.v+'</div></div>';
+  });
+  el.appendChild(kpis);
+
+  // Collection rate bar
+  const rateDiv = document.createElement('div');
+  rateDiv.className = 'card';
+  rateDiv.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:#F5F7FA;font-size:13px;font-weight:700">'+t('نسبة التحصيل','Collection Rate')+'</span><span style="color:'+(collectionRate>70?'#1A8A5A':'#C0392B')+';font-size:20px;font-weight:800">'+collectionRate+'%</span></div>'
+    +'<div style="background:#1A2E4A;border-radius:6px;height:10px;overflow:hidden"><div style="height:10px;border-radius:6px;background:linear-gradient(90deg,#1A8A5A,#27AE60);width:'+collectionRate+'%"></div></div>';
+  el.appendChild(rateDiv);
+
+  // Invoice table
+  const tbl = document.createElement('div');
+  tbl.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow:hidden';
+  tbl.innerHTML =
+    '<div style="padding:14px 16px;border-bottom:1px solid #1A2E4A;color:#F5F7FA;font-weight:700;font-size:13px">🧾 '+t('الفواتير','Invoices')+'</div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +['#',t('الرقم','Inv#'),t('العميل','Client'),t('المبلغ','Amount'),t('الحالة','Status'),t('التاريخ','Date')].map(h=>'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+    +d.invoices.map((inv,i)=>{
+      const stColor = inv.status==='مدفوع'?'#1A8A5A':inv.status==='متأخر'?'#C0392B':'#C9A84C';
+      return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
+        +'<td style="padding:8px 12px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+        +'<td style="padding:8px 12px;color:#23A0B5;font-size:11px;font-family:monospace">'+(inv.id||'—')+'</td>'
+        +'<td style="padding:8px 12px;color:#F5F7FA;font-size:12px">'+(inv.client||'—')+'</td>'
+        +'<td style="padding:8px 12px;color:#C9A84C;font-weight:700;font-size:11px;font-family:monospace">SAR '+fmt(inv.amount)+'</td>'
+        +'<td style="padding:8px 12px"><span style="background:'+stColor+'22;color:'+stColor+';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+(inv.status||'—')+'</span></td>'
+        +'<td style="padding:8px 12px;color:#6A85A5;font-size:11px">'+(inv.date||'—')+'</td></tr>';
+    }).join('')
+    +'</tbody></table>';
+  el.appendChild(tbl);
+}
+
+// ══ EXPORT PAGE ══
+function renderExportPage(el){
+  const t = (ar,en) => isAR() ? ar : en;
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:14px';
+
+  const exports = [
+    {title:t('تصدير عروض الأسعار','Export Quotes'),icon:'📄',desc:t('جميع العروض مع التفاصيل','All quotes with details'),action:()=>exportDataExcel('quotes')},
+    {title:t('تصدير الفواتير','Export Invoices'),icon:'🧾',desc:t('جميع الفواتير والتحصيل','All invoices and collection'),action:()=>exportDataExcel('invoices')},
+    {title:t('تصدير العملاء','Export Clients'),icon:'🏢',desc:t('قاعدة بيانات العملاء','Client database'),action:()=>exportDataExcel('clients')},
+    {title:t('تصدير العملاء المحتملين','Export Leads'),icon:'👥',desc:t('Pipeline كامل','Full pipeline'),action:()=>exportDataExcel('leads')},
+    {title:t('تصدير الجلسات','Export Sessions'),icon:'📅',desc:t('جميع الجلسات التدريبية','All training sessions'),action:()=>exportDataExcel('sessions')},
+    {title:t('تقرير PDF شامل','Full PDF Report'),icon:'📊',desc:t('تقرير تنفيذي شامل','Executive summary report'),action:()=>exportExecutivePDF()},
+    {title:'Power BI Connector',icon:'⚡',desc:t('تصدير JSON لـ Power BI','Export JSON for Power BI'),action:()=>exportPowerBI()},
+    {title:t('نسخ احتياطي كامل','Full Backup'),icon:'💾',desc:t('جميع البيانات في ملف واحد','All data in one file'),action:()=>exportFullBackup()},
+  ];
+
+  exports.forEach(exp=>{
+    const card = document.createElement('div');
+    card.style.cssText = 'background:#060F1E;border-radius:12px;padding:20px;border:1px solid #1A2E4A;cursor:pointer;transition:all .2s';
+    card.onmouseover = ()=>card.style.borderColor='#9B59B6';
+    card.onmouseout  = ()=>card.style.borderColor='#1A2E4A';
+    card.onclick = exp.action;
+    card.innerHTML = '<div style="font-size:28px;margin-bottom:10px">'+exp.icon+'</div>'
+      +'<div style="color:#F5F7FA;font-size:13px;font-weight:700;margin-bottom:4px">'+exp.title+'</div>'
+      +'<div style="color:#6A85A5;font-size:11px">'+exp.desc+'</div>';
+    wrap.appendChild(card);
+  });
+  el.appendChild(wrap);
+}
+
+// ── Export helpers ──
+function exportDataExcel(type){
+  const d = getReportData();
+  let wsData = [];
+  if(type==='quotes'){
+    wsData.push(['رقم العرض','العميل','التاريخ','المبلغ','الضريبة','الإجمالي','الحالة','الموظف']);
+    d.quotes.forEach(q=>wsData.push([q.id,q.client,q.date,q.gross,q.vat,q.netTotal,q.status,q.salesperson||q.createdBy]));
+  } else if(type==='invoices'){
+    wsData.push(['رقم الفاتورة','العميل','المبلغ','الحالة','تاريخ الإصدار','تاريخ الاستحقاق']);
+    d.invoices.forEach(inv=>wsData.push([inv.id,inv.client,inv.amount,inv.status,inv.date,inv.dueDate]));
+  } else if(type==='clients'){
+    wsData.push(['الشركة','جهة الاتصال','الهاتف','البريد','المدينة','القطاع']);
+    d.clients.forEach(c=>wsData.push([c.company,c.name,c.phone,c.email,c.city,c.sector]));
+  } else if(type==='leads'){
+    wsData.push(['الاسم','الشركة','الدورة','القيمة','المرحلة','المسؤول','التاريخ']);
+    d.leads.forEach(l=>wsData.push([l.name,l.company,l.course,l.value,l.stage,l.assignee,l.date]));
+  } else if(type==='sessions'){
+    wsData.push(['الدورة','المدرب','التاريخ','البداية','النهاية','الساعات','النوع','القاعة']);
+    d.sessions.forEach(s=>wsData.push([s.course,s.trainer,s.startDate,s.start,s.end,calcSessionHours(s).toFixed(1),s.type,s.room]));
+  }
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, type);
+  XLSX.writeFile(wb, 'TUV_'+type+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showSuccessToast('✅ تم تصدير '+type+' بنجاح');
+}
+
+function exportPowerBI(){
+  const d = getReportData();
+  const json = JSON.stringify({
+    metadata:{exported:new Date().toISOString(),source:'TrainFlow CRM',institute:'TUV Training Institute'},
+    quotes:d.quotes, invoices:d.invoices, leads:d.leads, sessions:d.sessions, clients:d.clients
+  }, null, 2);
+  const blob = new Blob([json],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'TUV_PowerBI_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  showSuccessToast('✅ تم تصدير JSON لـ Power BI');
+}
+
+function exportFullBackup(){
+  const all = {};
+  for(let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    if(k.startsWith('tf4_')) all[k] = localStorage.getItem(k);
+  }
+  const blob = new Blob([JSON.stringify(all,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'TUV_Backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  showSuccessToast('✅ تم تصدير النسخ الاحتياطي');
+}
+
+function exportExecutivePDF(){
+  const t = (ar,en) => isAR() ? ar : en;
+  const d = getReportData();
+  const collRate = d.totalInvoiced?Math.round(d.totalPaid/d.totalInvoiced*100):0;
+  const html = '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"/><title>Executive Report</title>'
+    +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:20mm;color:#1A2E4A}'
+    +'h1{color:#1A3570;font-size:20px;border-bottom:3px solid #1A3570;padding-bottom:8px;margin-bottom:16px}'
+    +'h2{color:#1A3570;font-size:14px;margin:20px 0 10px;border-bottom:1px solid #ccc;padding-bottom:4px}'
+    +'table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:6px 10px;font-size:11px;text-align:right}'
+    +'th{background:#1A3570;color:white}.kpi-row{display:flex;gap:10px;margin:10px 0}'
+    +'.kpi-box{flex:1;background:#f5f7fa;border-radius:8px;padding:12px;text-align:center}'
+    +'.kpi-val{font-size:20px;font-weight:800;color:#1A3570}.kpi-label{font-size:9px;color:#6A85A5;margin-top:4px}'
+    +'@media print{@page{size:A4;margin:15mm}}</style></head><body>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><div>'
+    +'<h1>📊 '+t('التقرير التنفيذي','Executive Report')+'</h1>'
+    +'<div style="color:#6A85A5;font-size:11px">TUV Training Institute · '+new Date().toLocaleDateString()+'</div></div></div>'
+    +'<div class="kpi-row">'
+    +'<div class="kpi-box"><div class="kpi-val">SAR '+fmt(d.totalQuoted)+'</div><div class="kpi-label">'+t('إجمالي العروض','Total Quoted')+'</div></div>'
+    +'<div class="kpi-box"><div class="kpi-val" style="color:#1A8A5A">SAR '+fmt(d.totalAccepted)+'</div><div class="kpi-label">'+t('المقبول','Accepted')+'</div></div>'
+    +'<div class="kpi-box"><div class="kpi-val" style="color:#C9A84C">SAR '+fmt(d.totalPaid)+'</div><div class="kpi-label">'+t('المحصّل','Collected')+'</div></div>'
+    +'<div class="kpi-box"><div class="kpi-val" style="color:'+(d.unpaid>0?'#C0392B':'#1A8A5A')+'">SAR '+fmt(d.unpaid)+'</div><div class="kpi-label">'+t('المتبقي','Outstanding')+'</div></div>'
+    +'</div>'
+    +'<div class="kpi-row">'
+    +'<div class="kpi-box"><div class="kpi-val">'+d.sessions.length+'</div><div class="kpi-label">'+t('جلسات','Sessions')+'</div></div>'
+    +'<div class="kpi-box"><div class="kpi-val">'+d.totalHours.toFixed(0)+'</div><div class="kpi-label">'+t('ساعات تدريب','Training Hours')+'</div></div>'
+    +'<div class="kpi-box"><div class="kpi-val">'+d.convRate+'%</div><div class="kpi-label">'+t('نسبة التحويل','Conversion')+'</div></div>'
+    +'<div class="kpi-box"><div class="kpi-val">'+collRate+'%</div><div class="kpi-label">'+t('نسبة التحصيل','Collection')+'</div></div>'
+    +'</div>'
+    +'<h2>'+t('العروض المقبولة','Accepted Quotes')+'</h2>'
+    +'<table><tr><th>'+t('العميل','Client')+'</th><th>'+t('المبلغ','Amount')+'</th><th>'+t('الموظف','Staff')+'</th><th>'+t('التاريخ','Date')+'</th></tr>'
+    +d.acceptedQ.map(q=>'<tr><td>'+q.client+'</td><td>SAR '+fmt(q.netTotal)+'</td><td>'+(q.salesperson||'—')+'</td><td>'+q.date+'</td></tr>').join('')
+    +'</table>'
+    +'<div style="margin-top:30px;text-align:center;color:#6A85A5;font-size:9px;border-top:1px solid #ccc;padding-top:8px">TUV Training Institute · TrainFlow CRM · Generated '+new Date().toLocaleString()+'</div>'
+    +'</body></html>';
+  const w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),500);
 }
 
 
