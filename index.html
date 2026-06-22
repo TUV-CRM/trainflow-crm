@@ -12801,8 +12801,6 @@ function renderSessionReport(el, session, data, sessionIdx){
   el.appendChild(fullTbl);
 }
 
-// ══ Export Session Report to Excel ══
-
 function printSessionReport(sessionId){
   const sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
   const session = (DB.sessions||[]).find(s=>s.id===sessionId)||{};
@@ -12847,6 +12845,11 @@ function printSessionReport(sessionId){
   w.document.close();
   setTimeout(function(){w.print();},500);
 }
+
+
+
+// ══ Export Session Report to Excel ══
+
 
 function exportSessionReportExcel(sessionId){
   if(typeof XLSX==='undefined'){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>exportSessionReportExcel(sessionId);document.head.appendChild(s);return;}
