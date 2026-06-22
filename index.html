@@ -12820,7 +12820,7 @@ function printSessionReport(sessionId){
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center';
   const box = document.createElement('div');
   box.style.cssText = 'background:#0B1E3D;border:1px solid #1A2E4A;border-radius:16px;padding:24px;width:420px;max-width:95vw';
-  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="color:#F5F7FA;font-weight:800;font-size:15px">🏢 '+(isAR()?'اختر الشركة للتقرير':'Select Company')+'</span><button onclick="document.getElementById('companyReportDialog').remove()" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button></div>';
+  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="color:#F5F7FA;font-weight:800;font-size:15px">🏢 '+(isAR()?'اختر الشركة للتقرير':'Select Company')+'</span><button onclick="document.getElementById(&quot;companyReportDialog&quot;).remove()" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button></div>';
 
   // All companies button
   const allBtn = document.createElement('button');
