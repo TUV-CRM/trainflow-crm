@@ -5213,7 +5213,7 @@ function openSessionDetail(sessionIdx){
   // ── Tab Navigation ──
   const tabs = [
     {key:'attendance', label:t('📱 الحضور QR','📱 QR Attendance'), icon:'📱'},
-    {key:'pretest',    label:t('📝 اختبار قبلي','📝 Pre-Test'),    icon:'📝'},
+    {key:'scores',     label:t('📝 درجة الاختبار','📝 Test Scores'), icon:'📝'},
     {key:'posttest',   label:t('✅ اختبار بعدي','✅ Post-Test'),   icon:'✅'},
     {key:'eval',       label:t('⭐ التقييم','⭐ Evaluation'),      icon:'⭐'},
     {key:'report',     label:t('📊 التقرير','📊 Report'),          icon:'📊'},
@@ -5238,10 +5238,9 @@ function openSessionDetail(sessionIdx){
     });
     // Render content
     if(key==='attendance')  renderAttendanceTab(contentDiv, session, data);
-    else if(key==='pretest')  renderTestTab(contentDiv, session, data, 'pre');
-    else if(key==='posttest') renderTestTab(contentDiv, session, data, 'post');
+    else if(key==='scores')   renderScoresTab(contentDiv, session, data);
     else if(key==='eval')     renderEvalTab(contentDiv, session, data);
-    else if(key==='report')   renderReportTab(contentDiv, session, data, sessionIdx);
+    else if(key==='report')   renderSessionReport(contentDiv, session, data, sessionIdx);
   }
 
   tabs.forEach(tab=>{
@@ -12570,6 +12569,16 @@ function renderEvalTab(el, session, data){
   tbl.appendChild(tbody);
   tblWrap.appendChild(tbl);
   el.appendChild(tblWrap);
+
+  // Save button
+  const saveBar = document.createElement('div');
+  saveBar.style.cssText = 'display:flex;justify-content:center;margin-top:12px';
+  const saveBtn = document.createElement('button');
+  saveBtn.style.cssText = 'background:#1A8A5A;border:none;border-radius:10px;color:white;padding:10px 30px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit';
+  saveBtn.textContent = '💾 '+(isAR()?'حفظ التقييم':'Save Evaluation');
+  saveBtn.onclick = function(){ save(); showSuccessToast('✅ '+(isAR()?'تم حفظ التقييم وسيظهر في التقرير':'Evaluation saved')); };
+  saveBar.appendChild(saveBtn);
+  el.appendChild(saveBar);
 }
 
 function saveEvalEntry(select){
@@ -12608,6 +12617,194 @@ function exportEvalExcel(sessionId){
   XLSX.utils.book_append_sheet(wb, ws, 'Evaluation');
   XLSX.writeFile(wb, 'Evaluation_'+sessionId+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showSuccessToast('✅ تم تصدير التقييم');
+}
+
+
+
+// ══ TEST SCORES TAB ══
+function renderScoresTab(el, session, data){
+  const t = (ar,en) => isAR() ? ar : en;
+  const sessionId = session.id;
+  const sData = data || JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
+  const attendance = sData.attendance || [];
+  const scores = sData.testScores || {};
+
+  el.innerHTML = '';
+  if(!attendance.length){
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:#6A85A5"><div style="font-size:28px;margin-bottom:8px">📝</div>'+t('أضف المتدربين من سجل الحضور أولاً','Add trainees from attendance first')+'</div>';
+    return;
+  }
+
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px';
+  hdr.innerHTML = '<span style="color:#F5F7FA;font-size:13px;font-weight:700">📝 '+t('درجات الاختبار','Test Scores')+' ('+attendance.length+')</span>';
+  el.appendChild(hdr);
+
+  const tblWrap = document.createElement('div');
+  tblWrap.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow-x:auto';
+  const tbl = document.createElement('table');
+  tbl.style.cssText = 'width:100%;border-collapse:collapse';
+
+  tbl.innerHTML = '<thead><tr style="background:#0B1E3D">'
+    +'<th style="padding:10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A;width:40px">No</th>'
+    +'<th style="padding:10px;color:#6A85A5;font-size:10px;text-align:right;border-bottom:1px solid #1A2E4A">'+t('اسم المتدرب','Participant Name')+'</th>'
+    +'<th style="padding:10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A;width:120px">'+t('الدرجة (من 100)','Score /100')+'</th>'
+    +'<th style="padding:10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A;width:100px">'+t('النتيجة','Result')+'</th>'
+    +'</tr></thead>';
+
+  const tbody = document.createElement('tbody');
+  let totalScore = 0; let scored = 0;
+  attendance.forEach((att, i) => {
+    const score = scores[att.name];
+    const hasScore = score !== undefined && score !== null && score !== '';
+    const numScore = hasScore ? parseFloat(score) : 0;
+    if(hasScore){ totalScore += numScore; scored++; }
+    const passed = numScore >= 60;
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid rgba(26,46,74,.3)';
+    tr.innerHTML = '<td style="padding:8px 10px;color:#3A5070;font-size:11px;text-align:center">'+(i+1)+'</td>'
+      +'<td style="padding:8px 10px;color:#F5F7FA;font-size:12px;font-weight:600">'+att.name+'</td>'
+      +'<td style="padding:6px 10px;text-align:center"><input type="number" min="0" max="100" value="'+(hasScore?score:'')+'" placeholder="—" data-session="'+sessionId+'" data-trainee="'+att.name+'" onchange="saveTestScore(this)" style="background:#0D1A2E;border:1px solid '+(hasScore?'#1A8A5A':'#1A2E4A')+';color:#F5F7FA;border-radius:6px;padding:6px;font-size:13px;font-family:monospace;width:80px;text-align:center"/></td>'
+      +'<td style="padding:8px 10px;text-align:center">'+(hasScore?'<span style="background:'+(passed?'rgba(26,138,90,.15)':'rgba(192,57,43,.15)')+';color:'+(passed?'#1A8A5A':'#C0392B')+';padding:3px 12px;border-radius:5px;font-size:11px;font-weight:700">'+(passed?'Pass ✅':'Fail ❌')+'</span>':'<span style="color:#3A5070;font-size:11px">—</span>')+'</td>';
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  tblWrap.appendChild(tbl);
+  el.appendChild(tblWrap);
+
+  // Summary
+  if(scored > 0){
+    const avg = Math.round(totalScore/scored);
+    const passCount = attendance.filter(a=>(scores[a.name]||0)>=60).length;
+    const summary = document.createElement('div');
+    summary.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px';
+    summary.innerHTML = '<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+t('المتوسط','Average')+'</div><div style="color:#F5F7FA;font-size:20px;font-weight:800;font-family:monospace">'+avg+'%</div></div>'
+      +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+t('ناجح','Passed')+'</div><div style="color:#1A8A5A;font-size:20px;font-weight:800">'+passCount+'/'+scored+'</div></div>'
+      +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+t('نسبة النجاح','Pass Rate')+'</div><div style="color:'+(passCount/scored>=0.7?'#1A8A5A':'#C0392B')+';font-size:20px;font-weight:800">'+Math.round(passCount/scored*100)+'%</div></div>';
+    el.appendChild(summary);
+  }
+}
+
+function saveTestScore(input){
+  const sid = input.dataset.session;
+  const trainee = input.dataset.trainee;
+  const value = input.value;
+  const sData = JSON.parse(localStorage.getItem('tf4_session_'+sid)||'{}');
+  if(!sData.testScores) sData.testScores = {};
+  sData.testScores[trainee] = value ? parseFloat(value) : '';
+  localStorage.setItem('tf4_session_'+sid, JSON.stringify(sData));
+  input.style.borderColor = value ? '#1A8A5A' : '#1A2E4A';
+  save();
+}
+
+
+// ══ SESSION REPORT — Attendance + Scores + Evaluation ══
+function renderSessionReport(el, session, data, sessionIdx){
+  const t = (ar,en) => isAR() ? ar : en;
+  const sessionId = session.id;
+  const sData = data || JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
+  const attendance = sData.attendance || [];
+  const scores = sData.testScores || {};
+  const evals = sData.evaluations || {};
+
+  el.innerHTML = '';
+
+  // Export button
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px';
+  hdr.innerHTML = '<span style="color:#F5F7FA;font-size:14px;font-weight:800">📄 '+t('تقرير الجلسة الشامل','Complete Session Report')+'</span>'
+    +'<div style="display:flex;gap:6px">'
+    +'<button onclick="exportSessionReportExcel(\''+sessionId+'\')" style="background:rgba(26,138,90,.15);border:1px solid rgba(26,138,90,.3);border-radius:7px;color:#1A8A5A;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">📥 Excel</button>'
+    +'<button onclick="printSessionReport(\''+sessionId+'\')" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:7px;color:#9B59B6;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🖨️ PDF</button>'
+    +'</div>';
+  el.appendChild(hdr);
+
+  // Session info
+  const info = document.createElement('div');
+  info.className = 'card';
+  info.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'
+    +'<div><span style="color:#6A85A5;font-size:10px">'+t('الدورة','Course')+'</span><div style="color:#F5F7FA;font-weight:700;font-size:13px">'+session.course+'</div></div>'
+    +'<div><span style="color:#6A85A5;font-size:10px">'+t('المدرب','Trainer')+'</span><div style="color:#F5F7FA;font-weight:700;font-size:13px">'+session.trainer+'</div></div>'
+    +'<div><span style="color:#6A85A5;font-size:10px">'+t('التاريخ','Date')+'</span><div style="color:#F5F7FA;font-weight:700;font-size:13px">'+session.startDate+'</div></div></div>';
+  el.appendChild(info);
+
+  if(!attendance.length){
+    el.innerHTML += '<div style="text-align:center;padding:30px;color:#6A85A5">'+t('لا يوجد متدربين بعد','No trainees yet')+'</div>';
+    return;
+  }
+
+  // ── Section 1: Attendance ──
+  const sec1 = document.createElement('div');
+  sec1.innerHTML = '<div style="color:#23A0B5;font-weight:700;font-size:13px;margin:14px 0 8px">📋 '+t('أولاً: الحضور والغياب','1. Attendance')+'</div>';
+  const present = attendance.length;
+  sec1.innerHTML += '<div style="background:#060F1E;border-radius:10px;border:1px solid #1A2E4A;padding:12px"><div style="color:#1A8A5A;font-size:13px;font-weight:700">'+t('الحاضرون: ','Present: ')+present+'</div></div>';
+  el.appendChild(sec1);
+
+  // ── Section 2: Test Scores ──
+  const sec2 = document.createElement('div');
+  sec2.innerHTML = '<div style="color:#C9A84C;font-weight:700;font-size:13px;margin:14px 0 8px">📝 '+t('ثانياً: درجات الاختبار','2. Test Scores')+'</div>';
+  const scoredList = attendance.filter(a=>scores[a.name]!==undefined&&scores[a.name]!=='');
+  if(scoredList.length){
+    const passCount = scoredList.filter(a=>(scores[a.name]||0)>=60).length;
+    const avg = Math.round(scoredList.reduce((s,a)=>s+(scores[a.name]||0),0)/scoredList.length);
+    sec2.innerHTML += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">'
+      +'<div class="kpi" style="padding:10px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+t('المتوسط','Avg')+'</div><div style="color:#F5F7FA;font-size:18px;font-weight:800">'+avg+'%</div></div>'
+      +'<div class="kpi" style="padding:10px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+t('ناجح','Pass')+'</div><div style="color:#1A8A5A;font-size:18px;font-weight:800">'+passCount+'/'+scoredList.length+'</div></div>'
+      +'<div class="kpi" style="padding:10px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+t('نسبة النجاح','Rate')+'</div><div style="color:#F5F7FA;font-size:18px;font-weight:800">'+Math.round(passCount/scoredList.length*100)+'%</div></div></div>';
+  } else {
+    sec2.innerHTML += '<div style="color:#6A85A5;font-size:12px;padding:10px">'+t('لم تُسجل درجات بعد','No scores recorded yet')+'</div>';
+  }
+  el.appendChild(sec2);
+
+  // ── Section 3: Evaluation ──
+  const sec3 = document.createElement('div');
+  sec3.innerHTML = '<div style="color:#9B59B6;font-weight:700;font-size:13px;margin:14px 0 8px">📊 '+t('ثالثاً: التقييم','3. Evaluation')+'</div>';
+  const evalCount = attendance.filter(a=>evals[a.name]&&Object.keys(evals[a.name]).length>0).length;
+  if(evalCount){
+    sec3.innerHTML += '<div style="color:#6A85A5;font-size:12px;padding:10px">'+t('تم تقييم ','Evaluated ')+evalCount+t(' متدرب',' trainees')+'</div>';
+  } else {
+    sec3.innerHTML += '<div style="color:#6A85A5;font-size:12px;padding:10px">'+t('لم يتم التقييم بعد','No evaluations yet')+'</div>';
+  }
+  el.appendChild(sec3);
+
+  // ── Full table ──
+  const fullTbl = document.createElement('div');
+  fullTbl.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow-x:auto;margin-top:14px';
+  const headers = ['No',t('الاسم','Name'),t('الدرجة','Score'),t('النتيجة','Result'),...EVAL_CRITERIA.map(c=>t(c.ar,c.en))];
+  fullTbl.innerHTML = '<table style="width:100%;border-collapse:collapse;min-width:700px"><thead><tr style="background:#0B1E3D">'
+    +headers.map(h=>'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+    +attendance.map((a,i)=>{
+      const sc2 = scores[a.name]; const has = sc2!==undefined&&sc2!=='';
+      const pass = has&&sc2>=60;
+      const ev = evals[a.name]||{};
+      return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
+        +'<td style="padding:8px;color:#3A5070;text-align:center;font-size:10px">'+(i+1)+'</td>'
+        +'<td style="padding:8px;color:#F5F7FA;font-size:12px;font-weight:600">'+a.name+'</td>'
+        +'<td style="padding:8px;text-align:center;font-family:monospace;color:'+(has?(pass?'#1A8A5A':'#C0392B'):'#3A5070')+';font-weight:700">'+(has?sc2:'—')+'</td>'
+        +'<td style="padding:8px;text-align:center">'+(has?'<span style="color:'+(pass?'#1A8A5A':'#C0392B')+';font-size:10px;font-weight:700">'+(pass?'Pass':'Fail')+'</span>':'—')+'</td>'
+        +EVAL_CRITERIA.map(c=>'<td style="padding:8px;text-align:center;color:#D0D8EC;font-size:11px">'+(ev[c.id]||'—')+'</td>').join('')
+        +'</tr>';
+    }).join('')
+    +'</tbody></table>';
+  el.appendChild(fullTbl);
+}
+
+// ══ Export Session Report to Excel ══
+function exportSessionReportExcel(sessionId){
+  if(typeof XLSX==='undefined'){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>exportSessionReportExcel(sessionId);document.head.appendChild(s);return;}
+  const sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
+  const att = sData.attendance||[]; const scores = sData.testScores||{}; const evals = sData.evaluations||{};
+  const wsData = [['No','Name','Score','Result',...EVAL_CRITERIA.map(c=>c.en)]];
+  att.forEach((a,i)=>{
+    const sc2=scores[a.name]; const has=sc2!==undefined&&sc2!=='';
+    const ev=evals[a.name]||{};
+    wsData.push([i+1,a.name,has?sc2:'',has?(sc2>=60?'Pass':'Fail'):'', ...EVAL_CRITERIA.map(c=>ev[c.id]||'')]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(wsData); const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Report');
+  XLSX.writeFile(wb,'Session_Report_'+sessionId+'.xlsx');
+  showSuccessToast('✅ تم التصدير');
 }
 
 
