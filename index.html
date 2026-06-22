@@ -5549,115 +5549,7 @@ function deleteTestResult(btn){
 }
 
 // ══ TAB: EVALUATION ══
-function renderEvalTab(el, session, data){
-  const t = (ar,en) => isAR() ? ar : en;
-  el.innerHTML = '';
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:16px';
 
-  // Left: Trainee evaluates Trainer
-  const trainerEvalPanel = document.createElement('div');
-  trainerEvalPanel.style.cssText = 'background:#060F1E;border-radius:12px;padding:20px;border:1px solid #1A2E4A';
-  const criteria = [
-    {key:'knowledge',  label:t('المعرفة والخبرة','Knowledge & Expertise')},
-    {key:'delivery',   label:t('أسلوب الشرح','Delivery Style')},
-    {key:'interaction',label:t('التفاعل مع المتدربين','Interaction')},
-    {key:'materials',  label:t('المحتوى التدريبي','Training Materials')},
-    {key:'time',       label:t('إدارة الوقت','Time Management')},
-    {key:'overall',    label:t('التقييم العام','Overall Rating')},
-  ];
-
-  const trainerRatings = data.trainerEval || {};
-  trainerEvalPanel.innerHTML = '<div style="color:#C9A84C;font-size:13px;font-weight:700;margin-bottom:14px">⭐ '+t('تقييم المدرب','Trainer Evaluation')+'</div>';
-
-  criteria.forEach(c=>{
-    const val = trainerRatings[c.key]||0;
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(26,46,74,.2)';
-    row.innerHTML = '<span style="color:#D0D8EC;font-size:12px">'+c.label+'</span>';
-    const stars = document.createElement('div');
-    stars.style.cssText = 'display:flex;gap:3px';
-    for(let i=1;i<=5;i++){
-      const star = document.createElement('span');
-      star.style.cssText = 'cursor:pointer;font-size:18px;transition:transform .15s';
-      star.textContent = i<=val?'⭐':'☆';
-      star.onmouseover = ()=>star.style.transform='scale(1.3)';
-      star.onmouseout  = ()=>star.style.transform='scale(1)';
-      star.onclick = ()=>{
-        data.trainerEval[c.key] = i;
-        saveSessionData(session.id, data);
-        renderEvalTab(el, session, data);
-      };
-      stars.appendChild(star);
-    }
-    row.appendChild(stars);
-    trainerEvalPanel.appendChild(row);
-  });
-
-  // Average
-  const vals = Object.values(trainerRatings).filter(v=>typeof v==='number'&&v>0);
-  const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '—';
-  const avgDiv = document.createElement('div');
-  avgDiv.style.cssText = 'margin-top:12px;text-align:center;padding:12px;background:#0D1A2E;border-radius:8px';
-  avgDiv.innerHTML = '<div style="color:#6A85A5;font-size:10px;margin-bottom:4px">'+t('المتوسط العام','Overall Average')+'</div>'
-    +'<div style="color:#C9A84C;font-size:24px;font-weight:800">'+avg+' <span style="font-size:14px">/ 5</span></div>';
-  trainerEvalPanel.appendChild(avgDiv);
-  wrap.appendChild(trainerEvalPanel);
-
-  // Right: Trainer evaluates Trainees
-  const traineeEvalPanel = document.createElement('div');
-  traineeEvalPanel.style.cssText = 'background:#060F1E;border-radius:12px;padding:20px;border:1px solid #1A2E4A';
-  traineeEvalPanel.innerHTML = '<div style="color:#23A0B5;font-size:13px;font-weight:700;margin-bottom:14px">👥 '+t('تقييم المتدربين','Trainee Evaluation')+'</div>';
-
-  // Add trainee eval form
-  const addForm = document.createElement('div');
-  addForm.style.cssText = 'display:grid;grid-template-columns:1fr 80px 80px;gap:6px;margin-bottom:12px;align-items:end';
-  addForm.innerHTML =
-    '<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('المتدرب','Trainee')+'</label>'
-    +'<input class="fc" id="teval-name" style="font-size:11px" placeholder="'+t('الاسم','Name')+'"/></div>'
-    +'<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('الحضور %','Attend %')+'</label>'
-    +'<input class="fc" id="teval-att" type="number" min="0" max="100" value="100" style="font-size:11px;text-align:center"/></div>'
-    +'<div><label style="color:#6A85A5;font-size:9px;display:block;margin-bottom:3px">'+t('الأداء /5','Perf /5')+'</label>'
-    +'<input class="fc" id="teval-perf" type="number" min="1" max="5" value="3" style="font-size:11px;text-align:center"/></div>';
-  traineeEvalPanel.appendChild(addForm);
-
-  const addEvalBtn = document.createElement('button');
-  addEvalBtn.style.cssText = 'background:#23A0B5;border:none;border-radius:7px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;width:100%;margin-bottom:12px;font-family:inherit';
-  addEvalBtn.textContent = '+ '+t('إضافة تقييم','Add Evaluation');
-  addEvalBtn.onclick = ()=>{
-    const name = document.getElementById('teval-name').value.trim();
-    if(!name) return;
-    data.traineeEval.push({
-      name,
-      attendance: parseInt(document.getElementById('teval-att').value)||100,
-      performance: parseInt(document.getElementById('teval-perf').value)||3,
-      date: new Date().toISOString().slice(0,10)
-    });
-    saveSessionData(session.id, data);
-    renderEvalTab(el, session, data);
-  };
-  traineeEvalPanel.appendChild(addEvalBtn);
-
-  // List
-  const evalList = document.createElement('div');
-  evalList.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-height:250px;overflow-y:auto';
-  (data.traineeEval||[]).forEach((te,i)=>{
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#0D1A2E;border-radius:7px';
-    row.innerHTML =
-      '<div style="color:#F5F7FA;font-size:12px;font-weight:600">'+te.name+'</div>'
-      +'<div style="display:flex;gap:8px;align-items:center">'
-      +'<span style="color:#6A85A5;font-size:10px">'+t('حضور:','Att:')+' '+te.attendance+'%</span>'
-      +'<span style="color:#C9A84C;font-size:10px">'+'⭐'.repeat(te.performance)+'</span>'
-      +'</div>';
-    evalList.appendChild(row);
-  });
-  traineeEvalPanel.appendChild(evalList);
-  wrap.appendChild(traineeEvalPanel);
-  el.appendChild(wrap);
-}
-
-// ══ TAB: REPORT + PDF ══
 function renderReportTab(el, session, data, sessionIdx){
   const t = (ar,en) => isAR() ? ar : en;
   const hours = calcSessionHours(session);
@@ -12622,34 +12514,34 @@ const EVAL_CRITERIA = [
   {id:'recommendation', ar:'توصية اختبار CWQAP', en:'CWQAP Exam Recommendation', options:['Highly Confident','Confident','Somewhat Confident','Not Confident']},
 ];
 
-function renderEvalTab(sessionId, container){
-  const t = (ar,en) => isAR() ? ar : en;
-  const sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
-  const attendance = sData.attendance || [];
-  const evals = sData.evaluations || {};
 
-  container.innerHTML = '';
-  
+function renderEvalTab(el, session, data){
+  const t = (ar,en) => isAR() ? ar : en;
+  el.innerHTML = '';
+  const sessionId = session.id;
+  const sData = data || JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
+  const attendance = sData.attendance || [];
+
   if(!attendance.length){
-    container.innerHTML = '<div style="text-align:center;padding:30px;color:#6A85A5"><div style="font-size:28px;margin-bottom:8px">📋</div>'+t('أضف المتدربين من سجل الحضور أولاً','Add trainees from attendance first')+'</div>';
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:#6A85A5"><div style="font-size:28px;margin-bottom:8px">📋</div>'+t('أضف المتدربين من سجل الحضور أولاً','Add trainees from attendance first')+'</div>';
     return;
   }
+
+  const evals = sData.evaluations || {};
 
   // Header
   const hdr = document.createElement('div');
   hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px';
   hdr.innerHTML = '<span style="color:#F5F7FA;font-size:13px;font-weight:700">📋 '+t('تقييم المتدربين','Trainee Evaluation')+' ('+attendance.length+')</span>'
     +'<button onclick="exportEvalExcel(\''+sessionId+'\')" style="background:rgba(26,138,90,.15);border:1px solid rgba(26,138,90,.3);border-radius:7px;color:#1A8A5A;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">📥 '+t('تصدير Excel','Export')+'</button>';
-  container.appendChild(hdr);
+  el.appendChild(hdr);
 
   // Table
   const tblWrap = document.createElement('div');
   tblWrap.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow-x:auto';
-  
   const tbl = document.createElement('table');
   tbl.style.cssText = 'width:100%;border-collapse:collapse;min-width:700px';
-  
-  // Headers
+
   const thead = document.createElement('thead');
   thead.innerHTML = '<tr style="background:#0B1E3D">'
     +'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A;width:30px">No</th>'
@@ -12660,27 +12552,24 @@ function renderEvalTab(sessionId, container){
 
   const tbody = document.createElement('tbody');
   attendance.forEach((att, i) => {
+    const evalData = evals[att.name] || {};
     const tr = document.createElement('tr');
     tr.style.cssText = 'border-bottom:1px solid rgba(26,46,74,.3)';
-    
-    const evalData = evals[att.name] || {};
-    
     tr.innerHTML = '<td style="padding:8px 10px;color:#3A5070;font-size:11px;text-align:center">'+(i+1)+'</td>'
       +'<td style="padding:8px 10px;color:#F5F7FA;font-size:12px;font-weight:600">'+att.name+'</td>'
       +EVAL_CRITERIA.map(c=>{
         const curVal = evalData[c.id] || '';
         return '<td style="padding:6px 8px;text-align:center">'
-          +'<select data-session="'+sessionId+'" data-trainee="'+att.name+'" data-criteria="'+c.id+'" onchange="saveEvalEntry(this)" style="background:#0D1A2E;border:1px solid #1A2E4A;color:#F5F7FA;border-radius:5px;padding:4px 6px;font-size:10px;font-family:inherit;cursor:pointer;width:100%">'
+          +'<select data-session="'+sessionId+'" data-trainee="'+att.name+'" data-criteria="'+c.id+'" onchange="saveEvalEntry(this)" style="background:#0D1A2E;border:1px solid '+(curVal?'#1A8A5A':'#1A2E4A')+';color:#F5F7FA;border-radius:5px;padding:4px 6px;font-size:10px;font-family:inherit;cursor:pointer;width:100%">'
           +'<option value="">—</option>'
           +c.options.map(o=>'<option value="'+o+'"'+(curVal===o?' selected':'')+'>'+o+'</option>').join('')
           +'</select></td>';
       }).join('');
-    
     tbody.appendChild(tr);
   });
   tbl.appendChild(tbody);
   tblWrap.appendChild(tbl);
-  container.appendChild(tblWrap);
+  el.appendChild(tblWrap);
 }
 
 function saveEvalEntry(select){
