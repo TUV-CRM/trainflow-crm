@@ -12660,7 +12660,7 @@ function renderScoresTab(el, session, data){
     const hasScore = score !== undefined && score !== null && score !== '';
     const numScore = hasScore ? parseFloat(score) : 0;
     if(hasScore){ totalScore += numScore; scored++; }
-    const passed = numScore >= 60;
+    const passed = numScore >= 70;
     const tr = document.createElement('tr');
     tr.style.cssText = 'border-bottom:1px solid rgba(26,46,74,.3)';
     tr.innerHTML = '<td style="padding:8px 10px;color:#3A5070;font-size:11px;text-align:center">'+(i+1)+'</td>'
@@ -12676,7 +12676,7 @@ function renderScoresTab(el, session, data){
   // Summary
   if(scored > 0){
     const avg = Math.round(totalScore/scored);
-    const passCount = attendance.filter(a=>(scores[a.name]||0)>=60).length;
+    const passCount = attendance.filter(a=>(scores[a.name]||0)>=70).length;
     const summary = document.createElement('div');
     summary.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px';
     summary.innerHTML = '<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+t('المتوسط','Average')+'</div><div style="color:#F5F7FA;font-size:20px;font-weight:800;font-family:monospace">'+avg+'%</div></div>'
@@ -12701,7 +12701,7 @@ function saveTestScore(input){
     const resultTd = tr.querySelector('td:last-child');
     const num = parseFloat(value)||0;
     if(value && resultTd){
-      resultTd.innerHTML = num>=60 ? '<span style="color:#1A8A5A;font-size:10px;font-weight:700">Pass ✅</span>' : '<span style="color:#C0392B;font-size:10px;font-weight:700">Fail ❌</span>';
+      resultTd.innerHTML = num>=70 ? '<span style="color:#1A8A5A;font-size:10px;font-weight:700">Pass ✅</span>' : '<span style="color:#C0392B;font-size:10px;font-weight:700">Fail ❌</span>';
     }
   }
   save();
@@ -12755,7 +12755,7 @@ function renderSessionReport(el, session, data, sessionIdx){
   sec2.innerHTML = '<div style="color:#C9A84C;font-weight:700;font-size:13px;margin:14px 0 8px">📝 '+t('ثانياً: درجات الاختبار','2. Test Scores')+'</div>';
   const scoredList = attendance.filter(a=>scores[a.name]!==undefined&&scores[a.name]!=='');
   if(scoredList.length){
-    const passCount = scoredList.filter(a=>(scores[a.name]||0)>=60).length;
+    const passCount = scoredList.filter(a=>(scores[a.name]||0)>=70).length;
     const avg = Math.round(scoredList.reduce((s,a)=>s+(scores[a.name]||0),0)/scoredList.length);
     sec2.innerHTML += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">'
       +'<div class="kpi" style="padding:10px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+t('المتوسط','Avg')+'</div><div style="color:#F5F7FA;font-size:18px;font-weight:800">'+avg+'%</div></div>'
@@ -12786,7 +12786,7 @@ function renderSessionReport(el, session, data, sessionIdx){
     +'</tr></thead><tbody>'
     +attendance.map((a,i)=>{
       const sc2 = scores[a.name]; const has = sc2!==undefined&&sc2!=='';
-      const pass = has&&sc2>=60;
+      const pass = has&&sc2>=70;
       const ev = evals[a.name]||{};
       return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
         +'<td style="padding:8px;color:#3A5070;text-align:center;font-size:10px">'+(i+1)+'</td>'
@@ -12854,7 +12854,7 @@ function generateCompanyReport(sessionId, companyFilter){
   var evals = sData.evaluations||{};
   var scoredList = att.filter(function(a){return scores[a.name]!==undefined&&scores[a.name]!==''});
   var avg = scoredList.length ? Math.round(scoredList.reduce(function(s,a){return s+(scores[a.name]||0)},0)/scoredList.length) : 0;
-  var passCount = scoredList.filter(function(a){return (scores[a.name]||0)>=60}).length;
+  var passCount = scoredList.filter(function(a){return (scores[a.name]||0)>=70}).length;
   var passRate = scoredList.length ? Math.round(passCount/scoredList.length*100) : 0;
   var evalCritHeaders = typeof EVAL_CRITERIA!=='undefined' ? EVAL_CRITERIA : [];
 
@@ -12968,7 +12968,7 @@ function exportSessionReportExcel(sessionId){
   att.forEach((a,i)=>{
     const sc2=scores[a.name]; const has=sc2!==undefined&&sc2!=='';
     const ev=evals[a.name]||{};
-    wsData.push([i+1,a.name,session.course,has?sc2:'',has?(sc2>=60?'Pass':'Fail'):'', ...EVAL_CRITERIA.map(c=>ev[c.id]||'')]);
+    wsData.push([i+1,a.name,session.course,has?sc2:'',has?(sc2>=70?'Pass':'Fail'):'', ...EVAL_CRITERIA.map(c=>ev[c.id]||'')]);
   });
   const ws=XLSX.utils.aoa_to_sheet(wsData); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Report');
