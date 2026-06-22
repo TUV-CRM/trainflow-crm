@@ -12802,6 +12802,52 @@ function renderSessionReport(el, session, data, sessionIdx){
 }
 
 // ══ Export Session Report to Excel ══
+
+function printSessionReport(sessionId){
+  const sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
+  const session = (DB.sessions||[]).find(s=>s.id===sessionId)||{};
+  const att = sData.attendance||[];
+  const scores = sData.testScores||{};
+  const evals = sData.evaluations||{};
+  const scoredList = att.filter(a=>scores[a.name]!==undefined&&scores[a.name]!=='');
+  const avg = scoredList.length ? Math.round(scoredList.reduce((s,a)=>s+(scores[a.name]||0),0)/scoredList.length) : 0;
+  const passCount = scoredList.filter(a=>(scores[a.name]||0)>=60).length;
+
+  const html = '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"/><title>Session Report</title>'
+    +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:15mm;color:#1A2E4A;font-size:11px}'
+    +'h1{color:#1A3570;font-size:18px;border-bottom:3px solid #1A3570;padding-bottom:6px;margin-bottom:12px}'
+    +'h2{color:#1A3570;font-size:13px;margin:16px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}'
+    +'table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:10px;text-align:center}'
+    +'th{background:#1A3570;color:white}.info{display:flex;gap:20px;margin:8px 0;flex-wrap:wrap}'
+    +'.info div{background:#f5f7fa;padding:8px 14px;border-radius:6px}.pass{color:#1A8A5A;font-weight:700}.fail{color:#C0392B;font-weight:700}'
+    +'@media print{@page{size:A4 landscape;margin:10mm}}</style></head><body>'
+    +'<h1>📄 Session Report — '+session.course+'</h1>'
+    +'<div class="info"><div><strong>Course:</strong> '+session.course+'</div><div><strong>Trainer:</strong> '+(session.trainer||'')+'</div><div><strong>Date:</strong> '+(session.startDate||'')+'</div><div><strong>Attendees:</strong> '+att.length+'</div></div>'
+    +'<h2>Test Results</h2>'
+    +'<div class="info"><div><strong>Average:</strong> '+avg+'%</div><div><strong>Passed:</strong> '+passCount+'/'+scoredList.length+'</div><div><strong>Pass Rate:</strong> '+(scoredList.length?Math.round(passCount/scoredList.length*100):0)+'%</div></div>'
+    +'<h2>Full Report</h2>'
+    +'<table><tr><th>No</th><th>Participant Name</th><th>Specialization</th><th>Score</th><th>Result</th>'
+    +(typeof EVAL_CRITERIA!=="undefined"?EVAL_CRITERIA.map(function(c){return '<th>'+c.en+'</th>'}).join(''):'')
+    +'</tr>'
+    +att.map(function(a,i){
+      var sc=scores[a.name]; var has=sc!==undefined&&sc!==''; var pass=has&&sc>=60;
+      var ev=evals[a.name]||{};
+      return '<tr><td>'+(i+1)+'</td><td style="text-align:right;font-weight:600">'+a.name+'</td><td>'+session.course+'</td>'
+        +'<td class="'+(has?(pass?'pass':'fail'):'')+'">'+( has?sc:'—')+'</td>'
+        +'<td class="'+(has?(pass?'pass':'fail'):'')+'">'+( has?(pass?'Pass':'Fail'):'—')+'</td>'
+        +(typeof EVAL_CRITERIA!=="undefined"?EVAL_CRITERIA.map(function(c){return '<td>'+(ev[c.id]||'—')+'</td>'}).join(''):'')
+        +'</tr>';
+    }).join('')
+    +'</table>'
+    +'<div style="margin-top:20px;text-align:center;color:#999;font-size:9px;border-top:1px solid #ccc;padding-top:6px">TUV Training Institute — TrainFlow CRM — '+new Date().toLocaleDateString()+'</div>'
+    +'</body></html>';
+
+  var w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(function(){w.print();},500);
+}
+
 function exportSessionReportExcel(sessionId){
   if(typeof XLSX==='undefined'){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>exportSessionReportExcel(sessionId);document.head.appendChild(s);return;}
   const sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
