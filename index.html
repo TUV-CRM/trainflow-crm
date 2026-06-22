@@ -12802,53 +12802,161 @@ function renderSessionReport(el, session, data, sessionIdx){
 }
 
 function printSessionReport(sessionId){
+  // Show company selection dialog
   const sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
   const session = (DB.sessions||[]).find(s=>s.id===sessionId)||{};
   const att = sData.attendance||[];
-  const scores = sData.testScores||{};
-  const evals = sData.evaluations||{};
-  const scoredList = att.filter(a=>scores[a.name]!==undefined&&scores[a.name]!=='');
-  const avg = scoredList.length ? Math.round(scoredList.reduce((s,a)=>s+(scores[a.name]||0),0)/scoredList.length) : 0;
-  const passCount = scoredList.filter(a=>(scores[a.name]||0)>=60).length;
+  const companies = [...new Set(att.map(a=>a.company||'Unknown').filter(Boolean))];
+  
+  if(companies.length <= 1){
+    generateCompanyReport(sessionId, companies[0]||'All');
+    return;
+  }
 
-  const html = '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"/><title>Session Report</title>'
-    +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:15mm;color:#1A2E4A;font-size:11px}'
-    +'h1{color:#1A3570;font-size:18px;border-bottom:3px solid #1A3570;padding-bottom:6px;margin-bottom:12px}'
-    +'h2{color:#1A3570;font-size:13px;margin:16px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}'
-    +'table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:10px;text-align:center}'
-    +'th{background:#1A3570;color:white}.info{display:flex;gap:20px;margin:8px 0;flex-wrap:wrap}'
-    +'.info div{background:#f5f7fa;padding:8px 14px;border-radius:6px}.pass{color:#1A8A5A;font-weight:700}.fail{color:#C0392B;font-weight:700}'
-    +'@media print{@page{size:A4 landscape;margin:10mm}}</style></head><body>'
-    +'<h1>📄 Session Report — '+session.course+'</h1>'
-    +'<div class="info"><div><strong>Course:</strong> '+session.course+'</div><div><strong>Trainer:</strong> '+(session.trainer||'')+'</div><div><strong>Date:</strong> '+(session.startDate||'')+'</div><div><strong>Attendees:</strong> '+att.length+'</div></div>'
-    +'<h2>Test Results</h2>'
-    +'<div class="info"><div><strong>Average:</strong> '+avg+'%</div><div><strong>Passed:</strong> '+passCount+'/'+scoredList.length+'</div><div><strong>Pass Rate:</strong> '+(scoredList.length?Math.round(passCount/scoredList.length*100):0)+'%</div></div>'
-    +'<h2>Full Report</h2>'
-    +'<table><tr><th>No</th><th>Participant Name</th><th>Specialization</th><th>Score</th><th>Result</th>'
-    +(typeof EVAL_CRITERIA!=="undefined"?EVAL_CRITERIA.map(function(c){return '<th>'+c.en+'</th>'}).join(''):'')
-    +'</tr>'
+  const ex = document.getElementById('companyReportDialog');
+  if(ex) ex.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'companyReportDialog';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#0B1E3D;border:1px solid #1A2E4A;border-radius:16px;padding:24px;width:420px;max-width:95vw';
+  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="color:#F5F7FA;font-weight:800;font-size:15px">🏢 '+(isAR()?'اختر الشركة للتقرير':'Select Company')+'</span><button onclick="document.getElementById('companyReportDialog').remove()" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">✕</button></div>';
+
+  // All companies button
+  const allBtn = document.createElement('button');
+  allBtn.style.cssText = 'width:100%;padding:12px;background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:10px;color:#9B59B6;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px';
+  allBtn.textContent = '📄 '+(isAR()?'تقرير شامل — جميع الشركات':'Full Report — All Companies');
+  allBtn.onclick = function(){ overlay.remove(); generateCompanyReport(sessionId, null); };
+  box.appendChild(allBtn);
+
+  companies.forEach(function(comp){
+    const count = att.filter(function(a){return a.company===comp}).length;
+    const btn = document.createElement('button');
+    btn.style.cssText = 'width:100%;padding:12px;background:#060F1E;border:1px solid #1A2E4A;border-radius:10px;color:#F5F7FA;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center';
+    btn.innerHTML = '<span>🏢 '+comp+'</span><span style="color:#23A0B5;font-size:11px">'+count+' '+(isAR()?'متدرب':'trainees')+'</span>';
+    btn.onmouseover = function(){btn.style.borderColor='#23A0B5'};
+    btn.onmouseout = function(){btn.style.borderColor='#1A2E4A'};
+    btn.onclick = function(){ overlay.remove(); generateCompanyReport(sessionId, comp); };
+    box.appendChild(btn);
+  });
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+function generateCompanyReport(sessionId, companyFilter){
+  var sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
+  var session = (DB.sessions||[]).find(function(s){return s.id===sessionId})||{};
+  var inst = JSON.parse(localStorage.getItem('tf4_inst')||'{}');
+  var instName = inst.name || 'TUV TRAINING INSTITUTE COMPANY';
+  var allAtt = sData.attendance||[];
+  var att = companyFilter ? allAtt.filter(function(a){return a.company===companyFilter}) : allAtt;
+  var scores = sData.testScores||{};
+  var evals = sData.evaluations||{};
+  var scoredList = att.filter(function(a){return scores[a.name]!==undefined&&scores[a.name]!==''});
+  var avg = scoredList.length ? Math.round(scoredList.reduce(function(s,a){return s+(scores[a.name]||0)},0)/scoredList.length) : 0;
+  var passCount = scoredList.filter(function(a){return (scores[a.name]||0)>=60}).length;
+  var passRate = scoredList.length ? Math.round(passCount/scoredList.length*100) : 0;
+  var evalCritHeaders = typeof EVAL_CRITERIA!=='undefined' ? EVAL_CRITERIA : [];
+
+  var html = '<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8"/>'
+    +'<title>Training Report — '+(companyFilter||'All Companies')+'</title>'
+    +'<style>'
+    +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'body{font-family:"Segoe UI",Arial,sans-serif;color:#1a2e4a;font-size:11px}'
+    +'.page{padding:20mm 18mm;min-height:297mm;position:relative}'
+    +'.header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1A3570;padding-bottom:14px;margin-bottom:20px}'
+    +'.header-left{display:flex;align-items:center;gap:14px}'
+    +'.logo-box{width:60px;height:60px;background:linear-gradient(135deg,#1A3570,#2B4FAA);border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;font-size:22px;font-weight:900}'
+    +'.inst-name{font-size:16px;font-weight:800;color:#1A3570}'
+    +'.inst-sub{font-size:9px;color:#6a85a5;letter-spacing:1px;text-transform:uppercase}'
+    +'.doc-badge{background:#1A3570;color:white;padding:8px 16px;border-radius:8px;font-size:10px;font-weight:700;text-align:center}'
+    +'.section-title{font-size:13px;font-weight:700;color:#1A3570;border-bottom:2px solid #e8ecf0;padding-bottom:4px;margin:18px 0 10px;display:flex;align-items:center;gap:6px}'
+    +'.info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0}'
+    +'.info-box{background:#f0f4f8;border-radius:8px;padding:10px 14px}'
+    +'.info-label{font-size:8px;color:#6a85a5;text-transform:uppercase;letter-spacing:.5px}'
+    +'.info-value{font-size:13px;font-weight:700;color:#1a2e4a;margin-top:2px}'
+    +'.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}'
+    +'.kpi{background:#f0f4f8;border-radius:8px;padding:10px;text-align:center}'
+    +'.kpi-val{font-size:18px;font-weight:800}'
+    +'.kpi-label{font-size:8px;color:#6a85a5;margin-top:2px}'
+    +'table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10px}'
+    +'th{background:#1A3570;color:white;padding:7px 8px;font-weight:600;text-align:center;font-size:9px}'
+    +'td{border:1px solid #dfe4ea;padding:6px 8px;text-align:center}'
+    +'tr:nth-child(even){background:#f8f9fb}'
+    +'.pass{color:#1A8A5A;font-weight:700}.fail{color:#C0392B;font-weight:700}'
+    +'.footer{position:absolute;bottom:15mm;left:18mm;right:18mm;border-top:1px solid #dfe4ea;padding-top:8px;display:flex;justify-content:space-between;color:#6a85a5;font-size:8px}'
+    +'.stamp-area{border:2px dashed #c0c8d4;border-radius:8px;padding:30px;text-align:center;color:#6a85a5;font-size:9px;margin-top:20px;width:200px}'
+    +'@media print{@page{size:A4;margin:0}.page{padding:18mm 16mm}}'
+    +'</style></head><body><div class="page">'
+
+    // Header
+    +'<div class="header">'
+    +'<div class="header-left">'
+    +'<div class="logo-box">T</div>'
+    +'<div><div class="inst-name">'+instName+'</div><div class="inst-sub">Accredited Training & Assessment Center</div></div>'
+    +'</div>'
+    +'<div class="doc-badge">TRAINING<br>REPORT<br><span style="font-size:8px;opacity:.7">'+new Date().toLocaleDateString('en-GB')+'</span></div>'
+    +'</div>'
+
+    // Session Info
+    +'<div class="section-title">📋 Session Information</div>'
+    +'<div class="info-grid">'
+    +'<div class="info-box"><div class="info-label">Course</div><div class="info-value">'+session.course+'</div></div>'
+    +'<div class="info-box"><div class="info-label">Trainer</div><div class="info-value">'+(session.trainer||'-')+'</div></div>'
+    +'<div class="info-box"><div class="info-label">Date</div><div class="info-value">'+(session.startDate||'-')+'</div></div>'
+    +'<div class="info-box"><div class="info-label">Company</div><div class="info-value">'+(companyFilter||'All Companies')+'</div></div>'
+    +'<div class="info-box"><div class="info-label">Type</div><div class="info-value">'+(session.type||'-')+'</div></div>'
+    +'<div class="info-box"><div class="info-label">Participants</div><div class="info-value">'+att.length+'</div></div>'
+    +'</div>'
+
+    // KPIs
+    +'<div class="section-title">📊 Results Summary</div>'
+    +'<div class="kpi-row">'
+    +'<div class="kpi"><div class="kpi-val" style="color:#1A3570">'+att.length+'</div><div class="kpi-label">Attendees</div></div>'
+    +'<div class="kpi"><div class="kpi-val" style="color:#1A3570">'+avg+'%</div><div class="kpi-label">Average Score</div></div>'
+    +'<div class="kpi"><div class="kpi-val" style="color:#1A8A5A">'+passCount+'/'+scoredList.length+'</div><div class="kpi-label">Passed</div></div>'
+    +'<div class="kpi"><div class="kpi-val" style="color:'+(passRate>=70?'#1A8A5A':'#C0392B')+'">'+passRate+'%</div><div class="kpi-label">Pass Rate</div></div>'
+    +'</div>'
+
+    // Full Table
+    +'<div class="section-title">📝 Detailed Results</div>'
+    +'<table><thead><tr>'
+    +'<th>No</th><th style="text-align:left">Participant Name</th><th>Specialization</th><th>Score</th><th>Result</th>'
+    +evalCritHeaders.map(function(c){return '<th>'+c.en+'</th>'}).join('')
+    +'</tr></thead><tbody>'
     +att.map(function(a,i){
       var sc=scores[a.name]; var has=sc!==undefined&&sc!==''; var pass=has&&sc>=60;
       var ev=evals[a.name]||{};
-      return '<tr><td>'+(i+1)+'</td><td style="text-align:right;font-weight:600">'+a.name+'</td><td>'+session.course+'</td>'
-        +'<td class="'+(has?(pass?'pass':'fail'):'')+'">'+( has?sc:'—')+'</td>'
-        +'<td class="'+(has?(pass?'pass':'fail'):'')+'">'+( has?(pass?'Pass':'Fail'):'—')+'</td>'
-        +(typeof EVAL_CRITERIA!=="undefined"?EVAL_CRITERIA.map(function(c){return '<td>'+(ev[c.id]||'—')+'</td>'}).join(''):'')
+      return '<tr>'
+        +'<td>'+(i+1)+'</td>'
+        +'<td style="text-align:left;font-weight:600">'+a.name+'</td>'
+        +'<td>'+session.course+'</td>'
+        +'<td class="'+(has?(pass?'pass':'fail'):'')+'">'+( has?sc:'-')+'</td>'
+        +'<td class="'+(has?(pass?'pass':'fail'):'')+'">'+( has?(pass?'Pass':'Fail'):'-')+'</td>'
+        +evalCritHeaders.map(function(c){return '<td>'+(ev[c.id]||'-')+'</td>'}).join('')
         +'</tr>';
     }).join('')
-    +'</table>'
-    +'<div style="margin-top:20px;text-align:center;color:#999;font-size:9px;border-top:1px solid #ccc;padding-top:6px">TUV Training Institute — TrainFlow CRM — '+new Date().toLocaleDateString()+'</div>'
-    +'</body></html>';
+    +'</tbody></table>'
+
+    // Signature area
+    +'<div style="display:flex;justify-content:space-between;margin-top:30px">'
+    +'<div class="stamp-area">Trainer Signature<br><br><br>______________________<br>'+(session.trainer||'')+'</div>'
+    +'<div class="stamp-area">Institute Stamp<br><br><br>______________________<br>'+instName+'</div>'
+    +'</div>'
+
+    // Footer
+    +'<div class="footer">'
+    +'<span>'+instName+' — Training Report</span>'
+    +'<span>Course: '+session.course+' — Date: '+(session.startDate||'')+'</span>'
+    +'<span>Generated: '+new Date().toLocaleString()+'</span>'
+    +'</div>'
+    +'</div></body></html>';
 
   var w = window.open('','_blank');
   w.document.write(html);
   w.document.close();
-  setTimeout(function(){w.print();},500);
+  setTimeout(function(){w.print()},600);
 }
-
-
-
-// ══ Export Session Report to Excel ══
 
 
 function exportSessionReportExcel(sessionId){
