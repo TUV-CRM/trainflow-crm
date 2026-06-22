@@ -5214,7 +5214,7 @@ function openSessionDetail(sessionIdx){
   const tabs = [
     {key:'attendance', label:t('📱 الحضور QR','📱 QR Attendance'), icon:'📱'},
     {key:'scores',     label:t('📝 درجة الاختبار','📝 Test Scores'), icon:'📝'},
-    {key:'posttest',   label:t('✅ اختبار بعدي','✅ Post-Test'),   icon:'✅'},
+    
     {key:'eval',       label:t('⭐ التقييم','⭐ Evaluation'),      icon:'⭐'},
     {key:'report',     label:t('📊 التقرير','📊 Report'),          icon:'📊'},
   ];
@@ -12507,7 +12507,6 @@ function deleteFinEntry(type, id, isAuto){
 
 // ══ TRAINEE EVALUATION SYSTEM ══
 const EVAL_CRITERIA = [
-  {id:'specialization', ar:'التخصص', en:'Specialization', options:['Excellent','Good','Satisfactory','Needs Improvement']},
   {id:'english',        ar:'اللغة الإنجليزية', en:'English Language', options:['Excellent','Good','Satisfactory','Needs Improvement']},
   {id:'engagement',     ar:'المشاركة في التدريب', en:'Training Engagement', options:['Excellent','Good','Satisfactory','Needs Improvement']},
   {id:'recommendation', ar:'توصية اختبار CWQAP', en:'CWQAP Exam Recommendation', options:['Highly Confident','Confident','Somewhat Confident','Not Confident']},
@@ -12545,6 +12544,7 @@ function renderEvalTab(el, session, data){
   thead.innerHTML = '<tr style="background:#0B1E3D">'
     +'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A;width:30px">No</th>'
     +'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:right;border-bottom:1px solid #1A2E4A">'+t('اسم المتدرب','Participant Name')+'</th>'
+    +'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A">'+t('التخصص','Specialization')+'</th>'
     +EVAL_CRITERIA.map(c=>'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A">'+t(c.ar,c.en)+'</th>').join('')
     +'</tr>';
   tbl.appendChild(thead);
@@ -12556,6 +12556,7 @@ function renderEvalTab(el, session, data){
     tr.style.cssText = 'border-bottom:1px solid rgba(26,46,74,.3)';
     tr.innerHTML = '<td style="padding:8px 10px;color:#3A5070;font-size:11px;text-align:center">'+(i+1)+'</td>'
       +'<td style="padding:8px 10px;color:#F5F7FA;font-size:12px;font-weight:600">'+att.name+'</td>'
+      +'<td style="padding:8px 10px;color:#23A0B5;font-size:11px;text-align:center">'+session.course+'</td>'
       +EVAL_CRITERIA.map(c=>{
         const curVal = evalData[c.id] || '';
         return '<td style="padding:6px 8px;text-align:center">'
@@ -12694,6 +12695,15 @@ function saveTestScore(input){
   sData.testScores[trainee] = value ? parseFloat(value) : '';
   localStorage.setItem('tf4_session_'+sid, JSON.stringify(sData));
   input.style.borderColor = value ? '#1A8A5A' : '#1A2E4A';
+  // Update result cell
+  const tr = input.closest('tr');
+  if(tr){
+    const resultTd = tr.querySelector('td:last-child');
+    const num = parseFloat(value)||0;
+    if(value && resultTd){
+      resultTd.innerHTML = num>=60 ? '<span style="color:#1A8A5A;font-size:10px;font-weight:700">Pass ✅</span>' : '<span style="color:#C0392B;font-size:10px;font-weight:700">Fail ❌</span>';
+    }
+  }
   save();
 }
 
@@ -12770,7 +12780,7 @@ function renderSessionReport(el, session, data, sessionIdx){
   // ── Full table ──
   const fullTbl = document.createElement('div');
   fullTbl.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow-x:auto;margin-top:14px';
-  const headers = ['No',t('الاسم','Name'),t('الدرجة','Score'),t('النتيجة','Result'),...EVAL_CRITERIA.map(c=>t(c.ar,c.en))];
+  const headers = ['No',t('الاسم','Name'),t('التخصص','Specialization'),t('الدرجة','Score'),t('النتيجة','Result'),...EVAL_CRITERIA.map(c=>t(c.ar,c.en))];
   fullTbl.innerHTML = '<table style="width:100%;border-collapse:collapse;min-width:700px"><thead><tr style="background:#0B1E3D">'
     +headers.map(h=>'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A">'+h+'</th>').join('')
     +'</tr></thead><tbody>'
@@ -12781,6 +12791,7 @@ function renderSessionReport(el, session, data, sessionIdx){
       return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
         +'<td style="padding:8px;color:#3A5070;text-align:center;font-size:10px">'+(i+1)+'</td>'
         +'<td style="padding:8px;color:#F5F7FA;font-size:12px;font-weight:600">'+a.name+'</td>'
+        +'<td style="padding:8px;color:#23A0B5;font-size:11px;text-align:center">'+session.course+'</td>'
         +'<td style="padding:8px;text-align:center;font-family:monospace;color:'+(has?(pass?'#1A8A5A':'#C0392B'):'#3A5070')+';font-weight:700">'+(has?sc2:'—')+'</td>'
         +'<td style="padding:8px;text-align:center">'+(has?'<span style="color:'+(pass?'#1A8A5A':'#C0392B')+';font-size:10px;font-weight:700">'+(pass?'Pass':'Fail')+'</span>':'—')+'</td>'
         +EVAL_CRITERIA.map(c=>'<td style="padding:8px;text-align:center;color:#D0D8EC;font-size:11px">'+(ev[c.id]||'—')+'</td>').join('')
@@ -12794,12 +12805,13 @@ function renderSessionReport(el, session, data, sessionIdx){
 function exportSessionReportExcel(sessionId){
   if(typeof XLSX==='undefined'){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>exportSessionReportExcel(sessionId);document.head.appendChild(s);return;}
   const sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
+  const session = (DB.sessions||[]).find(s2=>s2.id===sessionId)||{course:''};
   const att = sData.attendance||[]; const scores = sData.testScores||{}; const evals = sData.evaluations||{};
-  const wsData = [['No','Name','Score','Result',...EVAL_CRITERIA.map(c=>c.en)]];
+  const wsData = [['No','Name','Specialization','Score','Result',...EVAL_CRITERIA.map(c=>c.en)]];
   att.forEach((a,i)=>{
     const sc2=scores[a.name]; const has=sc2!==undefined&&sc2!=='';
     const ev=evals[a.name]||{};
-    wsData.push([i+1,a.name,has?sc2:'',has?(sc2>=60?'Pass':'Fail'):'', ...EVAL_CRITERIA.map(c=>ev[c.id]||'')]);
+    wsData.push([i+1,a.name,session.course,has?sc2:'',has?(sc2>=60?'Pass':'Fail'):'', ...EVAL_CRITERIA.map(c=>ev[c.id]||'')]);
   });
   const ws=XLSX.utils.aoa_to_sheet(wsData); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Report');
