@@ -10982,7 +10982,7 @@ function renderCatalog(){
   let catFilter='all', searchQ='';
   window._catalogDraw = function(){
     const total=TUV_CATEGORIES.reduce((a,c)=>a+c.courses.length,0);
-    const filtered=TUV_CATEGORIES.filter(c=>catFilter==='all'||c.id===catFilter);
+    const filtered=TUV_CATEGORIES.filter(c=>(window._catFilter||'all')==='all'||c.id===(window._catFilter||'all'));
     pg.innerHTML=`
       <div class="page-header">
         <div><div class="page-title">كتالوج الدورات</div><div class="page-sub">معهد TUV التدريبي — ${total} دورة معتمدة 2026</div></div>
@@ -10994,7 +10994,7 @@ function renderCatalog(){
         </div>
       </div>
       <div class="kpi-grid">
-        ${TUV_CATEGORIES.map(c=>`<div class="kpi" style="border-top:3px solid ${c.color};cursor:pointer" onclick="catFilter='${c.id}';window._catalogDraw()">
+        ${TUV_CATEGORIES.map(c=>`<div class="kpi" style="border-top:3px solid ${c.color};cursor:pointer" onclick="window._catFilter='${c.id}';window._catalogDraw()">
           <div style="font-size:20px;margin-bottom:4px">${c.icon}</div>
           <div style="color:${c.color};font-size:11px;font-weight:700;margin-bottom:4px">${c.nameAr}</div>
           <div class="kpi-val" style="font-size:22px">${c.courses.length}</div>
@@ -11002,16 +11002,16 @@ function renderCatalog(){
         </div>`).join('')}
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <input id="cSearch" type="text" placeholder="ابحث..." value="${searchQ}"
+        <input id="cSearch" type="text" placeholder="ابحث..." value="${window._catSearchQ||''}"
           style="flex:1;min-width:180px;background:#060F1E;border:1.5px solid #1A2E4A;border-radius:8px;color:#F5F7FA;padding:9px 13px;font-size:13px;font-family:inherit"
-          oninput="searchQ=this.value;window._catalogDraw()"/>
-        <select id="cCat" style="background:#060F1E;border:1.5px solid #1A2E4A;border-radius:8px;color:#F5F7FA;padding:9px 13px;font-size:13px;font-family:inherit" onchange="catFilter=this.value;window._catalogDraw()">
+          oninput="window._catSearchQ=this.value;window._catalogDraw()"/>
+        <select id="cCat" style="background:#060F1E;border:1.5px solid #1A2E4A;border-radius:8px;color:#F5F7FA;padding:9px 13px;font-size:13px;font-family:inherit" onchange="window._catFilter=this.value;window._catalogDraw()">
           <option value="all">جميع الفئات</option>
-          ${TUV_CATEGORIES.map(c=>`<option value="${c.id}" ${catFilter===c.id?'selected':''}>${c.nameAr}</option>`).join('')}
+          ${TUV_CATEGORIES.map(c=>`<option value="${c.id}" ${(window._catFilter||'all')===c.id?'selected':''}>${c.nameAr}</option>`).join('')}
         </select>
       </div>
       ${filtered.map(cat=>{
-        const rows=cat.courses.filter(c=>!searchQ||c.name.toLowerCase().includes(searchQ.toLowerCase())||c.id.toLowerCase().includes(searchQ.toLowerCase()));
+        const rows=cat.courses.filter(c=>!window._catSearchQ||c.name.toLowerCase().includes((window._catSearchQ||'').toLowerCase())||c.id.toLowerCase().includes((window._catSearchQ||'').toLowerCase()));
         if(!rows.length)return '';
         return `<div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -11063,7 +11063,7 @@ function renderCatalog(){
         </div>
       </div>`;
     const s=document.getElementById('cSearch');
-    if(s&&searchQ){s.focus();s.setSelectionRange(searchQ.length,searchQ.length);}
+    if(s&&window._catSearchQ){s.focus();s.setSelectionRange((window._catSearchQ||'').length,(window._catSearchQ||'').length);}
   }
   window._catalogDraw();
 }
@@ -11637,6 +11637,9 @@ window.addEventListener('hashchange', ()=>{
 // ════════════════════════════════════════════
 function loadDemoData(){
   if(localStorage.getItem('tf4_demo_loaded')==='v5') return;
+  // Preserve custom courses across updates
+  const _savedCustomCourses = localStorage.getItem('tf4_custom_courses');
+  const _savedFinance = localStorage.getItem('tf4_finance');
 
   // ── Demo Clients ──
   const demoClients = [
@@ -11742,7 +11745,10 @@ function loadDemoData(){
   // Save demo data
   ss('invoices', DB.invoices);
   localStorage.setItem('tf4_deleted_quotes', '[]');
-  console.log('✅ Demo data loaded successfully');
+  // Restore user data that should persist across updates
+  if(_savedCustomCourses) localStorage.setItem('tf4_custom_courses', _savedCustomCourses);
+  if(_savedFinance) localStorage.setItem('tf4_finance', _savedFinance);
+  console.log('✅ Demo data loaded — custom data preserved');
 }
 
 
