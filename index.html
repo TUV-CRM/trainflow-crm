@@ -12513,6 +12513,14 @@ const EVAL_CRITERIA = [
 ];
 
 
+
+function getEvalCriteria(courseName){
+  var crit = (typeof EVAL_CRITERIA!=='undefined') ? EVAL_CRITERIA.slice() : [];
+  var isCWQAP = courseName && (courseName.toLowerCase().includes('cwqap') || courseName.toLowerCase().includes('professional') || courseName.toLowerCase().includes('trade'));
+  if(!isCWQAP) crit = crit.filter(function(c){ return c.id !== 'recommendation'; });
+  return crit;
+}
+
 function renderEvalTab(el, session, data){
   const t = (ar,en) => isAR() ? ar : en;
   el.innerHTML = '';
@@ -12545,7 +12553,7 @@ function renderEvalTab(el, session, data){
     +'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A;width:30px">No</th>'
     +'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:right;border-bottom:1px solid #1A2E4A">'+t('اسم المتدرب','Participant Name')+'</th>'
     +'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A">'+t('التخصص','Specialization')+'</th>'
-    +EVAL_CRITERIA.map(c=>'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A">'+t(c.ar,c.en)+'</th>').join('')
+    +getEvalCriteria(session.course).map(c=>'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A">'+t(c.ar,c.en)+'</th>').join('')
     +'</tr>';
   tbl.appendChild(thead);
 
@@ -12557,7 +12565,7 @@ function renderEvalTab(el, session, data){
     tr.innerHTML = '<td style="padding:8px 10px;color:#3A5070;font-size:11px;text-align:center">'+(i+1)+'</td>'
       +'<td style="padding:8px 10px;color:#F5F7FA;font-size:12px;font-weight:600">'+att.name+'</td>'
       +'<td style="padding:8px 10px;color:#23A0B5;font-size:11px;text-align:center">'+session.course+'</td>'
-      +EVAL_CRITERIA.map(c=>{
+      +getEvalCriteria(session.course).map(c=>{
         const curVal = evalData[c.id] || '';
         return '<td style="padding:6px 8px;text-align:center">'
           +'<select data-session="'+sessionId+'" data-trainee="'+att.name+'" data-criteria="'+c.id+'" onchange="saveEvalEntry(this)" style="background:#0D1A2E;border:1px solid '+(curVal?'#1A8A5A':'#1A2E4A')+';color:#F5F7FA;border-radius:5px;padding:4px 6px;font-size:10px;font-family:inherit;cursor:pointer;width:100%">'
@@ -12780,7 +12788,7 @@ function renderSessionReport(el, session, data, sessionIdx){
   // ── Full table ──
   const fullTbl = document.createElement('div');
   fullTbl.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow-x:auto;margin-top:14px';
-  const headers = ['No',t('الاسم','Name'),t('التخصص','Specialization'),t('الدرجة','Score'),t('النتيجة','Result'),...EVAL_CRITERIA.map(c=>t(c.ar,c.en))];
+  const headers = ['No',t('الاسم','Name'),t('التخصص','Specialization'),t('الدرجة','Score'),t('النتيجة','Result'),...getEvalCriteria(session.course).map(c=>t(c.ar,c.en))];
   fullTbl.innerHTML = '<table style="width:100%;border-collapse:collapse;min-width:700px"><thead><tr style="background:#0B1E3D">'
     +headers.map(h=>'<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:center;border-bottom:1px solid #1A2E4A">'+h+'</th>').join('')
     +'</tr></thead><tbody>'
@@ -12794,7 +12802,7 @@ function renderSessionReport(el, session, data, sessionIdx){
         +'<td style="padding:8px;color:#23A0B5;font-size:11px;text-align:center">'+session.course+'</td>'
         +'<td style="padding:8px;text-align:center;font-family:monospace;color:'+(has?(pass?'#1A8A5A':'#C0392B'):'#3A5070')+';font-weight:700">'+(has?sc2:'—')+'</td>'
         +'<td style="padding:8px;text-align:center">'+(has?'<span style="color:'+(pass?'#1A8A5A':'#C0392B')+';font-size:10px;font-weight:700">'+(pass?'Pass':'Fail')+'</span>':'—')+'</td>'
-        +EVAL_CRITERIA.map(c=>'<td style="padding:8px;text-align:center;color:#D0D8EC;font-size:11px">'+(ev[c.id]||'—')+'</td>').join('')
+        +getEvalCriteria(session.course).map(c=>'<td style="padding:8px;text-align:center;color:#D0D8EC;font-size:11px">'+(ev[c.id]||'—')+'</td>').join('')
         +'</tr>';
     }).join('')
     +'</tbody></table>';
@@ -12857,6 +12865,9 @@ function generateCompanyReport(sessionId, companyFilter){
   var passCount = scoredList.filter(function(a){return (scores[a.name]||0)>=70}).length;
   var passRate = scoredList.length ? Math.round(passCount/scoredList.length*100) : 0;
   var evalCritHeaders = typeof EVAL_CRITERIA!=='undefined' ? EVAL_CRITERIA : [];
+  // Only show CWQAP recommendation for CWQAP/professional courses
+  var isCWQAP = session.course && (session.course.toLowerCase().includes('cwqap') || session.course.toLowerCase().includes('professional') || session.course.toLowerCase().includes('trade'));
+  evalCritHeaders = getEvalCriteria(session.course);
 
   var html = '<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8"/>'
     +'<title>Training Report — '+(companyFilter||'All Companies')+'</title>'
@@ -12925,7 +12936,7 @@ function generateCompanyReport(sessionId, companyFilter){
     +evalCritHeaders.map(function(c){return '<th>'+c.en+'</th>'}).join('')
     +'</tr></thead><tbody>'
     +att.map(function(a,i){
-      var sc=scores[a.name]; var has=sc!==undefined&&sc!==''; var pass=has&&sc>=60;
+      var sc=scores[a.name]; var has=sc!==undefined&&sc!==''; var pass=has&&sc>=70;
       var ev=evals[a.name]||{};
       return '<tr>'
         +'<td>'+(i+1)+'</td>'
@@ -12964,11 +12975,11 @@ function exportSessionReportExcel(sessionId){
   const sData = JSON.parse(localStorage.getItem('tf4_session_'+sessionId)||'{}');
   const session = (DB.sessions||[]).find(s2=>s2.id===sessionId)||{course:''};
   const att = sData.attendance||[]; const scores = sData.testScores||{}; const evals = sData.evaluations||{};
-  const wsData = [['No','Name','Specialization','Score','Result',...EVAL_CRITERIA.map(c=>c.en)]];
+  const wsData = [['No','Name','Specialization','Score','Result',...getEvalCriteria(session.course).map(c=>c.en)]];
   att.forEach((a,i)=>{
     const sc2=scores[a.name]; const has=sc2!==undefined&&sc2!=='';
     const ev=evals[a.name]||{};
-    wsData.push([i+1,a.name,session.course,has?sc2:'',has?(sc2>=70?'Pass':'Fail'):'', ...EVAL_CRITERIA.map(c=>ev[c.id]||'')]);
+    wsData.push([i+1,a.name,session.course,has?sc2:'',has?(sc2>=70?'Pass':'Fail'):'', ...getEvalCriteria(session.course).map(c=>ev[c.id]||'')]);
   });
   const ws=XLSX.utils.aoa_to_sheet(wsData); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Report');
