@@ -1593,7 +1593,7 @@ function _old_initDefaultClients_disabled(){
 }
 
 function launchApp(){
-  loadDemoData(); // Load demo data on first boot
+  // Demo data disabled — user data preserved
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').style.display='flex';
   // Apply saved language
@@ -11526,121 +11526,8 @@ window.addEventListener('hashchange', ()=>{
 // ════════════════════════════════════════════
 //  DEMO DATA LOADER
 // ════════════════════════════════════════════
-function loadDemoData(){
-  if(localStorage.getItem('tf4_demo_loaded')==='v5') return;
-  // Preserve custom courses across updates
-  const _savedCustomCourses = localStorage.getItem('tf4_custom_courses');
-  const _savedFinance = localStorage.getItem('tf4_finance');
+function loadDemoData(){ /* Disabled — user data is preserved */ }
 
-  // ── Demo Clients ──
-  const demoClients = [
-    {id:'CLT-D1',company:'Saudi Aramco',name:'فهد الغامدي',phone:'0501234567',email:'fahad@aramco.com',city:'الظهران',sector:'النفط والغاز'},
-    {id:'CLT-D2',company:'SABIC',name:'خالد العمري',phone:'0509876543',email:'khaled@sabic.com',city:'الجبيل',sector:'البتروكيماويات'},
-    {id:'CLT-D3',company:'STC',name:'عبدالله الشمري',phone:'0551112233',email:'abdullah@stc.com.sa',city:'الرياض',sector:'الاتصالات'},
-    {id:'CLT-D4',company:'SEC - الكهرباء',name:'محمد القحطاني',phone:'0553334455',email:'mohammed@se.com.sa',city:'الدمام',sector:'الطاقة'},
-    {id:'CLT-D5',company:'Ma\'aden',name:'سلطان الدوسري',phone:'0557778899',email:'sultan@maaden.com',city:'رأس الخير',sector:'التعدين'},
-    {id:'CLT-D6',company:'SWCC التحلية',name:'أحمد الحربي',phone:'0559990011',email:'ahmed@swcc.gov.sa',city:'الجبيل',sector:'المياه'},
-    {id:'CLT-D7',company:'Sadara Chemical',name:'يوسف البلوي',phone:'0552223344',email:'yousuf@sadara.com',city:'الجبيل',sector:'الكيماويات'},
-    {id:'CLT-D8',company:'SAFCO',name:'ماجد الشهري',phone:'0554445566',email:'majed@safco.com',city:'الجبيل',sector:'الأسمدة'},
-  ];
-  localStorage.setItem('tf4_clients', JSON.stringify(demoClients));
-
-  // ── Quotes cleared ──
-  localStorage.setItem('tf4_quotes', JSON.stringify([]));
-
-  // ── Invoices cleared ──
-  DB.invoices = [];
-  ss('invoices', []);
-
-  // ── Demo Leads ──
-  DB.leads = [
-    {id:'LD-D1',name:'فهد الغامدي',company:'Saudi Aramco',course:'NEBOSH IGC',value:45000,stage:'مُنجَز',source:'إحالة',assignee:'محمد الوضاح',phone:'0501234567',date:'2026-01-10',nextFollowup:'',activityLog:[{type:'📞 مكالمة',note:'تم الاتفاق على NEBOSH',date:'2026-01-12T10:00:00',user:'محمد الوضاح'}]},
-    {id:'LD-D2',name:'خالد العمري',company:'SABIC',course:'PMP Certification',value:21850,stage:'مُنجَز',source:'بريد إلكتروني',assignee:'محمد الوضاح',phone:'0509876543',date:'2026-01-18',activityLog:[]},
-    {id:'LD-D3',name:'عبدالله الشمري',company:'STC',course:'Data Analytics',value:30360,stage:'مُنجَز',source:'واتساب',assignee:'محمد أسد',phone:'0551112233',date:'2026-02-01',activityLog:[]},
-    {id:'LD-D4',name:'محمد القحطاني',company:'SEC - الكهرباء',course:'Electrical Safety',value:31050,stage:'تفاوض',source:'موقع إلكتروني',assignee:'محمد الوضاح',phone:'0553334455',date:'2026-02-08',nextFollowup:'2026-06-15',activityLog:[{type:'🤝 اجتماع',note:'اجتماع في مقر SEC',date:'2026-02-09T14:00:00',user:'محمد الوضاح'},{type:'📧 بريد',note:'إرسال العرض',date:'2026-02-10T09:00:00',user:'محمد الوضاح'}]},
-    {id:'LD-D5',name:'سلطان الدوسري',company:'Ma\'aden',course:'Confined Space',value:20700,stage:'عرض سعر',source:'إحالة',assignee:'محمد أسد',phone:'0557778899',date:'2026-03-01',nextFollowup:'2026-06-14',activityLog:[]},
-    {id:'LD-D6',name:'أحمد الحربي',company:'SWCC التحلية',course:'Fire Fighting',value:32775,stage:'مُنجَز',source:'معرض',assignee:'محمد الوضاح',phone:'0559990011',date:'2026-03-10',activityLog:[]},
-    {id:'LD-D7',name:'يوسف البلوي',company:'Sadara Chemical',course:'Process Safety',value:34500,stage:'تفاوض',source:'واتساب',assignee:'محمد أسد',phone:'0552223344',date:'2026-04-01',nextFollowup:'2026-06-16',activityLog:[{type:'📱 WhatsApp',note:'ارسال تفاصيل الدورة',date:'2026-04-02T08:00:00',user:'محمد أسد'}]},
-    {id:'LD-D8',name:'ماجد الشهري',company:'SAFCO',course:'First Aid',value:23000,stage:'اتصال أولي',source:'بريد إلكتروني',assignee:'محمد أسد',phone:'0554445566',date:'2026-05-01',nextFollowup:'2026-06-13',activityLog:[]},
-    {id:'LD-D9',name:'تركي المطيري',company:'SATORP',course:'OSHA 30',value:28000,stage:'جديد',source:'موقع إلكتروني',assignee:'محمد الوضاح',phone:'0556667788',date:'2026-06-05',activityLog:[]},
-    {id:'LD-D10',name:'عمر الزهراني',company:'Yanbu Aramco Sinopec',course:'H2S Safety',value:18500,stage:'خسارة',source:'إحالة',assignee:'محمد أسد',phone:'0558889900',date:'2026-04-15',activityLog:[{type:'📝 ملاحظة',note:'اختاروا مزود آخر — سعر أقل',date:'2026-05-01T10:00:00',user:'محمد أسد'}]},
-  ];
-
-  // ── Demo Sessions ──
-  DB.sessions = [
-    {id:'ses-d1',course:'OSHA 30 Hours',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الأحد',startDate:'2026-01-19',start:'08:00',end:'16:00',color:'#23A0B5',room:'قاعة 1',companies:[{company:'Saudi Aramco',attendees:15}]},
-    {id:'ses-d2',course:'PMP Certification',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الاثنين',startDate:'2026-02-02',start:'09:00',end:'17:00',color:'#C9A84C',room:'قاعة 2',companies:[{company:'SABIC',attendees:8}]},
-    {id:'ses-d3',course:'Data Analytics',trainer:'Ahmed Abdel Salam',type:'أونلاين',day:'الثلاثاء',startDate:'2026-02-16',start:'09:00',end:'14:00',color:'#1A8A5A',room:'',platform:'Zoom',companies:[{company:'STC',attendees:12}]},
-    {id:'ses-d4',course:'Electrical Safety',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الأربعاء',startDate:'2026-03-02',start:'08:00',end:'14:00',color:'#E67E22',room:'قاعة 1',companies:[{company:'SEC - الكهرباء',attendees:20}]},
-    {id:'ses-d5',course:'Fire Fighting',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الأحد',startDate:'2026-03-23',start:'08:00',end:'16:00',color:'#C0392B',room:'قاعة 3',companies:[{company:'SWCC التحلية',attendees:25}]},
-    {id:'ses-d6',course:'H2S Safety',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الاثنين',startDate:'2026-04-13',start:'08:00',end:'12:00',color:'#9B59B6',room:'قاعة 1',companies:[{company:'Saudi Aramco',attendees:30}]},
-    {id:'ses-d7',course:'First Aid & CPR',trainer:'Rawnak Training Center',type:'حضوري',day:'الثلاثاء',startDate:'2026-05-05',start:'08:00',end:'16:00',color:'#1A8A5A',room:'قاعة 2',companies:[{company:'SABIC',attendees:10},{company:'SAFCO',attendees:8}]},
-    {id:'ses-d8',course:'Leadership Program',trainer:'Ahmed Abdel Salam',type:'هجين',day:'الأحد',startDate:'2026-05-18',start:'09:00',end:'15:00',color:'#C9A84C',room:'قاعة 1',platform:'Zoom',companies:[{company:'SABIC',attendees:10}]},
-    {id:'ses-d9',course:'OSHA 10 Hours',trainer:'Ahmed Abdel Salam',type:'حضوري',day:'الأربعاء',startDate:'2026-06-11',start:'08:00',end:'16:00',color:'#23A0B5',room:'قاعة 1',companies:[{company:'Ma\'aden',attendees:10},{company:'Sadara Chemical',attendees:8}]},
-  ];
-
-  // ── Demo Session Training Data (attendance, tests) ──
-  const sessionTrainingData = {
-    'ses-d1': {
-      attendance: Array.from({length:15},(_,i)=>({name:'متدرب أرامكو '+(i+1),company:'Saudi Aramco',time:'08:0'+(i<10?i:'0'),date:'2026-01-19',method:'QR'})),
-      preTest: Array.from({length:15},(_,i)=>({name:'متدرب أرامكو '+(i+1),score:30+Math.floor(Math.random()*40),date:'2026-01-19'})),
-      postTest: Array.from({length:15},(_,i)=>({name:'متدرب أرامكو '+(i+1),score:55+Math.floor(Math.random()*40),date:'2026-01-23'})),
-      trainerEval:{knowledge:5,delivery:4,interaction:5,materials:4,time:4,overall:5},
-    },
-    'ses-d4': {
-      attendance: Array.from({length:20},(_,i)=>({name:'فني كهرباء '+(i+1),company:'SEC',time:'08:0'+(i%10),date:'2026-03-02',method:'Excel'})),
-      preTest: Array.from({length:20},(_,i)=>({name:'فني كهرباء '+(i+1),score:25+Math.floor(Math.random()*35),date:'2026-03-02'})),
-      postTest: Array.from({length:20},(_,i)=>({name:'فني كهرباء '+(i+1),score:60+Math.floor(Math.random()*35),date:'2026-03-04'})),
-      trainerEval:{knowledge:5,delivery:5,interaction:4,materials:5,time:3,overall:5},
-    },
-    'ses-d5': {
-      attendance: Array.from({length:25},(_,i)=>({name:'متدرب تحلية '+(i+1),company:'SWCC',time:'08:0'+(i%10),date:'2026-03-23',method:'Manual'})),
-      trainerEval:{knowledge:4,delivery:4,interaction:5,materials:4,time:4,overall:4},
-    },
-  };
-
-  Object.entries(sessionTrainingData).forEach(([sid,sdata])=>{
-    localStorage.setItem('tf4_session_'+sid, JSON.stringify(sdata));
-  });
-
-  // ── Demo Daily Reports ──
-  const demoDays = [
-    {date:'2026-06-10',user:'محمد الوضاح',activities:'اتصال بأرامكو لمتابعة دورة NEBOSH\nإرسال عرض سعر لـ STC\nاجتماع مع SEC',calls:5,meetings:1,proposals:2},
-    {date:'2026-06-11',user:'محمد أسد',activities:'متابعة Ma\'aden لدورة Confined Space\nاتصال بـ SAFCO\nتحديث Pipeline',calls:4,meetings:0,proposals:1},
-    {date:'2026-06-12',user:'محمد الوضاح',activities:'إرسال فاتورة SABIC\nمتابعة تحصيل SEC\nاجتماع فريق المبيعات',calls:3,meetings:2,proposals:0},
-  ];
-  localStorage.setItem('tf4_daily', JSON.stringify(demoDays));
-
-  // ── Demo Trainee Profiles with Certificates ──
-  const demoProfiles = [
-    {name:'متدرب أرامكو 1',company:'Saudi Aramco',certificates:[
-      {name:'OSHA 30 Hours',issued:'2026-01-23',expiry:'2029-01-23'},
-      {name:'H2S Safety',issued:'2025-06-15',expiry:'2026-06-15'},
-    ]},
-    {name:'متدرب أرامكو 5',company:'Saudi Aramco',certificates:[
-      {name:'OSHA 30 Hours',issued:'2026-01-23',expiry:'2029-01-23'},
-      {name:'First Aid',issued:'2025-03-10',expiry:'2026-03-10'},
-    ]},
-    {name:'فني كهرباء 1',company:'SEC',certificates:[
-      {name:'Electrical Safety',issued:'2026-03-04',expiry:'2027-03-04'},
-    ]},
-  ];
-  localStorage.setItem('tf4_trainee_profiles', JSON.stringify(demoProfiles));
-
-  // Save to DB
-  ss('invoices', DB.invoices);
-  ss('leads', DB.leads);
-  ss('sessions', DB.sessions);
-
-  localStorage.setItem('tf4_demo_loaded','v5');
-  // Save demo data
-  ss('invoices', DB.invoices);
-  localStorage.setItem('tf4_deleted_quotes', '[]');
-  // Restore user data that should persist across updates
-  if(_savedCustomCourses) localStorage.setItem('tf4_custom_courses', _savedCustomCourses);
-  if(_savedFinance) localStorage.setItem('tf4_finance', _savedFinance);
-  console.log('✅ Demo data loaded — custom data preserved');
-}
 
 
 
@@ -12903,7 +12790,7 @@ function generateCompanyReport(sessionId, companyFilter){
     // Header
     +'<div class="header">'
     +'<div class="header-left">'
-    +'<div class="logo-box">T</div>'
+    +'<div class="logo-box"><img src="'+(inst.logo||'')+'" style="width:50px;height:50px;object-fit:contain;border-radius:8px" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span style=font-size:22px;font-weight:900>T</span>\'"/></div>'
     +'<div><div class="inst-name">'+instName+'</div><div class="inst-sub">Accredited Training & Assessment Center</div></div>'
     +'</div>'
     +'<div class="doc-badge">TRAINING<br>REPORT<br><span style="font-size:8px;opacity:.7">'+new Date().toLocaleDateString('en-GB')+'</span></div>'
