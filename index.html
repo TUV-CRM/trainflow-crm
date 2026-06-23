@@ -12021,7 +12021,7 @@ function renderInvoicesTab(sc){
 
 function openInvoiceModal(editIdx){
   var t = function(ar,en){return isAR()?ar:en};
-  var inv = (editIdx!==undefined) ? DB.invoices[editIdx] : null;
+  var inv = (editIdx!==undefined&&editIdx!==null) ? DB.invoices[editIdx] : null;
   var ex = document.getElementById('invoiceModal');
   if(ex) ex.remove();
   var overlay = document.createElement('div');
@@ -12029,20 +12029,57 @@ function openInvoiceModal(editIdx){
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center';
   var box = document.createElement('div');
   box.style.cssText = 'background:#0B1E3D;border:1px solid #1A2E4A;border-radius:16px;padding:24px;width:500px;max-width:95vw';
-  box.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:16px"><span style="color:#F5F7FA;font-weight:800;font-size:15px">🧾 '+(inv?t('تعديل فاتورة','Edit Invoice'):t('فاتورة جديدة','New Invoice'))+'</span><button onclick="document.getElementById('invoiceModal').remove()" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer">✕</button></div>'
-    +'<div style="display:flex;flex-direction:column;gap:12px">'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('العميل','Client')+'</label><input id="inv-client" class="fc" value="'+(inv?inv.client:'')+'" style="width:100%"/></div>'
-    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الدورة','Course')+'</label><input id="inv-course" class="fc" value="'+(inv?inv.course||'':'')+'" style="width:100%"/></div></div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'
-    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('المبلغ','Amount')+'</label><input id="inv-amount" type="number" class="fc" value="'+(inv?inv.amount:'')+'" style="width:100%"/></div>'
+
+  var title = document.createElement('div');
+  title.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:16px';
+  title.innerHTML = '<span style="color:#F5F7FA;font-weight:800;font-size:15px">🧾 '+(inv?t('تعديل فاتورة','Edit Invoice'):t('فاتورة جديدة','New Invoice'))+'</span>';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer';
+  closeBtn.onclick = function(){overlay.remove()};
+  title.appendChild(closeBtn);
+  box.appendChild(title);
+
+  var form = document.createElement('div');
+  form.style.cssText = 'display:flex;flex-direction:column;gap:12px';
+  var r1 = document.createElement('div');
+  r1.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px';
+  r1.innerHTML = '<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('العميل','Client')+'</label><input id="inv-client" class="fc" value="'+(inv?inv.client:'')+'" style="width:100%"/></div>'
+    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الدورة','Course')+'</label><input id="inv-course" class="fc" value="'+(inv&&inv.course?inv.course:'')+'" style="width:100%"/></div>';
+  form.appendChild(r1);
+
+  var r2 = document.createElement('div');
+  r2.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px';
+  r2.innerHTML = '<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('المبلغ','Amount')+'</label><input id="inv-amount" type="number" class="fc" value="'+(inv?inv.amount:'')+'" style="width:100%"/></div>'
     +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('المدفوع','Paid')+'</label><input id="inv-paid" type="number" class="fc" value="'+(inv?inv.paidAmount||0:0)+'" style="width:100%"/></div>'
-    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الاستحقاق','Due Date')+'</label><input id="inv-due" type="date" class="fc" value="'+(inv?inv.dueDate:'')+'" style="width:100%"/></div></div>'
-    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الحالة','Status')+'</label><select id="inv-status" class="fc" style="width:100%"><option value="معلق"'+(inv&&inv.status==='معلق'?' selected':'')+'>معلق</option><option value="مدفوع"'+(inv&&inv.status==='مدفوع'?' selected':'')+'>مدفوع</option><option value="جزئي"'+(inv&&inv.status==='جزئي'?' selected':'')+'>جزئي</option><option value="متأخر"'+(inv&&inv.status==='متأخر'?' selected':'')+'>متأخر</option></select></div>'
-    +'<button onclick="saveInvoice('+(editIdx!==undefined?editIdx:'null')+')" style="background:#1A8A5A;border:none;border-radius:10px;color:white;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 '+t('حفظ','Save')+'</button></div>';
+    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الاستحقاق','Due')+'</label><input id="inv-due" type="date" class="fc" value="'+(inv?inv.dueDate:'')+'" style="width:100%"/></div>';
+  form.appendChild(r2);
+
+  var statusDiv = document.createElement('div');
+  statusDiv.innerHTML = '<label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الحالة','Status')+'</label>';
+  var sel = document.createElement('select');
+  sel.id = 'inv-status';
+  sel.className = 'fc';
+  sel.style.cssText = 'width:100%';
+  ['معلق','مدفوع','جزئي','متأخر'].forEach(function(s){
+    var o = document.createElement('option');
+    o.value=s; o.textContent=s; if(inv&&inv.status===s) o.selected=true;
+    sel.appendChild(o);
+  });
+  statusDiv.appendChild(sel);
+  form.appendChild(statusDiv);
+
+  var saveBtn = document.createElement('button');
+  saveBtn.style.cssText = 'background:#1A8A5A;border:none;border-radius:10px;color:white;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit';
+  saveBtn.textContent = '💾 '+t('حفظ','Save');
+  saveBtn.onclick = function(){saveInvoice(editIdx!==undefined?editIdx:null)};
+  form.appendChild(saveBtn);
+
+  box.appendChild(form);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
+
 
 function saveInvoice(editIdx){
   var client = document.getElementById('inv-client').value.trim();
