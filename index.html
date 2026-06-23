@@ -840,7 +840,7 @@ const NAV = [
       {key:'sales-ops',      label:'عملية البيع',       icon:'🛒', page:'sales'},
       {key:'sales-leads',    label:'متابعة العملاء',    icon:'👥', page:'sales'},
       {key:'sales-quotes',   label:'عروض الأسعار',      icon:'📄', page:'sales'},
-      {key:'sales-invoices', label:'الفواتير',           icon:'🧾', page:'finance'},
+      {key:'sales-invoices', label:'الفواتير',           icon:'🧾', page:'sales'},
       {key:'sales-daily',    label:'نشاط اليوم',        icon:'📝', page:'daily'},
     ]
   },
@@ -4882,6 +4882,7 @@ function deleteQuote(idOrIdx){
   } else { return; }
   ssQuotes(quotes);
   renderSales();
+  save(); // Sync deletion to Gist
   showSuccessToast('✅ '+(isAR()?'تم حذف العرض':'Quote deleted'));
 }
 
