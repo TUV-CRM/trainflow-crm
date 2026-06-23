@@ -997,20 +997,23 @@ async function save(){
       }
     }catch(e){}
 
-    // Merge by ID — remote wins, append local-only
-    const merge = (remote, local, key='id') => {
-      const rIds = new Set(remote.map(x=>x[key]));
-      return [...remote, ...local.filter(x=>!rIds.has(x[key]))];
+    // LOCAL-FIRST merge: local edits/deletes ALWAYS win
+    const merge = (local, remote, key='id') => {
+      const localIds = new Set(local.map(x=>x[key]));
+      const newFromRemote = remote.filter(x=>x[key] && !localIds.has(x[key]));
+      return [...local, ...newFromRemote];
     };
 
     const localQ    = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
-    const allQ      = merge(gistQ, localQ);
-    localStorage.setItem('tf4_quotes', JSON.stringify(allQ));
+    const deletedQ  = JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]');
+    const deletedSet = new Set(deletedQ);
+    const allQ      = merge(localQ, gistQ).filter(q=>!deletedSet.has(q.id));
+    // DO NOT overwrite localStorage — local is already correct
 
-    const allLeads  = merge(gistLeads,  DB.leads);
-    const allInv    = merge(gistInv,    DB.invoices);
-    const allActs   = merge(gistActs,   JSON.parse(localStorage.getItem('tf4_activities')||'[]'), 'id');
-    const allCls    = merge(gistCls,    JSON.parse(localStorage.getItem('tf4_clients')||'[]'));
+    const allLeads  = merge(DB.leads||[],  gistLeads);
+    const allInv    = merge(DB.invoices||[], gistInv);
+    const allActs   = merge(JSON.parse(localStorage.getItem('tf4_activities')||'[]'), gistActs, 'id');
+    const allCls    = merge(JSON.parse(localStorage.getItem('tf4_clients')||'[]'), gistCls);
 
     // Daily reports merged by user — each user owns their records
     const myName   = CU ? CU.name : '';
