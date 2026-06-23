@@ -3641,6 +3641,8 @@ function autoCreateInvoiceFromQuote(quote){
   var courseName = (quote.items&&quote.items.length) ? quote.items.map(function(it){return it.course}).join(', ') : '';
   var inv = {
     id: 'INV-'+Date.now(),
+    invoiceNumber: (function(){ var nums = (DB.invoices||[]).map(function(x){return parseInt((x.invoiceNumber||'0').replace(/\D/g,''))||0}); return String(Math.max.apply(null,[0].concat(nums))+1).padStart(4,'0'); })(),
+    salesPerson: CU ? CU.name : '',
     quoteId: quote.id,
     quotationNumber: quote.id,
     client: quote.client,
@@ -5182,7 +5184,7 @@ function renderCoursesTab2(){
   // Empty state
   if(rowCount === 0){
     const emptyRow = document.createElement('tr');
-    emptyRow.innerHTML = '<td colspan="9" style="text-align:center;padding:40px;color:#6A85A5">'
+    emptyRow.innerHTML = '<td colspan="10" style="text-align:center;padding:40px;color:#6A85A5">'
       +'<div style="font-size:28px;margin-bottom:8px">📚</div>'
       +'<div>'+t('لا توجد دورات مطابقة','No matching courses')+'</div></td>';
     tbody.appendChild(emptyRow);
@@ -12048,7 +12050,11 @@ function renderInvoicesTab(sc){
     }
   });
   
-  var invoices = DB.invoices || [];
+  var allInvoices = DB.invoices || [];
+  // Manager sees all, sales staff sees only their own
+  var invoices = (CU && CU.dept==='ops') ? allInvoices : allInvoices.filter(function(inv){
+    return inv.createdBy===CU.name || inv.salesPerson===CU.name;
+  });
   var totalAmount = invoices.reduce(function(s,inv){return s+(inv.amount||0)},0);
   var totalPaid = invoices.reduce(function(s,inv){return s+(inv.paidAmount||(inv.status==='مدفوع'?inv.amount:0))},0);
   var totalRemaining = totalAmount - totalPaid;
@@ -12094,7 +12100,7 @@ function renderInvoicesTab(sc){
   tbl.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow-x:auto';
   var stColors = {'معلق':'#6A85A5','معتمد':'#23A0B5','مدفوع':'#1A8A5A','متأخر':'#C0392B','جزئي':'#C9A84C'};
   tbl.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
-    +['#',t('العميل','Client'),t('الدورة','Course'),t('المبلغ','Amount'),t('المدفوع','Paid'),t('الباقي','Remaining'),t('الاستحقاق','Due'),t('الحالة','Status'),t('إجراء','Actions')].map(function(h){return '<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:right;white-space:nowrap">'+h+'</th>'}).join('')
+    +['#',t('رقم الفاتورة','Invoice No.'),t('العميل','Client'),t('الدورة','Course'),t('المبلغ','Amount'),t('المدفوع','Paid'),t('الباقي','Remaining'),t('الاستحقاق','Due'),t('الحالة','Status'),t('إجراء','Actions')].map(function(h){return '<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:right;white-space:nowrap">'+h+'</th>'}).join('')
     +'</tr></thead><tbody>'
     +(invoices.length ? invoices.map(function(inv,i){
       var paidAmt = inv.paidAmount||(inv.status==='مدفوع'?inv.amount:0);
@@ -12102,6 +12108,7 @@ function renderInvoicesTab(sc){
       var sc2 = stColors[inv.status]||'#6A85A5';
       return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
         +'<td style="padding:8px 10px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+        +'<td style="padding:8px 10px"><input value="'+(inv.invoiceNumber||'')+'" onchange="updateInvNumber('+i+',this.value)" style="background:#0D1A2E;border:1px solid #1A2E4A;color:#23A0B5;border-radius:5px;padding:4px 8px;font-size:11px;font-family:monospace;width:70px;text-align:center" placeholder="0000"/></td>'
         +'<td style="padding:8px 10px;color:#F5F7FA;font-size:12px;font-weight:600">'+(inv.client||'—')+'</td>'
         +'<td style="padding:8px 10px;color:#8BABC9;font-size:11px">'+(inv.course||'—')+'</td>'
         +'<td style="padding:8px 10px;color:#C9A84C;font-weight:700;font-size:11px;font-family:monospace">SAR '+fmt(inv.amount)+'</td>'
@@ -12116,9 +12123,16 @@ function renderInvoicesTab(sc){
         +'<button onclick="openInvoiceModal('+i+')" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:4px;color:#C9A84C;padding:2px 6px;cursor:pointer;font-size:9px;font-family:inherit">✏️</button>'
         +'<button onclick="deleteInvoice('+i+')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 6px;cursor:pointer;font-size:9px">🗑️</button>'
         +'</div></td></tr>';
-    }).join('') : '<tr><td colspan="9" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد فواتير — ستُنشأ تلقائياً عند قبول عروض الأسعار','No invoices — auto-created when quotes are accepted')+'</td></tr>')
+    }).join('') : '<tr><td colspan="10" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد فواتير — ستُنشأ تلقائياً عند قبول عروض الأسعار','No invoices — auto-created when quotes are accepted')+'</td></tr>')
     +'</tbody></table>';
   sc.appendChild(tbl);
+}
+
+function updateInvNumber(idx, num){
+  if(!DB.invoices||!DB.invoices[idx]) return;
+  DB.invoices[idx].invoiceNumber = num;
+  ss('invoices', DB.invoices);
+  save();
 }
 
 function updateInvStatus(idx, newStatus){
@@ -12205,6 +12219,8 @@ function saveInvoice(editIdx){
   
   var inv = {
     id: editIdx!==null&&DB.invoices[editIdx] ? DB.invoices[editIdx].id : 'INV-'+Date.now(),
+    invoiceNumber: editIdx!==null&&DB.invoices[editIdx] ? DB.invoices[editIdx].invoiceNumber : (function(){ var nums=(DB.invoices||[]).map(function(x){return parseInt((x.invoiceNumber||'0').replace(/\D/g,''))||0}); return String(Math.max.apply(null,[0].concat(nums))+1).padStart(4,'0'); })(),
+    salesPerson: editIdx!==null&&DB.invoices[editIdx] ? DB.invoices[editIdx].salesPerson : (CU?CU.name:''),
     client: client, course: course, amount: amount, paidAmount: paidAmount,
     dueDate: dueDate, status: status,
     date: editIdx!==null&&DB.invoices[editIdx] ? DB.invoices[editIdx].date : new Date().toISOString().slice(0,10),
