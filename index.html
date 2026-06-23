@@ -3420,12 +3420,10 @@ function lsQuotes(){
 }
 function ssQuotes(q){
   localStorage.setItem('tf4_quotes', JSON.stringify(q));
-  // Trigger Gist sync after quote save
-  const cfg = getGistConfig();
+  // Always sync to Gist
+  var cfg = getGistConfig();
   if(cfg.enabled && cfg.gistId && cfg.token){ save(); }
 }
-
-
 function exportQuotesExcel(){
   if(typeof XLSX === 'undefined'){
     // Try loading dynamically
@@ -3609,23 +3607,52 @@ function renderQuotes(sc){
 
 }
 
-function changeQuoteStatus(i, val){
-  const quotes = lsQuotes();
-  const q = quotes[i];
+function changeQuoteStatus(quoteId, newStatus){
+  // Get ALL quotes
+  var allQuotes = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+  var q = allQuotes.find(function(x){return x.id===quoteId});
   if(!q) return;
-  const prevStatus = q.status;
-  q.status = val;
-  ssQuotes(quotes);
-
-  // Auto-create invoice when status changes to Accepted
-  const isAccepted = val==='مقبول' || val==='Accepted';
-  const wasAccepted = prevStatus==='مقبول' || prevStatus==='Accepted';
+  
+  var prevStatus = q.status;
+  q.status = newStatus;
+  localStorage.setItem('tf4_quotes', JSON.stringify(allQuotes));
+  
+  // Auto-create invoice when accepted
+  var isAccepted = newStatus==='مقبول' || newStatus==='Accepted';
+  var wasAccepted = prevStatus==='مقبول' || prevStatus==='Accepted';
   if(isAccepted && !wasAccepted){
-    _autoCreateInvoice(q);
+    autoCreateInvoiceFromQuote(q);
   }
+  
+  save();
   renderSales();
+  showSuccessToast('✅ '+(isAR()?'تم تحديث الحالة':'Status updated'));
 }
 
+function autoCreateInvoiceFromQuote(quote){
+  if(!DB.invoices) DB.invoices = [];
+  // Check if invoice already exists for this quote
+  var exists = DB.invoices.some(function(inv){return inv.quoteId===quote.id});
+  if(exists) return;
+  
+  var courseName = (quote.items&&quote.items.length) ? quote.items.map(function(it){return it.course}).join(', ') : '';
+  var inv = {
+    id: 'INV-'+Date.now(),
+    quoteId: quote.id,
+    quotationNumber: quote.id,
+    client: quote.client,
+    course: courseName,
+    amount: quote.netTotal || 0,
+    paidAmount: 0,
+    date: new Date().toISOString().slice(0,10),
+    dueDate: (function(){ var d=new Date(); d.setDate(d.getDate()+30); return d.toISOString().slice(0,10); })(),
+    status: 'معلق',
+    createdBy: CU ? CU.name : ''
+  };
+  DB.invoices.push(inv);
+  ss('invoices', DB.invoices);
+  showSuccessToast('🧾 '+(isAR()?'تم إنشاء فاتورة تلقائياً':'Invoice auto-created'));
+}
 function _autoCreateInvoice(q){
   // Check if invoice already exists for this quote
   const existing = DB.invoices.find(inv=>inv.quoteId===q.id);
@@ -4242,17 +4269,34 @@ function buildQuoteObj(status){
 
 function saveQuoteOnly(){
   window._quoteFormOpen = false;
-  const q = buildQuoteObj(isAR()?'مسودة':'Draft');
+  var q = buildQuoteObj(isAR()?'مسودة':'Draft');
   if(!q.client||q.client==='—') return alert(isAR()?'أدخل اسم العميل':'Enter client name');
   if(!q.items.length) return alert(isAR()?'أضف دورة واحدة على الأقل':'Add at least one course');
-  const quotes = lsQuotes();
-  if(_editQuoteIdx !== null){ quotes[_editQuoteIdx]=q; _editQuoteIdx=null; }
-  else quotes.unshift(q);
-  ssQuotes(quotes);
+  
+  // Get ALL quotes (not filtered)
+  var allQuotes = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+  
+  if(_editQuoteIdx !== null){
+    // EDITING: find by ID and update
+    var editId = q.id;
+    var existIdx = allQuotes.findIndex(function(x){return x.id===editId});
+    if(existIdx >= 0){
+      allQuotes[existIdx] = q;
+    } else {
+      allQuotes.unshift(q);
+    }
+    _editQuoteIdx = null;
+  } else {
+    // NEW quote
+    allQuotes.unshift(q);
+  }
+  
+  localStorage.setItem('tf4_quotes', JSON.stringify(allQuotes));
+  save(); // Sync to Gist immediately
   currentChildKey = 'sales-quotes';
   renderSales();
+  showSuccessToast('✅ '+(isAR()?'تم حفظ العرض':'Quote saved'));
 }
-
 function saveAndPrintQuote(){
   const q = buildQuoteObj(isAR()?'مُرسَل':'Sent');
   if(!q.client||q.client==='—') return alert(isAR()?'أدخل اسم العميل':'Enter client name');
@@ -4887,22 +4931,27 @@ function downloadQuotePDF(i){
   launchQuotePrint(q);
 }
 
-function deleteQuote(idOrIdx){
-  if(!confirm(isAR()?'حذف هذا العرض؟':'Delete this quote?')) return;
-  let quotes = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
-  // Try to delete by ID first (stable), fallback to index
-  const byId = quotes.findIndex(q=>q.id===idOrIdx);
-  if(byId >= 0){
-    quotes.splice(byId, 1);
-  } else if(typeof idOrIdx==='number'){
-    quotes.splice(idOrIdx, 1);
-  } else { return; }
-  ssQuotes(quotes);
+function deleteQuote(quoteId){
+  if(!confirm(isAR()?'حذف هذا العرض نهائياً؟':'Permanently delete this quote?')) return;
+  // Get ALL quotes (not filtered by user)
+  var allQuotes = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+  var idx = allQuotes.findIndex(function(q){return q.id===quoteId});
+  if(idx < 0) return;
+  
+  // Remove from array
+  allQuotes.splice(idx, 1);
+  localStorage.setItem('tf4_quotes', JSON.stringify(allQuotes));
+  
+  // Track deletion to prevent sync from restoring
+  var deleted = JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]');
+  if(deleted.indexOf(quoteId) < 0) deleted.push(quoteId);
+  localStorage.setItem('tf4_deleted_quotes', JSON.stringify(deleted));
+  
+  // Immediate sync to Gist
+  save();
   renderSales();
-  save(); // Sync deletion to Gist
-  showSuccessToast('✅ '+(isAR()?'تم حذف العرض':'Quote deleted'));
+  showSuccessToast('✅ '+(isAR()?'تم حذف العرض نهائياً':'Quote permanently deleted'));
 }
-
 function openQuoteModal(){ openNewQuoteForm(); }
 
 
@@ -11983,59 +12032,99 @@ document.addEventListener('change', (e)=>{
 
 // ══ INVOICES PAGE ══
 function renderInvoicesTab(sc){
-  const t = (ar,en) => isAR() ? ar : en;
-  const invoices = DB.invoices || [];
-  const totalInvoiced = invoices.reduce((s,inv)=>s+(inv.amount||0),0);
-  const totalPaid = invoices.filter(inv=>inv.status==='مدفوع').reduce((s,inv)=>s+(inv.amount||0),0);
-  const totalRemaining = totalInvoiced - totalPaid;
+  var t = function(ar,en){return isAR()?ar:en};
+  
+  // Auto-check overdue invoices
+  var today = new Date().toISOString().slice(0,10);
+  (DB.invoices||[]).forEach(function(inv){
+    if(inv.dueDate && inv.dueDate < today && inv.status !== 'مدفوع' && inv.status !== 'متأخر'){
+      inv.status = 'متأخر';
+    }
+  });
+  
+  var invoices = DB.invoices || [];
+  var totalAmount = invoices.reduce(function(s,inv){return s+(inv.amount||0)},0);
+  var totalPaid = invoices.reduce(function(s,inv){return s+(inv.paidAmount||(inv.status==='مدفوع'?inv.amount:0))},0);
+  var totalRemaining = totalAmount - totalPaid;
+  var pending = invoices.filter(function(inv){return inv.status==='معلق'}).length;
+  var approved = invoices.filter(function(inv){return inv.status==='معتمد'}).length;
+  var paid = invoices.filter(function(inv){return inv.status==='مدفوع'}).length;
+  var overdue = invoices.filter(function(inv){return inv.status==='متأخر'}).length;
 
   sc.innerHTML = '';
   
-  // KPIs
-  const kpis = document.createElement('div');
-  kpis.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px';
-  [{l:t('إجمالي الفواتير','Total Invoiced'),v:'SAR '+fmt(totalInvoiced),c:'#23A0B5'},
-   {l:t('المدفوع','Paid'),v:'SAR '+fmt(totalPaid),c:'#1A8A5A'},
-   {l:t('المتبقي','Remaining'),v:'SAR '+fmt(totalRemaining),c:totalRemaining>0?'#C0392B':'#1A8A5A'},
-  ].forEach(k=>{
-    kpis.innerHTML += '<div class="kpi" style="padding:14px;text-align:center"><div style="color:#6A85A5;font-size:9px;text-transform:uppercase">'+k.l+'</div><div style="color:'+k.c+';font-size:22px;font-weight:800;font-family:monospace;margin-top:4px">'+k.v+'</div></div>';
+  // KPIs Row 1 - Counts
+  var k1 = document.createElement('div');
+  k1.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px';
+  [{l:t('معلقة','Pending'),v:pending,c:'#6A85A5',i:'⏳'},
+   {l:t('معتمدة','Approved'),v:approved,c:'#23A0B5',i:'✅'},
+   {l:t('مدفوعة','Paid'),v:paid,c:'#1A8A5A',i:'💰'},
+   {l:t('متأخرة','Overdue'),v:overdue,c:'#C0392B',i:'⚠️'}
+  ].forEach(function(k){
+    k1.innerHTML += '<div class="kpi" style="padding:12px;text-align:center"><div style="font-size:20px">'+k.i+'</div><div style="color:'+k.c+';font-size:22px;font-weight:800;margin:4px 0">'+k.v+'</div><div style="color:#6A85A5;font-size:9px">'+k.l+'</div></div>';
   });
-  sc.appendChild(kpis);
+  sc.appendChild(k1);
+  
+  // KPIs Row 2 - Money
+  var k2 = document.createElement('div');
+  k2.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px';
+  [{l:t('إجمالي الفواتير','Total Invoiced'),v:'SAR '+fmt(totalAmount),c:'#23A0B5'},
+   {l:t('المدفوع','Total Paid'),v:'SAR '+fmt(totalPaid),c:'#1A8A5A'},
+   {l:t('المستحق','Outstanding'),v:'SAR '+fmt(totalRemaining),c:totalRemaining>0?'#C0392B':'#1A8A5A'}
+  ].forEach(function(k){
+    k2.innerHTML += '<div class="kpi" style="padding:14px;text-align:center"><div style="color:#6A85A5;font-size:9px;text-transform:uppercase">'+k.l+'</div><div style="color:'+k.c+';font-size:20px;font-weight:800;font-family:monospace;margin-top:4px">'+k.v+'</div></div>';
+  });
+  sc.appendChild(k2);
 
-  // Add invoice button
-  const hdr = document.createElement('div');
+  // Header
+  var hdr = document.createElement('div');
   hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
   hdr.innerHTML = '<span style="color:#F5F7FA;font-size:14px;font-weight:800">🧾 '+t('الفواتير','Invoices')+' ('+invoices.length+')</span>'
     +'<button onclick="openInvoiceModal()" style="background:#1A8A5A;border:none;border-radius:8px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">+ '+t('فاتورة جديدة','New Invoice')+'</button>';
   sc.appendChild(hdr);
 
   // Table
-  const tbl = document.createElement('div');
+  var tbl = document.createElement('div');
   tbl.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow-x:auto';
+  var stColors = {'معلق':'#6A85A5','معتمد':'#23A0B5','مدفوع':'#1A8A5A','متأخر':'#C0392B','جزئي':'#C9A84C'};
   tbl.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
-    +['#',t('العميل','Client'),t('الدورة','Course'),t('المبلغ','Amount'),t('المدفوع','Paid'),t('الباقي','Remaining'),t('الاستحقاق','Due Date'),t('الحالة','Status'),t('إجراء','Action')].map(h=>'<th style="padding:8px 12px;color:#6A85A5;font-size:10px;text-align:right;white-space:nowrap">'+h+'</th>').join('')
+    +['#',t('العميل','Client'),t('الدورة','Course'),t('المبلغ','Amount'),t('المدفوع','Paid'),t('الباقي','Remaining'),t('الاستحقاق','Due'),t('الحالة','Status'),t('إجراء','Actions')].map(function(h){return '<th style="padding:8px 10px;color:#6A85A5;font-size:10px;text-align:right;white-space:nowrap">'+h+'</th>'}).join('')
     +'</tr></thead><tbody>'
-    +(invoices.length?invoices.map(function(inv,i){
-      var paid = inv.paidAmount || (inv.status==='مدفوع'?inv.amount:0);
-      var remaining = (inv.amount||0) - paid;
-      var stColor = inv.status==='مدفوع'?'#1A8A5A':inv.status==='متأخر'?'#C0392B':inv.status==='جزئي'?'#C9A84C':'#6A85A5';
+    +(invoices.length ? invoices.map(function(inv,i){
+      var paidAmt = inv.paidAmount||(inv.status==='مدفوع'?inv.amount:0);
+      var remain = (inv.amount||0)-paidAmt;
+      var sc2 = stColors[inv.status]||'#6A85A5';
       return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
-        +'<td style="padding:8px 12px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
-        +'<td style="padding:8px 12px;color:#F5F7FA;font-size:12px;font-weight:600">'+(inv.client||'—')+'</td>'
-        +'<td style="padding:8px 12px;color:#8BABC9;font-size:11px">'+(inv.course||'—')+'</td>'
-        +'<td style="padding:8px 12px;color:#C9A84C;font-weight:700;font-size:11px;font-family:monospace">SAR '+fmt(inv.amount)+'</td>'
-        +'<td style="padding:8px 12px;color:#1A8A5A;font-size:11px;font-family:monospace">SAR '+fmt(paid)+'</td>'
-        +'<td style="padding:8px 12px;color:'+(remaining>0?'#C0392B':'#1A8A5A')+';font-size:11px;font-family:monospace">SAR '+fmt(remaining)+'</td>'
-        +'<td style="padding:8px 12px;color:#6A85A5;font-size:11px">'+(inv.dueDate||'—')+'</td>'
-        +'<td style="padding:8px 12px"><span style="background:'+stColor+'22;color:'+stColor+';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+(inv.status||'معلق')+'</span></td>'
-        +'<td style="padding:8px 12px"><div style="display:flex;gap:4px">'
-        +'<button onclick="editInvoiceStatus('+i+')" style="background:rgba(26,122,138,.15);border:1px solid rgba(26,122,138,.3);border-radius:5px;color:#23A0B5;padding:3px 8px;cursor:pointer;font-size:10px;font-family:inherit">'+t('تحديث','Update')+'</button>'
-        +'<button onclick="deleteInvoice('+i+')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:5px;color:#C0392B;width:24px;height:24px;cursor:pointer;font-size:10px">🗑️</button>'
+        +'<td style="padding:8px 10px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+        +'<td style="padding:8px 10px;color:#F5F7FA;font-size:12px;font-weight:600">'+(inv.client||'—')+'</td>'
+        +'<td style="padding:8px 10px;color:#8BABC9;font-size:11px">'+(inv.course||'—')+'</td>'
+        +'<td style="padding:8px 10px;color:#C9A84C;font-weight:700;font-size:11px;font-family:monospace">SAR '+fmt(inv.amount)+'</td>'
+        +'<td style="padding:8px 10px;color:#1A8A5A;font-size:11px;font-family:monospace">SAR '+fmt(paidAmt)+'</td>'
+        +'<td style="padding:8px 10px;color:'+(remain>0?'#C0392B':'#1A8A5A')+';font-size:11px;font-family:monospace">SAR '+fmt(remain)+'</td>'
+        +'<td style="padding:8px 10px;color:#6A85A5;font-size:11px">'+(inv.dueDate||'—')+'</td>'
+        +'<td style="padding:8px 10px"><span style="background:'+sc2+'22;color:'+sc2+';padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">'+(inv.status||'معلق')+'</span></td>'
+        +'<td style="padding:6px 8px"><div style="display:flex;gap:3px;flex-wrap:wrap">'
+        +(inv.status!=='معتمد'?'<button onclick="updateInvStatus('+i+',\'معتمد\')" style="background:rgba(26,122,138,.15);border:1px solid rgba(26,122,138,.3);border-radius:4px;color:#23A0B5;padding:2px 6px;cursor:pointer;font-size:9px;font-family:inherit">اعتماد</button>':'')
+        +(inv.status!=='مدفوع'?'<button onclick="updateInvStatus('+i+',\'مدفوع\')" style="background:rgba(26,138,90,.15);border:1px solid rgba(26,138,90,.3);border-radius:4px;color:#1A8A5A;padding:2px 6px;cursor:pointer;font-size:9px;font-family:inherit">مدفوع</button>':'')
+        +(inv.status!=='معلق'?'<button onclick="updateInvStatus('+i+',\'معلق\')" style="background:rgba(106,133,165,.15);border:1px solid rgba(106,133,165,.3);border-radius:4px;color:#6A85A5;padding:2px 6px;cursor:pointer;font-size:9px;font-family:inherit">معلق</button>':'')
+        +'<button onclick="openInvoiceModal('+i+')" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:4px;color:#C9A84C;padding:2px 6px;cursor:pointer;font-size:9px;font-family:inherit">✏️</button>'
+        +'<button onclick="deleteInvoice('+i+')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 6px;cursor:pointer;font-size:9px">🗑️</button>'
         +'</div></td></tr>';
-    }).join(''):'<tr><td colspan="9" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد فواتير','No invoices')+'</td></tr>')
+    }).join('') : '<tr><td colspan="9" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد فواتير — ستُنشأ تلقائياً عند قبول عروض الأسعار','No invoices — auto-created when quotes are accepted')+'</td></tr>')
     +'</tbody></table>';
   sc.appendChild(tbl);
 }
+
+function updateInvStatus(idx, newStatus){
+  if(!DB.invoices||!DB.invoices[idx]) return;
+  DB.invoices[idx].status = newStatus;
+  if(newStatus==='مدفوع') DB.invoices[idx].paidAmount = DB.invoices[idx].amount;
+  ss('invoices', DB.invoices);
+  save();
+  renderSales();
+  showSuccessToast('✅ '+(isAR()?'تم تحديث حالة الفاتورة':'Invoice status updated'));
+}
+
 
 function openInvoiceModal(editIdx){
   var t = function(ar,en){return isAR()?ar:en};
