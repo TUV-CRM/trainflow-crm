@@ -1080,9 +1080,27 @@ async function loadFromGist(){
     const data = JSON.parse(file.content);
     // Update DB
     if(data.leads)    { DB.leads=data.leads;    ss('leads',data.leads); }
-    if(data.invoices) { DB.invoices=data.invoices; ss('invoices',data.invoices); }
-    if(data.sessions) { DB.sessions=data.sessions; ss('sessions',data.sessions); }
-    if(data.trainers) { DB.trainers=data.trainers; ss('trainers',data.trainers); }
+    // LOCAL-FIRST merge for invoices
+    if(data.invoices){
+      var localInv = DB.invoices||[];
+      var localInvIds = new Set(localInv.map(function(x){return x.id}));
+      var newInv = data.invoices.filter(function(x){return !localInvIds.has(x.id)});
+      if(newInv.length){ DB.invoices = localInv.concat(newInv); ss('invoices',DB.invoices); }
+    }
+    // LOCAL-FIRST merge for sessions
+    if(data.sessions){
+      var localSes = DB.sessions||[];
+      var localSesIds = new Set(localSes.map(function(x){return x.id}));
+      var newSes = data.sessions.filter(function(x){return !localSesIds.has(x.id)});
+      if(newSes.length){ DB.sessions = localSes.concat(newSes); ss('sessions',DB.sessions); }
+    }
+    // LOCAL-FIRST merge for trainers
+    if(data.trainers){
+      var localTr = DB.trainers||[];
+      var localTrIds = new Set(localTr.map(function(x){return x.id||x.name}));
+      var newTr = data.trainers.filter(function(x){return !localTrIds.has(x.id||x.name)});
+      if(newTr.length){ DB.trainers = localTr.concat(newTr); ss('trainers',DB.trainers); }
+    }
     if(data.trainees) { DB.trainees=data.trainees; ss('trainees',data.trainees); }
     if(data.quotes){
       // Merge remote quotes with any local-only quotes (not yet synced)
