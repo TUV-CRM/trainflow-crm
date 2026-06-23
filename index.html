@@ -4240,7 +4240,7 @@ function updateQuotePreview(){
 }
 
 function buildQuoteObj(status){
-  const existingId = (_editQuoteIdx !== null) ? (lsQuotes()[_editQuoteIdx]||{}).id : null;
+  const existingId = (_editQuoteIdx !== null) ? _editQuoteIdx : null; // _editQuoteIdx is now the quote ID
   const rows = (window._quoteRows||[]).filter(r=>r.course&&r.qty>0&&r.price>0).map(r=>({
     ...r,
     discount: r.discount||0,
