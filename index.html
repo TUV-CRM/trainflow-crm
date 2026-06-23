@@ -1087,12 +1087,12 @@ async function loadFromGist(){
     if(data.quotes){
       // Merge remote quotes with any local-only quotes (not yet synced)
       const localQ  = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
-      const remoteQ = data.quotes;
-      // Add local quotes that aren't in remote yet
+      const remoteQ = data.quotes||[];
       const deletedIds = new Set(JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]'));
-      const remoteIds = new Set(remoteQ.map(q=>q.id));
-      const localOnly = localQ.filter(q=>!remoteIds.has(q.id));
-      const merged = [...remoteQ, ...localOnly].filter(q=>!deletedIds.has(q.id));
+      // LOCAL WINS: keep all local items, only ADD new remote items not in local
+      const localIds = new Set(localQ.map(q=>q.id));
+      const newFromRemote = remoteQ.filter(q=>!localIds.has(q.id) && !deletedIds.has(q.id));
+      const merged = [...localQ, ...newFromRemote].filter(q=>!deletedIds.has(q.id));
       localStorage.setItem('tf4_quotes', JSON.stringify(merged));
     }
     if(data.activities){  localStorage.setItem('tf4_activities',  JSON.stringify(data.activities)); }
@@ -1577,8 +1577,8 @@ async function loadFromGistAndRefresh(){
   }
   const ok = await loadFromGist();
   if(ok){
-    renderPage(activePage);
-    showSuccessToast('✅ تمت المزامنة — البيانات محدَّثة');
+    // Don't re-render — user's view stays intact
+    showSyncIndicator('synced');
   } else {
     // Silent on auto-sync failure — only log to console
     console.warn('Auto-sync failed');
@@ -1664,7 +1664,7 @@ function launchApp(){
         try{ renderPage(activePage); }catch(e){}
       }
     } catch(e){ showSyncIndicator('synced') }
-  }, 60000);
+  }, 120000); // Sync every 2 minutes
 
   // Navigate to first accessible page
   // Find first accessible child
