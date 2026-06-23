@@ -1079,7 +1079,8 @@ async function loadFromGist(){
     if(!file){ showSyncIndicator('synced'); return false; }
     const data = JSON.parse(file.content);
     // Update DB
-    if(data.leads)    { DB.leads=data.leads;    ss('leads',data.leads); }
+    // LOCAL-FIRST leads
+    if(data.leads){ var _ll=DB.leads||[]; var _li=new Set(_ll.map(function(x){return x.id})); var _nl=data.leads.filter(function(x){return !_li.has(x.id)}); if(_nl.length){DB.leads=_ll.concat(_nl);ss('leads',DB.leads);} }
     // LOCAL-FIRST merge for invoices
     if(data.invoices){
       var localInv = DB.invoices||[];
@@ -1661,7 +1662,7 @@ function launchApp(){
   if(_cfg.enabled && _cfg.gistId && _cfg.token){
     showSyncIndicator('loading');
     loadFromGist().then(ok=>{
-      if(ok){ buildSidebar(); renderPage(activePage); }
+      if(ok){ showSyncIndicator('synced'); showSuccessToast('✅ تمت المزامنة'); }
     });
   } else {
     showSyncIndicator('offline');
@@ -1678,8 +1679,7 @@ function launchApp(){
       || document.querySelector('.modal-overlay.active');
     try {
       const ok = await loadFromGist();
-      if(ok && !_modalOpen){
-        try{ renderPage(activePage); }catch(e){}
+      showSyncIndicator('synced')
       }
     } catch(e){ showSyncIndicator('synced') }
   }, 120000); // Sync every 2 minutes
