@@ -1678,10 +1678,9 @@ function launchApp(){
       || document.getElementById('traineeProfileOverlay')
       || document.querySelector('.modal-overlay.active');
     try {
-      const ok = await loadFromGist();
-      showSyncIndicator('synced')
-      }
-    } catch(e){ showSyncIndicator('synced') }
+      await loadFromGist();
+      showSyncIndicator('synced');
+    } catch(e){ showSyncIndicator('synced'); }
   }, 120000); // Sync every 2 minutes
 
   // Navigate to first accessible page
