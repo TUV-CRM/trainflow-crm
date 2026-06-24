@@ -971,42 +971,72 @@ let _syncing = false;
 let _syncPending = false;
 
 async function save(){
-  window._quoteFormOpen = false;
   if(window._saving) return;
   window._saving = true;
-  
   try {
     showSyncIndicator('saving');
     
+    // Step 1: Get local data
+    var localQ = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+    var deletedQ = JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]');
+    var deletedCl = JSON.parse(localStorage.getItem('tf4_deleted_clients')||'[]');
+    
+    // Step 2: Fetch current Firebase data
+    var remote = {};
+    try {
+      var resp = await fetch(FIREBASE_URL + '/data.json');
+      if(resp.ok) remote = (await resp.json()) || {};
+    } catch(e){}
+    
+    var remoteQ = remote.quotes || [];
+    var remoteDelQ = remote.deletedQuotes || [];
+    var remoteDelCl = remote.deletedClients || [];
+    
+    // Step 3: SMART MERGE — newest wins
+    var allDeletedQ = Array.from(new Set(deletedQ.concat(remoteDelQ)));
+    var allDeletedCl = Array.from(new Set(deletedCl.concat(remoteDelCl)));
+    var mergedQ = smartMerge(localQ, remoteQ).filter(function(q){return allDeletedQ.indexOf(q.id)<0});
+    var mergedInv = smartMerge(DB.invoices||[], remote.invoices||[]);
+    var mergedLeads = smartMerge(DB.leads||[], remote.leads||[]);
+    var mergedSessions = smartMerge(DB.sessions||[], remote.sessions||[]);
+    var mergedClients = smartMerge(
+      JSON.parse(localStorage.getItem('tf4_clients')||'[]'),
+      remote.clients||[]
+    ).filter(function(c){return allDeletedCl.indexOf(c.id)<0});
+    
+    // Step 4: Update local with merged data
+    localStorage.setItem('tf4_quotes', JSON.stringify(mergedQ));
+    localStorage.setItem('tf4_deleted_quotes', JSON.stringify(allDeletedQ));
+    localStorage.setItem('tf4_deleted_clients', JSON.stringify(allDeletedCl));
+    localStorage.setItem('tf4_clients', JSON.stringify(mergedClients));
+    DB.invoices = mergedInv; ss('invoices', mergedInv);
+    DB.leads = mergedLeads; ss('leads', mergedLeads);
+    DB.sessions = mergedSessions; ss('sessions', mergedSessions);
+    
+    // Step 5: Push merged data to Firebase
     var dataToSave = {
-      quotes:         JSON.parse(localStorage.getItem('tf4_quotes')||'[]'),
-      deletedQuotes:  JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]'),
-      invoices:       DB.invoices || [],
-      leads:          DB.leads || [],
-      sessions:       DB.sessions || [],
-      clients:        JSON.parse(localStorage.getItem('tf4_clients')||'[]'),
-      customCourses:  JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]'),
-      financeData:    JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'),
-      userPerms:      JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
-      dailyReports:   JSON.parse(localStorage.getItem('tf4_daily')||'[]'),
-      traineeProfiles:JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
-      lastSaved:      new Date().toISOString(),
-      savedBy:        CU ? CU.name : 'System'
+      quotes: mergedQ,
+      deletedQuotes: allDeletedQ,
+      deletedClients: allDeletedCl,
+      invoices: mergedInv,
+      leads: mergedLeads,
+      sessions: mergedSessions,
+      clients: mergedClients,
+      customCourses: JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]'),
+      financeData: JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'),
+      userPerms: JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
+      dailyReports: JSON.parse(localStorage.getItem('tf4_daily')||'[]'),
+      lastSaved: new Date().toISOString(),
+      savedBy: CU ? CU.name : 'System'
     };
     
-    // Save to Firebase
-    var resp = await fetch(FIREBASE_URL + '/data.json', {
+    await fetch(FIREBASE_URL + '/data.json', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(dataToSave)
     });
     
-    if(resp.ok){
-      showSyncIndicator('synced');
-    } else {
-      console.warn('Firebase save failed:', resp.status);
-      showSyncIndicator('synced');
-    }
+    showSyncIndicator('synced');
   } catch(e){
     console.warn('Save error:', e.message);
     showSyncIndicator('synced');
@@ -1015,89 +1045,83 @@ async function save(){
   }
 }
 
+// SMART MERGE: for each item — keep the NEWEST version by updatedAt
+function smartMerge(localArr, remoteArr){
+  var map = {};
+  // Add all remote items first
+  (remoteArr||[]).forEach(function(item){
+    if(item && item.id) map[item.id] = item;
+  });
+  // Local items: overwrite ONLY if local is newer
+  (localArr||[]).forEach(function(item){
+    if(!item || !item.id) return;
+    var existing = map[item.id];
+    if(!existing){
+      map[item.id] = item; // New local item
+    } else {
+      // Compare timestamps — newest wins
+      var localTime = item.updatedAt || item.createdAt || '';
+      var remoteTime = existing.updatedAt || existing.createdAt || '';
+      if(localTime >= remoteTime){
+        map[item.id] = item; // Local is newer
+      }
+      // else: remote is newer — keep remote
+    }
+  });
+  return Object.keys(map).map(function(k){return map[k]});
+}
+
+
 
 async function loadFromGist(){
-  // Now uses Firebase instead of Gist
   try {
     showSyncIndicator('loading');
     var resp = await fetch(FIREBASE_URL + '/data.json');
     if(!resp.ok){ showSyncIndicator('synced'); return false; }
-    
     var data = await resp.json();
     if(!data){ showSyncIndicator('synced'); return false; }
     
-    var deletedIds = new Set(JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]'));
+    // Merge deleted lists
+    var localDelQ = JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]');
+    var allDeletedQ = Array.from(new Set(localDelQ.concat(data.deletedQuotes||[])));
+    localStorage.setItem('tf4_deleted_quotes', JSON.stringify(allDeletedQ));
     
-    // LOCAL-FIRST merge for quotes
-    if(data.quotes){
-      var localQ = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
-      var localQIds = new Set(localQ.map(function(x){return x.id}));
-      var newQ = data.quotes.filter(function(x){return x.id && !localQIds.has(x.id) && !deletedIds.has(x.id)});
-      if(newQ.length) localStorage.setItem('tf4_quotes', JSON.stringify(localQ.concat(newQ)));
-    }
+    var localDelCl = JSON.parse(localStorage.getItem('tf4_deleted_clients')||'[]');
+    var allDeletedCl = Array.from(new Set(localDelCl.concat(data.deletedClients||[])));
+    localStorage.setItem('tf4_deleted_clients', JSON.stringify(allDeletedCl));
     
-    // LOCAL-FIRST merge for invoices
-    if(data.invoices){
-      var localInv = DB.invoices||[];
-      var localInvIds = new Set(localInv.map(function(x){return x.id}));
-      var newInv = data.invoices.filter(function(x){return x.id && !localInvIds.has(x.id)});
-      if(newInv.length){ DB.invoices = localInv.concat(newInv); ss('invoices',DB.invoices); }
-    }
+    // Smart merge all data — newest wins
+    var localQ = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+    var mergedQ = smartMerge(localQ, data.quotes||[]).filter(function(q){return allDeletedQ.indexOf(q.id)<0});
+    localStorage.setItem('tf4_quotes', JSON.stringify(mergedQ));
     
-    // LOCAL-FIRST merge for sessions
-    if(data.sessions){
-      var localSes = DB.sessions||[];
-      var localSesIds = new Set(localSes.map(function(x){return x.id}));
-      var newSes = data.sessions.filter(function(x){return x.id && !localSesIds.has(x.id)});
-      if(newSes.length){ DB.sessions = localSes.concat(newSes); ss('sessions',DB.sessions); }
-    }
+    var mergedInv = smartMerge(DB.invoices||[], data.invoices||[]);
+    DB.invoices = mergedInv; ss('invoices', mergedInv);
     
-    // LOCAL-FIRST merge for leads
-    if(data.leads){
-      var localL = DB.leads||[];
-      var localLIds = new Set(localL.map(function(x){return x.id}));
-      var newL = data.leads.filter(function(x){return x.id && !localLIds.has(x.id)});
-      if(newL.length){ DB.leads = localL.concat(newL); ss('leads',DB.leads); }
-    }
+    var mergedLeads = smartMerge(DB.leads||[], data.leads||[]);
+    DB.leads = mergedLeads; ss('leads', mergedLeads);
     
-    // LOCAL-FIRST merge for clients
-    if(data.clients){
-      var localCl = JSON.parse(localStorage.getItem('tf4_clients')||'[]');
-      var localClIds = new Set(localCl.map(function(x){return x.id}));
-      var newCl = data.clients.filter(function(x){return x.id && !localClIds.has(x.id)});
-      if(newCl.length) localStorage.setItem('tf4_clients', JSON.stringify(localCl.concat(newCl)));
-    }
+    var mergedSessions = smartMerge(DB.sessions||[], data.sessions||[]);
+    DB.sessions = mergedSessions; ss('sessions', mergedSessions);
     
-    // Custom courses
+    var localCl = JSON.parse(localStorage.getItem('tf4_clients')||'[]');
+    var mergedCl = smartMerge(localCl, data.clients||[]).filter(function(c){return allDeletedCl.indexOf(c.id)<0});
+    localStorage.setItem('tf4_clients', JSON.stringify(mergedCl));
+    
     if(data.customCourses){
       var localCC = JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]');
-      var localCCIds = new Set(localCC.map(function(x){return x.id}));
-      var newCC = data.customCourses.filter(function(x){return x.id && !localCCIds.has(x.id)});
-      if(newCC.length) localStorage.setItem('tf4_custom_courses', JSON.stringify(localCC.concat(newCC)));
+      var mergedCC = smartMerge(localCC, data.customCourses);
+      localStorage.setItem('tf4_custom_courses', JSON.stringify(mergedCC));
     }
     
-    // Finance data — merge income/expenses
     if(data.financeData){
       var localFin = JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}');
-      var localFinIds = new Set(localFin.income.map(function(x){return x.id}).concat(localFin.expenses.map(function(x){return x.id})));
-      var newInc = (data.financeData.income||[]).filter(function(x){return x.id && !localFinIds.has(x.id)});
-      var newExp = (data.financeData.expenses||[]).filter(function(x){return x.id && !localFinIds.has(x.id)});
-      if(newInc.length || newExp.length){
-        localFin.income = localFin.income.concat(newInc);
-        localFin.expenses = localFin.expenses.concat(newExp);
-        localStorage.setItem('tf4_finance', JSON.stringify(localFin));
-      }
+      var mInc = smartMerge(localFin.income||[], data.financeData.income||[]);
+      var mExp = smartMerge(localFin.expenses||[], data.financeData.expenses||[]);
+      localStorage.setItem('tf4_finance', JSON.stringify({income:mInc, expenses:mExp}));
     }
     
-    // User permissions — remote wins (set by manager)
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
-    
-    // Deleted quotes — merge
-    if(data.deletedQuotes){
-      var localDel = JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]');
-      var merged = Array.from(new Set(localDel.concat(data.deletedQuotes)));
-      localStorage.setItem('tf4_deleted_quotes', JSON.stringify(merged));
-    }
     
     showSyncIndicator('synced');
     return true;
@@ -1107,6 +1131,7 @@ async function loadFromGist(){
     return false;
   }
 }
+
 
 
 function showSyncIndicator(state, lastSaved, savedBy){
@@ -3514,6 +3539,7 @@ function changeQuoteStatus(quoteId, newStatus){
   
   var prevStatus = q.status;
   q.status = newStatus;
+  q.updatedAt = new Date().toISOString();
   localStorage.setItem('tf4_quotes', JSON.stringify(allQuotes));
   
   // Auto-create invoice when accepted
@@ -4195,6 +4221,8 @@ function saveQuoteOnly(){
     allQuotes.unshift(q);
   }
   
+  // Add timestamp
+  q.updatedAt = new Date().toISOString();
   localStorage.setItem('tf4_quotes', JSON.stringify(allQuotes));
   save(); // Sync to Gist immediately
   currentChildKey = 'sales-quotes';
