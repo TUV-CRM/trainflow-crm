@@ -996,7 +996,12 @@ async function save(){
     var allDeletedQ = Array.from(new Set(deletedQ.concat(remoteDelQ)));
     var allDeletedCl = Array.from(new Set(deletedCl.concat(remoteDelCl)));
     var mergedQ = smartMerge(localQ, remoteQ).filter(function(q){return allDeletedQ.indexOf(q.id)<0});
-    var mergedInv = smartMerge(DB.invoices||[], remote.invoices||[]);
+    var allDeletedInv = Array.from(new Set(
+      JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]')
+      .concat((remote.deletedInvoices||[]))
+    ));
+    localStorage.setItem('tf4_deleted_invoices', JSON.stringify(allDeletedInv));
+    var mergedInv = smartMerge(DB.invoices||[], remote.invoices||[]).filter(function(inv){return allDeletedInv.indexOf(inv.id)<0});
     var mergedLeads = smartMerge(DB.leads||[], remote.leads||[]);
     var mergedSessions = smartMerge(DB.sessions||[], remote.sessions||[]);
     var mergedClients = smartMerge(
@@ -1018,6 +1023,10 @@ async function save(){
       quotes: mergedQ,
       deletedQuotes: allDeletedQ,
       deletedClients: allDeletedCl,
+      deletedInvoices: Array.from(new Set(
+        JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]')
+        .concat((remote.deletedInvoices||[]))
+      )),
       invoices: mergedInv,
       leads: mergedLeads,
       sessions: mergedSessions,
@@ -1122,6 +1131,13 @@ async function loadFromGist(){
     }
     
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
+    
+    // Daily reports — smart merge
+    if(data.dailyReports){
+      var localDaily = JSON.parse(localStorage.getItem('tf4_daily')||'[]');
+      var mergedDaily = smartMerge(localDaily, data.dailyReports);
+      localStorage.setItem('tf4_daily', JSON.stringify(mergedDaily));
+    }
     
     showSyncIndicator('synced');
     return true;
@@ -7944,14 +7960,24 @@ function getFinanceTab(){
 // ════════════════════════════════════════════
 
 function deleteInvoice(idx){
-  const inv = DB.invoices[idx];
+  var inv = DB.invoices[idx];
   if(!inv) return;
-  const name = inv.id + ' — ' + inv.client;
+  var invId = inv.id;
+  var name = invId + ' — ' + inv.client;
   if(!confirm(isAR()?'حذف الفاتورة "'+name+'"؟':'Delete invoice "'+name+'"?')) return;
+  
+  // Remove from array
   DB.invoices.splice(idx, 1);
+  ss('invoices', DB.invoices);
+  
+  // Track deletion to prevent sync from restoring
+  var deletedInv = JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]');
+  if(deletedInv.indexOf(invId)<0) deletedInv.push(invId);
+  localStorage.setItem('tf4_deleted_invoices', JSON.stringify(deletedInv));
+  
   save();
-  renderFinance();
-  showSuccessToast('✅ '+(isAR()?'تم حذف الفاتورة':'Invoice deleted'));
+  renderSales();
+  showSuccessToast('✅ '+(isAR()?'تم حذف الفاتورة نهائياً':'Invoice permanently deleted'));
 }
 
 
@@ -8891,7 +8917,7 @@ function handlePromExcelUpload(pageId, file){
 function getDailyReports(){ return JSON.parse(localStorage.getItem('tf4_daily')||'[]'); }
 function saveDailyReports(r){
   // Tag each report with current user
-  const tagged = r.map(rep=>({...rep, user: rep.user||(CU?CU.name:'')}));
+  const tagged = r.map(rep=>({...rep, user: rep.user||(CU?CU.name:''), updatedAt: rep.updatedAt||new Date().toISOString()}));
   localStorage.setItem('tf4_daily',JSON.stringify(tagged));
   save();
 }
