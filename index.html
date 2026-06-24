@@ -926,8 +926,8 @@ function ls(k,d){try{return JSON.parse(localStorage.getItem('tf4_'+k))||d;}catch
 function ss(k,v){localStorage.setItem('tf4_'+k,JSON.stringify(v));}
 
 let DB = {
-  leads:    ls('leads',   [{id:'L-001',name:'أحمد الرشيدي',company:'أرامكو',course:'PMP Certification',value:18500,stage:'تفاوض',assignee:'محمد الوضاح',source:'واتساب',phone:'+966501234567',notes:'',date:'2025-05-28'},{id:'L-002',name:'فاطمة الزهراني',company:'سابك',course:'Leadership Program',value:32000,stage:'عرض سعر',assignee:'محمد أسد',source:'بريد إلكتروني',phone:'',notes:'',date:'2025-05-27'},{id:'L-003',name:'خالد بن صالح',company:'STC',course:'Data Analytics',value:12800,stage:'مؤهل',assignee:'محمد الوضاح',source:'موقع',phone:'',notes:'',date:'2025-05-26'}]),
-  invoices: ls('invoices',[{id:'INV-2025-089',client:'أرامكو',course:'PMP Certification',amount:18500,issued:'2025-05-01',due:'2025-05-31',status:'متأخر',paid:0},{id:'INV-2025-090',client:'سابك',course:'Leadership Program',amount:32000,issued:'2025-05-05',due:'2025-06-04',status:'معلق',paid:16000},{id:'INV-2025-091',client:'STC',course:'Data Analytics',amount:12800,issued:'2025-05-10',due:'2025-06-09',status:'مدفوع',paid:12800}]),
+  leads:    ls('leads',   []),
+  invoices: ls('invoices',[]),
   sessions: ls('sessions',[{id:'ses1',course:'OSHA 30 Hrs. General Industry',trainer:'م. أحمد عبد السلام',type:'حضوري',day:'الأحد',start:'08:00',end:'13:00',color:'#1A7A8A',zoom:''},{id:'ses2',course:'BLS – Saudi Heart Association',trainer:'م. أحمد عبد السلام',type:'أونلاين',day:'الاثنين',start:'09:00',end:'12:00',color:'#C0392B',zoom:'https://zoom.us/j/example'},{id:'ses3',course:'Fire Watch Training (5 Cards + 1 Certificate)',trainer:'م. أحمد عبد السلام',type:'حضوري',day:'الثلاثاء',start:'08:00',end:'16:00',color:'#E67E22',zoom:''}]),
   trainers: ls('trainers',[
     {id:'tr1',name:'Ahmed Abdel Salam',specialty:'السلامة والصحة المهنية / Occupational Health & Safety',phone:'0554012516',email:'ahmed.abdelsalam@tuvti.com.sa',sessions:12,rating:4.8,location:'https://maps.app.goo.gl/PhYHnG3znh7vqQCv5'},
@@ -1576,6 +1576,26 @@ function _old_initDefaultClients_disabled(){
 
 function launchApp(){
   // Demo data disabled — user data preserved
+  
+  // One-time cleanup of demo data from Firebase
+  if(!localStorage.getItem('tf4_cleanup_v1')){
+    localStorage.setItem('tf4_cleanup_v1','done');
+    // Mark demo leads as deleted
+    var demoLeadIds = ['L-001','L-002','L-003'];
+    var demoInvIds = ['INV-2025-089','INV-D1','INV-D2','INV-D3'];
+    var delLeads = JSON.parse(localStorage.getItem('tf4_deleted_leads')||'[]');
+    var delInvs = JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]');
+    demoLeadIds.forEach(function(id){if(delLeads.indexOf(id)<0) delLeads.push(id);});
+    demoInvIds.forEach(function(id){if(delInvs.indexOf(id)<0) delInvs.push(id);});
+    localStorage.setItem('tf4_deleted_leads', JSON.stringify(delLeads));
+    localStorage.setItem('tf4_deleted_invoices', JSON.stringify(delInvs));
+    // Remove from local DB
+    DB.leads = (DB.leads||[]).filter(function(l){return demoLeadIds.indexOf(l.id)<0});
+    ss('leads', DB.leads);
+    DB.invoices = (DB.invoices||[]).filter(function(i){return demoInvIds.indexOf(i.id)<0});
+    ss('invoices', DB.invoices);
+    console.log('✅ Demo data cleaned');
+  }
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').style.display='flex';
   // Apply saved language
