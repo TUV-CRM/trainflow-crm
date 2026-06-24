@@ -1032,7 +1032,7 @@ async function save(){
       clients:      allCls,
       traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
       customCourses:   JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]'),
-      sessionTraining: (function(){ var sd={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k.startsWith('tf4_session_')) sd[k]=JSON.parse(localStorage.getItem(k)||'{}'); } return sd; })(),
+      // sessionTraining: stored locally only (too large for Gist)
       deletedQuotes:   JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]'),
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
       financeData:    JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'),
@@ -1080,7 +1080,9 @@ async function loadFromGist(){
     const gist = await resp.json();
     const file = gist.files['trainflow_data.json'];
     if(!file){ showSyncIndicator('synced'); return false; }
-    const data = JSON.parse(file.content);
+    var data;
+    try { data = JSON.parse(file.content); }
+    catch(parseErr){ console.warn('Gist data corrupted — skipping load'); showSyncIndicator('synced'); return false; }
     // Update DB
     // LOCAL-FIRST leads
     if(data.leads){ var _ll=DB.leads||[]; var _li=new Set(_ll.map(function(x){return x.id})); var _nl=data.leads.filter(function(x){return !_li.has(x.id)}); if(_nl.length){DB.leads=_ll.concat(_nl);ss('leads',DB.leads);} }
@@ -1153,17 +1155,7 @@ async function loadFromGist(){
       const merged2 = [...new Set([...localDel, ...data.deletedQuotes])];
       localStorage.setItem('tf4_deleted_quotes', JSON.stringify(merged2));
     }
-    // Load session training data
-    if(data.sessionTraining){
-      Object.keys(data.sessionTraining).forEach(function(k){
-        var v = data.sessionTraining[k];
-        var local = JSON.parse(localStorage.getItem(k)||'{}');
-        if(!local.attendance||!local.attendance.length) local.attendance=v.attendance||[];
-        if(!local.testScores||!Object.keys(local.testScores||{}).length) local.testScores=v.testScores||{};
-        if(!local.evaluations||!Object.keys(local.evaluations||{}).length) local.evaluations=v.evaluations||{};
-        localStorage.setItem(k, JSON.stringify(local));
-      });
-    }
+    // Session training: stored locally only (too large for Gist sync)
     // Load custom courses
     if(data.customCourses && data.customCourses.length){
       const localCC = JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]');
