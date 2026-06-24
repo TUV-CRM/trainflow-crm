@@ -1002,7 +1002,12 @@ async function save(){
     ));
     localStorage.setItem('tf4_deleted_invoices', JSON.stringify(allDeletedInv));
     var mergedInv = smartMerge(DB.invoices||[], remote.invoices||[]).filter(function(inv){return allDeletedInv.indexOf(inv.id)<0});
-    var mergedLeads = smartMerge(DB.leads||[], remote.leads||[]);
+    var allDeletedLeads = Array.from(new Set(
+      JSON.parse(localStorage.getItem('tf4_deleted_leads')||'[]')
+      .concat((remote.deletedLeads||[]))
+    ));
+    localStorage.setItem('tf4_deleted_leads', JSON.stringify(allDeletedLeads));
+    var mergedLeads = smartMerge(DB.leads||[], remote.leads||[]).filter(function(l){return allDeletedLeads.indexOf(l.id)<0});
     var mergedSessions = smartMerge(DB.sessions||[], remote.sessions||[]);
     var mergedClients = smartMerge(
       JSON.parse(localStorage.getItem('tf4_clients')||'[]'),
@@ -1023,6 +1028,10 @@ async function save(){
       quotes: mergedQ,
       deletedQuotes: allDeletedQ,
       deletedClients: allDeletedCl,
+      deletedLeads: Array.from(new Set(
+        JSON.parse(localStorage.getItem('tf4_deleted_leads')||'[]')
+        .concat((remote.deletedLeads||[]))
+      )),
       deletedInvoices: Array.from(new Set(
         JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]')
         .concat((remote.deletedInvoices||[]))
@@ -1034,7 +1043,7 @@ async function save(){
       customCourses: JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]'),
       financeData: JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'),
       userPerms: JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
-      dailyReports: JSON.parse(localStorage.getItem('tf4_daily')||'[]'),
+      dailyReports: smartMerge(JSON.parse(localStorage.getItem('tf4_daily')||'[]'), remote.dailyReports||[]),
       lastSaved: new Date().toISOString(),
       savedBy: CU ? CU.name : 'System'
     };
@@ -2980,16 +2989,32 @@ function saveLead(){
   if(sc) renderLeadsList(sc);
 }
 
-function deleteLead(idx){
-  const lead = DB.leads[idx];
+function deleteLead(leadId){
+  var lead;
+  if(typeof leadId==='number'){
+    // Legacy index-based call
+    lead = DB.leads[leadId];
+    if(lead) leadId = lead.id;
+  } else {
+    lead = DB.leads.find(function(l){return l.id===leadId});
+  }
   if(!lead) return;
-  const t = (ar,en) => isAR() ? ar : en;
+  var t = function(ar,en){return isAR()?ar:en};
   if(!confirm(t('حذف العميل "','Delete lead "')+(lead.name||'')+(t('"؟','"?')))) return;
-  DB.leads.splice(idx,1);
+  
+  // Remove by ID
+  DB.leads = DB.leads.filter(function(l){return l.id!==leadId});
+  ss('leads', DB.leads);
+  
+  // Track deletion
+  var deleted = JSON.parse(localStorage.getItem('tf4_deleted_leads')||'[]');
+  if(deleted.indexOf(leadId)<0) deleted.push(leadId);
+  localStorage.setItem('tf4_deleted_leads', JSON.stringify(deleted));
+  
   save();
-  const sc = document.getElementById('salesContent');
+  var sc = document.getElementById('salesContent');
   if(sc) renderLeadsList(sc);
-  showSuccessToast('✅ '+t('تم الحذف','Lead deleted'));
+  showSuccessToast('✅ '+t('تم الحذف نهائياً','Permanently deleted'));
 }
 
   function renderLeadsList(sc){
