@@ -10523,7 +10523,10 @@ function getClients(){
   const localById  = {};
   local.forEach(c=>{ localById[c.id]=c; });
   const merged = BUILTIN.map(c=>localById[c.id]||c);
-  return [...merged, ...localNew];
+  var allClients = merged.concat(localNew);
+  // Filter out deleted clients
+  var deletedCl = JSON.parse(localStorage.getItem('tf4_deleted_clients')||'[]');
+  return allClients.filter(function(c){ return deletedCl.indexOf(c.id) < 0; });
 }
 function saveClients(c){
   // Save full list to localStorage (includes edits to builtins)
@@ -10669,7 +10672,7 @@ function renderClients(){
                     <div style="display:flex;gap:6px;justify-content:center">
                       <button onclick="openClientModal(${realIdx})" title="${t('تعديل','Edit')}"
                         style="width:28px;height:28px;border-radius:7px;background:rgba(26,122,138,.2);border:1px solid rgba(26,122,138,.3);color:#23A0B5;cursor:pointer;font-size:12px">✏️</button>
-                      <button onclick="deleteClient(${realIdx})" title="${t('حذف','Delete')}"
+                      <button onclick="deleteClient('${c.id}')" title="${t('حذف','Delete')}"
                         style="width:28px;height:28px;border-radius:7px;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:#E74C3C;cursor:pointer;font-size:12px">🗑</button>
                     </div>
                   </td>
@@ -10702,13 +10705,14 @@ function openClientModal(idx){
 }
 
 function saveClient(){
-  const company = document.getElementById('cl-company').value.trim();
+  var company = document.getElementById('cl-company').value.trim();
   if(!company) return alert('أدخل اسم الشركة');
-  const companyEn = document.getElementById('cl-company-en')?.value.trim()||'';
-  const obj = {
-    id:      _editClientIdx!==null ? getClients()[_editClientIdx].id : 'CLT-'+Date.now(),
-    company,
-    companyEn,
+  var companyEn = document.getElementById('cl-company-en')?.value.trim()||'';
+  var editId = (_editClientIdx!==null) ? _editClientIdx : null; // Now stores ID
+  var obj = {
+    id:      editId || 'CLT-'+Date.now(),
+    company: company,
+    companyEn: companyEn,
     name:    document.getElementById('cl-name').value.trim(),
     phone:   document.getElementById('cl-phone').value.trim(),
     email:   document.getElementById('cl-email').value.trim(),
@@ -10717,26 +10721,41 @@ function saveClient(){
     notes:   document.getElementById('cl-notes').value.trim(),
     addedBy: CU ? CU.name : '—',
     addedAt: new Date().toISOString().slice(0,10),
+    updatedAt: new Date().toISOString(),
   };
-  const clients = getClients();
-  if(_editClientIdx!==null){
-    clients[_editClientIdx] = obj;
+  var clients = getClients();
+  if(editId){
+    var idx = clients.findIndex(function(x){return x.id===editId});
+    if(idx>=0) clients[idx] = obj;
+    else clients.unshift(obj);
     showSuccessToast('✅ تم تحديث بيانات العميل');
   } else {
     clients.unshift(obj);
     showSuccessToast('✅ تمت إضافة العميل بنجاح');
   }
+  _editClientIdx = null;
   saveClients(clients);
   closeModal('modalClient');
   renderClients();
 }
 
-function deleteClient(idx){
-  const clients = getClients();
-  if(!confirm('حذف العميل "'+clients[idx].company+'"؟')) return;
-  clients.splice(idx,1);
+function deleteClient(clientId){
+  var clients = getClients();
+  var c = clients.find(function(x){return x.id===clientId});
+  if(!c) return;
+  if(!confirm('حذف العميل "'+c.company+'"؟')) return;
+  
+  // Remove from array
+  clients = clients.filter(function(x){return x.id!==clientId});
+  
+  // Track deletion
+  var deleted = JSON.parse(localStorage.getItem('tf4_deleted_clients')||'[]');
+  if(deleted.indexOf(clientId)<0) deleted.push(clientId);
+  localStorage.setItem('tf4_deleted_clients', JSON.stringify(deleted));
+  
   saveClients(clients);
   renderClients();
+  showSuccessToast('✅ تم حذف العميل');
 }
 
 function exportClientsCSV(){
