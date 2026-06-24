@@ -981,12 +981,14 @@ async function save(){
     var deletedQ = JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]');
     var deletedCl = JSON.parse(localStorage.getItem('tf4_deleted_clients')||'[]');
     
-    // Step 2: Fetch current Firebase data
+    // Step 2: Fetch current Firebase data (skip if force overwrite)
     var remote = {};
-    try {
-      var resp = await fetch(FIREBASE_URL + '/data.json');
-      if(resp.ok) remote = (await resp.json()) || {};
-    } catch(e){}
+    if(!window._forceOverwrite){
+      try {
+        var resp = await fetch(FIREBASE_URL + '/data.json');
+        if(resp.ok) remote = (await resp.json()) || {};
+      } catch(e){}
+    }
     
     var remoteQ = remote.quotes || [];
     var remoteDelQ = remote.deletedQuotes || [];
@@ -1093,6 +1095,8 @@ function smartMerge(localArr, remoteArr){
 
 async function loadFromGist(){
   try {
+    // Skip sync during cleanup
+    if(window._forceOverwrite){ showSyncIndicator('synced'); return false; }
     showSyncIndicator('loading');
     var resp = await fetch(FIREBASE_URL + '/data.json');
     if(!resp.ok){ showSyncIndicator('synced'); return false; }
@@ -1577,27 +1581,20 @@ function _old_initDefaultClients_disabled(){
 function launchApp(){
   // Demo data disabled — user data preserved
   
-  // AGGRESSIVE cleanup v3 — wipe ALL old demo/test data + push to Firebase
-  if(!localStorage.getItem('tf4_cleanup_v3')){
-    localStorage.setItem('tf4_cleanup_v3','done');
+  // NUCLEAR cleanup v4 — wipe + force overwrite Firebase
+  if(!localStorage.getItem('tf4_cleanup_v4')){
+    localStorage.setItem('tf4_cleanup_v4','done');
+    window._forceOverwrite = true; // save() will OVERWRITE Firebase, not merge
     
-    // Clear ALL leads (demo data)
-    DB.leads = [];
-    ss('leads', []);
+    // Clear ALL leads + invoices
+    DB.leads = []; ss('leads', []);
+    DB.invoices = []; ss('invoices', []);
     localStorage.setItem('tf4_deleted_leads', '[]');
-    
-    // Clear ALL invoices (demo/test data)  
-    DB.invoices = [];
-    ss('invoices', []);
     localStorage.setItem('tf4_deleted_invoices', '[]');
+    localStorage.setItem('tf4_deleted_quotes', '[]');
     
-    // Push clean state to Firebase immediately
-    fetch(FIREBASE_URL + '/data/leads.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:'[]'});
-    fetch(FIREBASE_URL + '/data/invoices.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:'[]'});
-    fetch(FIREBASE_URL + '/data/deletedLeads.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:'[]'});
-    fetch(FIREBASE_URL + '/data/deletedInvoices.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:'[]'});
-    
-    console.log('✅ All demo leads + invoices wiped from local + Firebase');
+    // Force save to Firebase (overwrite mode)
+    setTimeout(function(){ save().then(function(){ window._forceOverwrite=false; console.log('✅ Firebase overwritten with clean data'); }); }, 2000);
   }
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').style.display='flex';
