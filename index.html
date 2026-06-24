@@ -1577,24 +1577,27 @@ function _old_initDefaultClients_disabled(){
 function launchApp(){
   // Demo data disabled — user data preserved
   
-  // One-time cleanup of demo data from Firebase
-  if(!localStorage.getItem('tf4_cleanup_v1')){
-    localStorage.setItem('tf4_cleanup_v1','done');
-    // Mark demo leads as deleted
-    var demoLeadIds = ['L-001','L-002','L-003'];
-    var demoInvIds = ['INV-2025-089','INV-D1','INV-D2','INV-D3'];
-    var delLeads = JSON.parse(localStorage.getItem('tf4_deleted_leads')||'[]');
-    var delInvs = JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]');
-    demoLeadIds.forEach(function(id){if(delLeads.indexOf(id)<0) delLeads.push(id);});
-    demoInvIds.forEach(function(id){if(delInvs.indexOf(id)<0) delInvs.push(id);});
-    localStorage.setItem('tf4_deleted_leads', JSON.stringify(delLeads));
-    localStorage.setItem('tf4_deleted_invoices', JSON.stringify(delInvs));
-    // Remove from local DB
-    DB.leads = (DB.leads||[]).filter(function(l){return demoLeadIds.indexOf(l.id)<0});
-    ss('leads', DB.leads);
-    DB.invoices = (DB.invoices||[]).filter(function(i){return demoInvIds.indexOf(i.id)<0});
-    ss('invoices', DB.invoices);
-    console.log('✅ Demo data cleaned');
+  // AGGRESSIVE cleanup v3 — wipe ALL old demo/test data + push to Firebase
+  if(!localStorage.getItem('tf4_cleanup_v3')){
+    localStorage.setItem('tf4_cleanup_v3','done');
+    
+    // Clear ALL leads (demo data)
+    DB.leads = [];
+    ss('leads', []);
+    localStorage.setItem('tf4_deleted_leads', '[]');
+    
+    // Clear ALL invoices (demo/test data)  
+    DB.invoices = [];
+    ss('invoices', []);
+    localStorage.setItem('tf4_deleted_invoices', '[]');
+    
+    // Push clean state to Firebase immediately
+    fetch(FIREBASE_URL + '/data/leads.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:'[]'});
+    fetch(FIREBASE_URL + '/data/invoices.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:'[]'});
+    fetch(FIREBASE_URL + '/data/deletedLeads.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:'[]'});
+    fetch(FIREBASE_URL + '/data/deletedInvoices.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:'[]'});
+    
+    console.log('✅ All demo leads + invoices wiped from local + Firebase');
   }
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').style.display='flex';
