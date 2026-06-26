@@ -1542,8 +1542,7 @@ function launchApp(){
   
   // Cleanup removed — Firebase is source of truth
   
-  // Start daily backup scheduler (23:58)
-  startBackupScheduler();
+  // Backup: manual download + Google Apps Script auto-backup
 
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').style.display='flex';
@@ -13152,192 +13151,112 @@ function exportSessionReportExcel(sessionId){
 
 
 // ════════════════════════════════════════════
-//  AUTO BACKUP SYSTEM — Daily at 11:58 PM
+//  BACKUP SYSTEM — Download to local / Google Drive
 // ════════════════════════════════════════════
-
-function startBackupScheduler(){
-  // Check every 60 seconds if it's backup time
-  setInterval(function(){
-    var now = new Date();
-    var h = now.getHours();
-    var m = now.getMinutes();
-    if(h === 23 && m === 58){
-      var todayKey = now.toISOString().slice(0,10);
-      if(localStorage.getItem('tf4_backup_done_'+todayKey)) return; // Already backed up today
-      localStorage.setItem('tf4_backup_done_'+todayKey, 'true');
-      performAutoBackup(todayKey);
-    }
-  }, 60000);
-  console.log('⏰ Backup scheduler started — daily at 23:58');
-}
-
-async function performAutoBackup(dateKey){
-  try {
-    console.log('💾 Starting auto backup for ' + dateKey);
-    
-    var backupData = collectBackupData();
-    backupData.backupDate = dateKey;
-    backupData.backupTime = new Date().toISOString();
-    backupData.backupType = 'auto';
-    
-    // Save to Firebase under /backups/{date}/
-    await firebaseFetch('/backups/' + dateKey + '.json', {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(backupData)
-    });
-    
-    console.log('✅ Auto backup completed: ' + dateKey);
-    showSuccessToast('💾 تم النسخ الاحتياطي التلقائي — ' + dateKey);
-  } catch(e){
-    console.warn('Backup failed:', e.message);
-  }
-}
 
 function collectBackupData(){
   return {
-    // Quotes
     quotes: JSON.parse(localStorage.getItem('tf4_quotes')||'[]'),
     deletedQuotes: JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]'),
-    
-    // Invoices
     invoices: DB.invoices || [],
     deletedInvoices: JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]'),
-    
-    // Leads / Pipeline
     leads: DB.leads || [],
     deletedLeads: JSON.parse(localStorage.getItem('tf4_deleted_leads')||'[]'),
-    
-    // Sessions
     sessions: DB.sessions || [],
-    
-    // Clients
     clients: JSON.parse(localStorage.getItem('tf4_clients')||'[]'),
     deletedClients: JSON.parse(localStorage.getItem('tf4_deleted_clients')||'[]'),
-    
-    // Trainees
     trainees: DB.trainees || [],
     traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
-    
-    // Training data (attendance, scores, evaluations)
-    sessionTraining: (function(){
-      var sd = {};
-      for(var i=0; i<localStorage.length; i++){
-        var k = localStorage.key(i);
-        if(k && k.startsWith('tf4_session_')) sd[k] = JSON.parse(localStorage.getItem(k)||'{}');
-      }
-      return sd;
-    })(),
-    
-    // Finance
+    sessionTraining: (function(){ var sd={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.startsWith('tf4_session_')) sd[k]=JSON.parse(localStorage.getItem(k)||'{}'); } return sd; })(),
     financeData: JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'),
-    
-    // Daily Reports
     dailyReports: JSON.parse(localStorage.getItem('tf4_daily')||'[]'),
-    
-    // Custom Courses
     customCourses: JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]'),
-    
-    // User Permissions
     userPerms: JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
-    
-    // Trainers
     trainers: DB.trainers || [],
-    
-    // Metadata
-    totalQuotes: (JSON.parse(localStorage.getItem('tf4_quotes')||'[]')).length,
-    totalInvoices: (DB.invoices||[]).length,
-    totalClients: (JSON.parse(localStorage.getItem('tf4_clients')||'[]')).length,
-    totalSessions: (DB.sessions||[]).length,
+    backupDate: new Date().toISOString().slice(0,10),
+    backupTime: new Date().toISOString(),
     backedUpBy: CU ? CU.name : 'System'
   };
 }
 
-// Manual backup — download as JSON file
 function downloadDataBackup(){
   var data = collectBackupData();
-  data.backupDate = new Date().toISOString().slice(0,10);
-  data.backupTime = new Date().toISOString();
-  data.backupType = 'manual';
-  
-  var blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-  var url = URL.createObjectURL(blob);
+  var blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   var a = document.createElement('a');
-  a.href = url;
-  a.download = 'TrainFlow_Backup_' + data.backupDate + '.json';
+  a.href = URL.createObjectURL(blob);
+  a.download = 'TrainFlow_Backup_'+data.backupDate+'.json';
   a.click();
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(a.href);
   showSuccessToast('💾 تم تحميل النسخة الاحتياطية');
 }
 
-// Download current HTML file
 function downloadHTMLBackup(){
-  var html = document.documentElement.outerHTML;
-  var blob = new Blob(['<!DOCTYPE html>' + html], {type: 'text/html'});
-  var url = URL.createObjectURL(blob);
+  var blob = new Blob(['<!DOCTYPE html>'+document.documentElement.outerHTML], {type:'text/html'});
   var a = document.createElement('a');
-  a.href = url;
-  a.download = 'TrainFlow_CRM_' + new Date().toISOString().slice(0,10) + '.html';
+  a.href = URL.createObjectURL(blob);
+  a.download = 'TrainFlow_CRM_'+new Date().toISOString().slice(0,10)+'.html';
   a.click();
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(a.href);
   showSuccessToast('💾 تم تحميل نسخة النظام');
 }
 
-// Restore from backup
-async function showBackupManager(){
+function showBackupManager(){
   var t = function(ar,en){return isAR()?ar:en};
   var ex = document.getElementById('backupManagerOverlay');
   if(ex) ex.remove();
-  
   var overlay = document.createElement('div');
   overlay.id = 'backupManagerOverlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center';
-  
   var box = document.createElement('div');
-  box.style.cssText = 'background:#0B1E3D;border:1px solid #1A2E4A;border-radius:16px;padding:24px;width:550px;max-width:95vw;max-height:80vh;overflow-y:auto';
+  box.style.cssText = 'background:#0B1E3D;border:1px solid #1A2E4A;border-radius:16px;padding:24px;width:500px;max-width:95vw';
   
-  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
-    +'<span style="color:#F5F7FA;font-weight:800;font-size:15px">💾 '+t('إدارة النسخ الاحتياطية','Backup Manager')+'</span>'
-    +'<button onclick="document.getElementById(&quot;backupManagerOverlay&quot;).remove()" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer">✕</button></div>';
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px';
+  hdr.innerHTML = '<span style="color:#F5F7FA;font-weight:800;font-size:15px">💾 '+t('النسخ الاحتياطي','Backup Manager')+'</span>';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer';
+  closeBtn.onclick = function(){overlay.remove()};
+  hdr.appendChild(closeBtn);
+  box.appendChild(hdr);
   
-  // Action buttons
-  var actions = document.createElement('div');
-  actions.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-bottom:16px';
-  actions.innerHTML = '<button onclick="performAutoBackup(new Date().toISOString().slice(0,10))" style="background:rgba(26,138,90,.15);border:1px solid rgba(26,138,90,.3);border-radius:10px;color:#1A8A5A;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-align:right">💾 '+t('نسخ احتياطي الآن على Firebase','Backup Now to Firebase')+'</button>'
-    +'<button onclick="downloadDataBackup()" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:10px;color:#23A0B5;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-align:right">📥 '+t('تحميل نسخة البيانات (JSON)','Download Data Backup (JSON)')+'</button>'
-    +'<button onclick="downloadHTMLBackup()" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:10px;color:#9B59B6;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-align:right">🌐 '+t('تحميل نسخة النظام (HTML)','Download System File (HTML)')+'</button>';
-  box.appendChild(actions);
+  var info = document.createElement('div');
+  info.style.cssText = 'background:#060F1E;border:1px solid #1A2E4A;border-radius:10px;padding:14px;margin-bottom:14px';
+  var data = collectBackupData();
+  info.innerHTML = '<div style="color:#C9A84C;font-weight:700;font-size:12px;margin-bottom:8px">📊 '+t('ملخص البيانات الحالية','Current Data Summary')+'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+    +'<div style="color:#6A85A5;font-size:11px">'+t('عروض الأسعار: ','Quotes: ')+'<span style="color:#F5F7FA;font-weight:700">'+data.quotes.length+'</span></div>'
+    +'<div style="color:#6A85A5;font-size:11px">'+t('الفواتير: ','Invoices: ')+'<span style="color:#F5F7FA;font-weight:700">'+data.invoices.length+'</span></div>'
+    +'<div style="color:#6A85A5;font-size:11px">'+t('العملاء: ','Clients: ')+'<span style="color:#F5F7FA;font-weight:700">'+data.clients.length+'</span></div>'
+    +'<div style="color:#6A85A5;font-size:11px">'+t('الجلسات: ','Sessions: ')+'<span style="color:#F5F7FA;font-weight:700">'+data.sessions.length+'</span></div>'
+    +'</div>';
+  box.appendChild(info);
   
-  // Load backup list from Firebase
-  var listDiv = document.createElement('div');
-  listDiv.innerHTML = '<div style="color:#6A85A5;font-size:12px;text-align:center;padding:20px">'+t('جاري تحميل النسخ...','Loading backups...')+'</div>';
-  box.appendChild(listDiv);
+  var btns = document.createElement('div');
+  btns.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+  
+  var btn1 = document.createElement('button');
+  btn1.style.cssText = 'background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:10px;color:#23A0B5;padding:14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-align:right';
+  btn1.innerHTML = '📥 '+t('تحميل نسخة البيانات (JSON) — للرفع على Google Drive','Download Data Backup (JSON)');
+  btn1.onclick = function(){downloadDataBackup()};
+  btns.appendChild(btn1);
+  
+  var btn2 = document.createElement('button');
+  btn2.style.cssText = 'background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:10px;color:#9B59B6;padding:14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-align:right';
+  btn2.innerHTML = '🌐 '+t('تحميل نسخة النظام (HTML)','Download System Copy (HTML)');
+  btn2.onclick = function(){downloadHTMLBackup()};
+  btns.appendChild(btn2);
+  
+  box.appendChild(btns);
+  
+  var note = document.createElement('div');
+  note.style.cssText = 'margin-top:14px;padding:10px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);border-radius:8px';
+  note.innerHTML = '<div style="color:#C9A84C;font-size:11px;font-weight:600">💡 '+t('تعليمات','Instructions')+'</div>'
+    +'<div style="color:#D0D8EC;font-size:11px;margin-top:4px">'+t('1. حمّل ملف JSON + HTML\n2. ارفعهم على فولدر Google Drive\n3. النسخ التلقائي يعمل يومياً الساعة 11:58 م عبر Google Apps Script','1. Download JSON + HTML\n2. Upload to Google Drive folder\n3. Auto backup runs daily at 11:58 PM via Google Apps Script')+'</div>';
+  box.appendChild(note);
   
   overlay.appendChild(box);
   document.body.appendChild(overlay);
-  
-  // Fetch backup list
-  try {
-    var resp = await firebaseFetch('/backups.json');
-    if(resp.ok){
-      var backups = await resp.json();
-      if(backups && Object.keys(backups).length > 0){
-        var keys = Object.keys(backups).sort().reverse();
-        listDiv.innerHTML = '<div style="color:#F5F7FA;font-weight:700;font-size:13px;margin-bottom:8px">📂 '+t('النسخ المحفوظة','Saved Backups')+' ('+keys.length+')</div>';
-        keys.forEach(function(key){
-          var b = backups[key];
-          listDiv.innerHTML += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#060F1E;border:1px solid #1A2E4A;border-radius:8px;margin-bottom:6px">'
-            +'<div><div style="color:#F5F7FA;font-size:12px;font-weight:600">📅 '+key+'</div>'
-            +'<div style="color:#6A85A5;font-size:10px">'+t('عروض: ','Quotes: ')+(b.totalQuotes||0)+' | '+t('فواتير: ','Invoices: ')+(b.totalInvoices||0)+' | '+t('عملاء: ','Clients: ')+(b.totalClients||0)+'</div></div>'
-            +'<div style="color:#6A85A5;font-size:9px">'+(b.backupType==='auto'?'⏰ '+t('تلقائي','Auto'):'👤 '+t('يدوي','Manual'))+'</div></div>';
-        });
-      } else {
-        listDiv.innerHTML = '<div style="color:#6A85A5;font-size:12px;text-align:center;padding:20px">'+t('لا توجد نسخ احتياطية بعد','No backups yet')+'</div>';
-      }
-    }
-  } catch(e){
-    listDiv.innerHTML = '<div style="color:#C0392B;font-size:12px;text-align:center;padding:20px">'+t('خطأ في تحميل النسخ','Error loading backups')+'</div>';
-  }
 }
 
 
