@@ -1026,6 +1026,27 @@ async function save(){
       trainees:        DB.trainees || [],
       traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
       sessionTraining: (function(){ var sd={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.startsWith('tf4_session_')) sd[k]=JSON.parse(localStorage.getItem(k)||'{}'); } return sd; })(),
+      'prom_test': JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'),
+      'prom_test_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_test')||'{}'),
+      'prom_test_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_test')||'[]'),
+      'prom_training': JSON.parse(localStorage.getItem('tf4_prom_prom_training')||'[]'),
+      'prom_training_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_training')||'{}'),
+      'prom_training_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_training')||'[]'),
+      'prom_safety': JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]'),
+      'prom_safety_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_safety')||'{}'),
+      'prom_safety_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_safety')||'[]'),
+      'prom_wpr': JSON.parse(localStorage.getItem('tf4_prom_prom_wpr')||'[]'),
+      'prom_wpr_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_wpr')||'{}'),
+      'prom_wpr_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_wpr')||'[]'),
+      'prom_firstaid': JSON.parse(localStorage.getItem('tf4_prom_prom_firstaid')||'[]'),
+      'prom_firstaid_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_firstaid')||'{}'),
+      'prom_firstaid_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_firstaid')||'[]'),
+      'prom_osha': JSON.parse(localStorage.getItem('tf4_prom_prom_osha')||'[]'),
+      'prom_osha_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_osha')||'{}'),
+      'prom_osha_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_osha')||'[]'),
+      'prom_dev': JSON.parse(localStorage.getItem('tf4_prom_prom_dev')||'[]'),
+      'prom_dev_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_dev')||'{}'),
+      'prom_dev_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_dev')||'[]'),
       lastSaved:       new Date().toISOString(),
       savedBy:         CU ? CU.name : 'System'
     };
@@ -1108,6 +1129,27 @@ async function loadFromGist(){
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
     if(data.trainees){ DB.trainees = data.trainees; ss('trainees', data.trainees); }
     if(data.traineeProfiles) localStorage.setItem('tf4_trainee_profiles', JSON.stringify(data.traineeProfiles));
+    if(data['prom_test']) localStorage.setItem('tf4_prom_prom_test', JSON.stringify(data['prom_test']));
+    if(data['prom_test_overrides']) localStorage.setItem('tf4_prom_overrides_prom_test', JSON.stringify(data['prom_test_overrides']));
+    if(data['prom_test_hidden']) localStorage.setItem('tf4_prom_hidden_prom_test', JSON.stringify(data['prom_test_hidden']));
+    if(data['prom_training']) localStorage.setItem('tf4_prom_prom_training', JSON.stringify(data['prom_training']));
+    if(data['prom_training_overrides']) localStorage.setItem('tf4_prom_overrides_prom_training', JSON.stringify(data['prom_training_overrides']));
+    if(data['prom_training_hidden']) localStorage.setItem('tf4_prom_hidden_prom_training', JSON.stringify(data['prom_training_hidden']));
+    if(data['prom_safety']) localStorage.setItem('tf4_prom_prom_safety', JSON.stringify(data['prom_safety']));
+    if(data['prom_safety_overrides']) localStorage.setItem('tf4_prom_overrides_prom_safety', JSON.stringify(data['prom_safety_overrides']));
+    if(data['prom_safety_hidden']) localStorage.setItem('tf4_prom_hidden_prom_safety', JSON.stringify(data['prom_safety_hidden']));
+    if(data['prom_wpr']) localStorage.setItem('tf4_prom_prom_wpr', JSON.stringify(data['prom_wpr']));
+    if(data['prom_wpr_overrides']) localStorage.setItem('tf4_prom_overrides_prom_wpr', JSON.stringify(data['prom_wpr_overrides']));
+    if(data['prom_wpr_hidden']) localStorage.setItem('tf4_prom_hidden_prom_wpr', JSON.stringify(data['prom_wpr_hidden']));
+    if(data['prom_firstaid']) localStorage.setItem('tf4_prom_prom_firstaid', JSON.stringify(data['prom_firstaid']));
+    if(data['prom_firstaid_overrides']) localStorage.setItem('tf4_prom_overrides_prom_firstaid', JSON.stringify(data['prom_firstaid_overrides']));
+    if(data['prom_firstaid_hidden']) localStorage.setItem('tf4_prom_hidden_prom_firstaid', JSON.stringify(data['prom_firstaid_hidden']));
+    if(data['prom_osha']) localStorage.setItem('tf4_prom_prom_osha', JSON.stringify(data['prom_osha']));
+    if(data['prom_osha_overrides']) localStorage.setItem('tf4_prom_overrides_prom_osha', JSON.stringify(data['prom_osha_overrides']));
+    if(data['prom_osha_hidden']) localStorage.setItem('tf4_prom_hidden_prom_osha', JSON.stringify(data['prom_osha_hidden']));
+    if(data['prom_dev']) localStorage.setItem('tf4_prom_prom_dev', JSON.stringify(data['prom_dev']));
+    if(data['prom_dev_overrides']) localStorage.setItem('tf4_prom_overrides_prom_dev', JSON.stringify(data['prom_dev_overrides']));
+    if(data['prom_dev_hidden']) localStorage.setItem('tf4_prom_hidden_prom_dev', JSON.stringify(data['prom_dev_hidden']));
     if(data.sessionTraining){
       Object.keys(data.sessionTraining).forEach(function(k){
         localStorage.setItem(k, JSON.stringify(data.sessionTraining[k]));
