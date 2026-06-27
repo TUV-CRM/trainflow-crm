@@ -1023,6 +1023,9 @@ async function save(){
       financeData:     JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'),
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
       dailyReports:    JSON.parse(localStorage.getItem('tf4_daily')||'[]'),
+      trainees:        DB.trainees || [],
+      traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
+      sessionTraining: (function(){ var sd={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.startsWith('tf4_session_')) sd[k]=JSON.parse(localStorage.getItem(k)||'{}'); } return sd; })(),
       lastSaved:       new Date().toISOString(),
       savedBy:         CU ? CU.name : 'System'
     };
@@ -1103,6 +1106,13 @@ async function loadFromGist(){
     if(data.financeData) localStorage.setItem('tf4_finance', JSON.stringify(data.financeData));
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
+    if(data.trainees){ DB.trainees = data.trainees; ss('trainees', data.trainees); }
+    if(data.traineeProfiles) localStorage.setItem('tf4_trainee_profiles', JSON.stringify(data.traineeProfiles));
+    if(data.sessionTraining){
+      Object.keys(data.sessionTraining).forEach(function(k){
+        localStorage.setItem(k, JSON.stringify(data.sessionTraining[k]));
+      });
+    }
     
     // Sync deletion lists
     localStorage.setItem('tf4_deleted_quotes', JSON.stringify(delQ));
