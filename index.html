@@ -1131,6 +1131,11 @@ async function loadFromGist(){
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
     if(data.trainees){ DB.trainees = data.trainees; ss('trainees', data.trainees); }
     if(data.traineeProfiles) localStorage.setItem('tf4_trainee_profiles', JSON.stringify(data.traineeProfiles));
+    if(data.sessionTraining){
+      Object.keys(data.sessionTraining).forEach(function(k){
+        localStorage.setItem(k, JSON.stringify(data.sessionTraining[k]));
+      });
+    }
     if(data['prom_test']) localStorage.setItem('tf4_prom_prom_test', JSON.stringify(data['prom_test']));
     if(data['prom_test_overrides']) localStorage.setItem('tf4_prom_overrides_prom_test', JSON.stringify(data['prom_test_overrides']));
     if(data['prom_test_hidden']) localStorage.setItem('tf4_prom_hidden_prom_test', JSON.stringify(data['prom_test_hidden']));
