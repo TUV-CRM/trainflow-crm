@@ -6729,7 +6729,7 @@ function renderWeeklySchedule(){
 
   // Collect unique time slots
   const allTimes = [...new Set(weekSessions.map(s=>s.start))].sort();
-  const COLS = [0,1,2,3,4,5,6].map(d=>{ const dt=new Date(monday); dt.setDate(monday.getDate()+d); return dt; });
+  const COLS = (selectedDays||[0,1,2,3,4,5,6]).map(d=>{ const dt=new Date(monday); dt.setDate(monday.getDate()+d); return dt; });
 
   // Build session card HTML
   function buildCard(s, idx){
