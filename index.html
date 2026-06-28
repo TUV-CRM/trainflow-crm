@@ -1011,47 +1011,85 @@ async function save(){
   window._saving = true;
   try {
     showSyncIndicator('saving');
+    
+    // Step 1: Fetch current Firebase data
+    var remote = {};
+    try {
+      var resp = await firebaseFetch('/data.json');
+      if(resp.ok) remote = (await resp.json()) || {};
+    } catch(e){}
+    
+    // Step 2: Merge local with remote (newest wins by ID)
+    function mergeArrays(local, remoteArr, delList){
+      var map = {};
+      (remoteArr||[]).forEach(function(item){ if(item && item.id) map[item.id] = item; });
+      (local||[]).forEach(function(item){ 
+        if(item && item.id){
+          var existing = map[item.id];
+          if(!existing || (item.updatedAt && (!existing.updatedAt || item.updatedAt > existing.updatedAt))){
+            map[item.id] = item;
+          }
+        }
+      });
+      // Filter deleted
+      var del = delList || [];
+      return Object.values(map).filter(function(item){ return del.indexOf(item.id) < 0; });
+    }
+    
+    var localQuotes = JSON.parse(localStorage.getItem('tf4_quotes')||'[]');
+    var localDelQ = JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]');
+    var allDelQ = Array.from(new Set(localDelQ.concat(remote.deletedQuotes||[])));
+    
+    var localDelI = JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]');
+    var allDelI = Array.from(new Set(localDelI.concat(remote.deletedInvoices||[])));
+    
+    var localDelL = JSON.parse(localStorage.getItem('tf4_deleted_leads')||'[]');
+    var allDelL = Array.from(new Set(localDelL.concat(remote.deletedLeads||[])));
+    
+    var localDelC = JSON.parse(localStorage.getItem('tf4_deleted_clients')||'[]');
+    var allDelC = Array.from(new Set(localDelC.concat(remote.deletedClients||[])));
+    
+    // Merge session training data
+    var localST = {};
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&k.startsWith('tf4_session_')) localST[k]=JSON.parse(localStorage.getItem(k)||'{}');
+    }
+    var remoteST = remote.sessionTraining || {};
+    var mergedST = {};
+    var allSTKeys = new Set(Object.keys(localST).concat(Object.keys(remoteST)));
+    allSTKeys.forEach(function(k){
+      var l = localST[k] || {};
+      var r = remoteST[k] || {};
+      // Deep merge: combine attendance, scores, evaluations
+      mergedST[k] = {
+        attendance: Object.assign({}, r.attendance||{}, l.attendance||{}),
+        testScores: Object.assign({}, r.testScores||{}, l.testScores||{}),
+        evaluations: Object.assign({}, r.evaluations||{}, l.evaluations||{})
+      };
+    });
+    
     var dataToSave = {
-      quotes:          JSON.parse(localStorage.getItem('tf4_quotes')||'[]'),
-      deletedQuotes:   JSON.parse(localStorage.getItem('tf4_deleted_quotes')||'[]'),
-      invoices:        DB.invoices || [],
-      deletedInvoices: JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]'),
-      leads:           DB.leads || [],
-      deletedLeads:    JSON.parse(localStorage.getItem('tf4_deleted_leads')||'[]'),
-      sessions:        DB.sessions || [],
-      clients:         JSON.parse(localStorage.getItem('tf4_clients')||'[]'),
-      deletedClients:  JSON.parse(localStorage.getItem('tf4_deleted_clients')||'[]'),
+      quotes:          mergeArrays(localQuotes, remote.quotes, allDelQ),
+      deletedQuotes:   allDelQ,
+      invoices:        mergeArrays(DB.invoices||[], remote.invoices, allDelI),
+      deletedInvoices: allDelI,
+      leads:           mergeArrays(DB.leads||[], remote.leads, allDelL),
+      deletedLeads:    allDelL,
+      sessions:        mergeArrays(DB.sessions||[], remote.sessions, []),
+      clients:         mergeArrays(JSON.parse(localStorage.getItem('tf4_clients')||'[]'), remote.clients, allDelC),
+      deletedClients:  allDelC,
       customCourses:   JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]'),
       financeData:     JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'),
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
-      dailyReports:    JSON.parse(localStorage.getItem('tf4_daily')||'[]'),
-      trainees:        DB.trainees || [],
+      dailyReports:    mergeArrays(JSON.parse(localStorage.getItem('tf4_daily')||'[]'), remote.dailyReports, []),
+      trainees:        mergeArrays(DB.trainees||[], remote.trainees, []),
       traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
-      sessionTraining: (function(){ var sd={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.startsWith('tf4_session_')) sd[k]=JSON.parse(localStorage.getItem(k)||'{}'); } return sd; })(),
-      'prom_test': (typeof getPromData==='function') ? getPromData('prom_test') : JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'),
-      'prom_test_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_test')||'{}'),
-      'prom_test_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_test')||'[]'),
-      'prom_training': (typeof getPromData==='function') ? getPromData('prom_training') : JSON.parse(localStorage.getItem('tf4_prom_prom_training')||'[]'),
-      'prom_training_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_training')||'{}'),
-      'prom_training_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_training')||'[]'),
-      'prom_safety': (typeof getPromData==='function') ? getPromData('prom_safety') : JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]'),
-      'prom_safety_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_safety')||'{}'),
-      'prom_safety_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_safety')||'[]'),
-      'prom_wpr': (typeof getPromData==='function') ? getPromData('prom_wpr') : JSON.parse(localStorage.getItem('tf4_prom_prom_wpr')||'[]'),
-      'prom_wpr_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_wpr')||'{}'),
-      'prom_wpr_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_wpr')||'[]'),
-      'prom_firstaid': (typeof getPromData==='function') ? getPromData('prom_firstaid') : JSON.parse(localStorage.getItem('tf4_prom_prom_firstaid')||'[]'),
-      'prom_firstaid_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_firstaid')||'{}'),
-      'prom_firstaid_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_firstaid')||'[]'),
-      'prom_osha': (typeof getPromData==='function') ? getPromData('prom_osha') : JSON.parse(localStorage.getItem('tf4_prom_prom_osha')||'[]'),
-      'prom_osha_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_osha')||'{}'),
-      'prom_osha_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_osha')||'[]'),
-      'prom_dev': (typeof getPromData==='function') ? getPromData('prom_dev') : JSON.parse(localStorage.getItem('tf4_prom_prom_dev')||'[]'),
-      'prom_dev_overrides': JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_dev')||'{}'),
-      'prom_dev_hidden': JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_dev')||'[]'),
+      sessionTraining: mergedST,
       lastSaved:       new Date().toISOString(),
       savedBy:         CU ? CU.name : 'System'
     };
+    
     await firebaseFetch('/data.json', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
