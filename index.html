@@ -646,6 +646,8 @@ input[type=date].fc{color-scheme:dark}
 // ── Language must be initialized first ──
 let SYS_LANG = localStorage.getItem('tf4_lang') || 'ar';
 function isAR(){ return SYS_LANG === 'ar'; }
+function t(ar,en){ return isAR() ? ar : en; }
+
 
 // ── Global number formatter ──
 function fmt(n){ return n ? Number(n).toLocaleString('ar-SA') : '0'; }
