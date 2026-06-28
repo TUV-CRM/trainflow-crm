@@ -91,6 +91,8 @@ input[type=date].fc{color-scheme:dark}
 .tab-bar{display:flex;gap:3px;background:#060F1E;border:1px solid #1A2E4A;border-radius:9px;padding:3px;width:fit-content}
 .tab{padding:7px 14px;border-radius:7px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;color:#6A85A5;background:transparent}
 .tab.active{background:linear-gradient(135deg,#1A7A8A,#23A0B5);color:#fff}
+
+@keyframes slideDown { from { transform: translateX(-50%) translateY(-100px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -1640,6 +1642,9 @@ function launchApp(){
   // Cleanup removed — Firebase is source of truth
   
   // Backup: manual download + Google Apps Script auto-backup
+  
+  // Check overdue invoices after sync
+  setTimeout(function(){ checkOverdueInvoices(); }, 5000);
 
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').style.display='flex';
@@ -12189,6 +12194,7 @@ function renderInvoicesTab(sc){
         +'<td style="padding:5px 6px"><div style="display:flex;gap:3px;flex-wrap:wrap">'
         +(inv.status!=='معتمد'?'<button onclick="updateInvStatus(\''+invId+'\',\'معتمد\')" style="background:rgba(26,122,138,.15);border:1px solid rgba(26,122,138,.3);border-radius:4px;color:#23A0B5;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">اعتماد</button>':'')
         +(inv.status!=='مدفوع'?'<button onclick="updateInvStatus(\''+invId+'\',\'مدفوع\')" style="background:rgba(26,138,90,.15);border:1px solid rgba(26,138,90,.3);border-radius:4px;color:#1A8A5A;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">مدفوع</button>':'')
+        +(inv.status!=='متأخر'?'<button onclick="updateInvStatus(\''+invId+'\',\'متأخر\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">متأخر</button>':'')
         +(inv.status!=='معلق'?'<button onclick="updateInvStatus(\''+invId+'\',\'معلق\')" style="background:rgba(106,133,165,.15);border:1px solid rgba(106,133,165,.3);border-radius:4px;color:#6A85A5;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">معلق</button>':'')
         +'<button onclick="openInvoiceModal(\''+invId+'\')" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:4px;color:#C9A84C;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">✏️</button>'
         +'<button onclick="deleteInvoice(\''+invId+'\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px">🗑️</button>'
@@ -12208,15 +12214,29 @@ function updateInvNumber(invId,num){
 }
 
 function updateInvStatus(invId, newStatus){
+  // Reload DB.invoices from localStorage first
+  DB.invoices = JSON.parse(localStorage.getItem('tf4_invoices')||'[]');
   var inv = (DB.invoices||[]).find(function(x){return x.id===invId});
-  if(!inv) return;
+  if(!inv){
+    // Try to find by invoiceNumber
+    inv = (DB.invoices||[]).find(function(x){return x.invoiceNumber===invId});
+  }
+  if(!inv){
+    showSuccessToast('⚠️ لم يتم العثور على الفاتورة');
+    console.warn('Invoice not found:', invId, 'Available:', DB.invoices.map(function(x){return x.id}));
+    return;
+  }
   inv.status = newStatus;
   inv.updatedAt = new Date().toISOString();
   if(newStatus==='مدفوع') inv.paidAmount = inv.amount;
+  if(newStatus==='معلق') inv.paidAmount = 0;
   ss('invoices', DB.invoices);
   save();
-  renderSales();
-  showSuccessToast('✅ '+(isAR()?'تم تحديث حالة الفاتورة':'Invoice status updated'));
+  // Re-render the invoices tab
+  var sc = document.getElementById('salesContent');
+  if(sc) renderInvoicesTab(sc);
+  else renderSales();
+  showSuccessToast('✅ تم تحديث حالة الفاتورة إلى: ' + newStatus);
 }
 
 
@@ -13356,6 +13376,78 @@ function showBackupManager(){
   document.body.appendChild(overlay);
 }
 
+
+
+// ════════════════════════════════════════════
+//  OVERDUE INVOICE NOTIFICATIONS
+// ════════════════════════════════════════════
+
+function checkOverdueInvoices(){
+  var today = new Date().toISOString().slice(0,10);
+  var invoices = DB.invoices || [];
+  var isOps = CU && CU.dept==='ops';
+  var myName = CU ? CU.name : '';
+  
+  // Find overdue invoices
+  var overdue = invoices.filter(function(inv){
+    if(inv.status === 'مدفوع') return false;
+    if(!inv.dueDate) return false;
+    if(inv.dueDate >= today) return false;
+    // Show to ops or to the salesperson who created it
+    if(isOps) return true;
+    return inv.createdBy === myName || inv.salesPerson === myName;
+  });
+  
+  // Auto-update status to متأخر
+  overdue.forEach(function(inv){
+    if(inv.status !== 'متأخر'){
+      inv.status = 'متأخر';
+      inv.updatedAt = new Date().toISOString();
+    }
+  });
+  if(overdue.length > 0) ss('invoices', DB.invoices);
+  
+  // Show notification
+  if(overdue.length === 0) return;
+  
+  var totalDue = overdue.reduce(function(s,inv){ return s + ((inv.amount||0) - (inv.paidAmount||0)); }, 0);
+  
+  var ex = document.getElementById('overdueNotification');
+  if(ex) ex.remove();
+  
+  var notif = document.createElement('div');
+  notif.id = 'overdueNotification';
+  notif.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;width:420px;max-width:92vw;background:linear-gradient(135deg,#1a0a0a,#2d1111);border:1px solid rgba(231,76,60,.4);border-radius:16px;padding:20px;box-shadow:0 8px 32px rgba(231,76,60,.3);animation:slideDown .4s ease';
+  
+  var header = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    +'<div style="display:flex;align-items:center;gap:8px">'
+    +'<span style="font-size:24px">⚠️</span>'
+    +'<div><div style="color:#E74C3C;font-weight:800;font-size:14px">فواتير متأخرة!</div>'
+    +'<div style="color:#C0392B;font-size:11px">'+overdue.length+' فاتورة تحتاج تحصيل</div></div></div>'
+    +'<button onclick="document.getElementById('overdueNotification').remove()" style="background:rgba(231,76,60,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px">✕</button></div>';
+  
+  var totalBar = '<div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.2);border-radius:10px;padding:10px;margin-bottom:12px;text-align:center">'
+    +'<div style="color:#6A85A5;font-size:10px">إجمالي المبالغ المتأخرة</div>'
+    +'<div style="color:#E74C3C;font-size:22px;font-weight:800;font-family:monospace">SAR '+fmt(totalDue)+'</div></div>';
+  
+  var list = overdue.slice(0,5).map(function(inv){
+    var daysLate = Math.floor((new Date(today) - new Date(inv.dueDate)) / 86400000);
+    var remaining = (inv.amount||0) - (inv.paidAmount||0);
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(231,76,60,.05);border-radius:8px;margin-bottom:4px">'
+      +'<div><div style="color:#F5F7FA;font-size:12px;font-weight:600">'+(inv.client||'—')+'</div>'
+      +'<div style="color:#6A85A5;font-size:10px">'+(inv.invoiceNumber||inv.id)+'</div></div>'
+      +'<div style="text-align:left"><div style="color:#E74C3C;font-size:12px;font-weight:700;font-family:monospace">SAR '+fmt(remaining)+'</div>'
+      +'<div style="color:#C0392B;font-size:9px">متأخر '+daysLate+' يوم</div></div></div>';
+  }).join('');
+  
+  var more = overdue.length > 5 ? '<div style="text-align:center;color:#6A85A5;font-size:10px;margin-top:6px">و '+(overdue.length-5)+' فواتير أخرى...</div>' : '';
+  
+  notif.innerHTML = header + totalBar + list + more;
+  document.body.appendChild(notif);
+  
+  // Auto-hide after 15 seconds
+  setTimeout(function(){ var el=document.getElementById('overdueNotification'); if(el) el.style.opacity='0.3'; }, 15000);
+}
 
 // ════════════════════════════════════════════
 //  BOOT
