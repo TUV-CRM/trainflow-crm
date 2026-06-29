@@ -675,7 +675,7 @@ async function firebaseAuth(){
     var data = await resp.json();
     if(data.idToken){
       FIREBASE_AUTH_TOKEN = data.idToken;
-      console.log('✅ Firebase authenticated');
+      console.log('✅ Firebase authenticated — TrainFlow v7.1');
       return true;
     }
     console.warn('Firebase auth failed:', data.error);
@@ -6700,7 +6700,10 @@ function exportExecutivePDF(){
 
 
 function renderWeeklySchedule(){
-  const el = document.getElementById('trainingContent');
+  console.log('renderWeeklySchedule v7 called');
+  var el = document.getElementById('trainingContent');
+  if(!el){ console.warn('trainingContent not found'); return; }
+  try {
 
   if(!window._weekOffset) window._weekOffset = 0;
   const today    = new Date();
@@ -6860,6 +6863,10 @@ function renderWeeklySchedule(){
     </div>
     ${legend ? '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding:10px 14px;background:#0D1A2E;border-radius:8px;border:1px solid #1A2E4A"><span style="color:#6A85A5;font-size:10px;font-weight:700">'+(isAR()?'مفتاح الألوان:':'Legend:')+'</span>'+legend+'</div>' : ''}
   `;
+  } catch(err){
+    console.error('Schedule render error:', err);
+    el.innerHTML = '<div style="color:#E74C3C;padding:30px;text-align:center"><div style="font-size:24px">⚠️</div><div>خطأ في عرض الجدول: '+err.message+'</div></div>';
+  }
 }
 
 function renderWeekGrid(){
