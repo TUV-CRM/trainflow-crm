@@ -11718,8 +11718,27 @@ function applyUserPermissions(){
   
   var perms = getUserPerms(CU.id);
   if(perms && perms.pages && perms.pages.length > 0){
-    // Override CU.pages with custom permissions
-    CU.pages = perms.pages;
+    // Build complete pages list:
+    // Child keys (sales-ops) + their parent page values (sales)
+    var childKeys = perms.pages;
+    var pageValues = [];
+    
+    // Map child keys to page values using NAV
+    if(typeof NAV !== 'undefined'){
+      NAV.forEach(function(sec){
+        (sec.children||[]).forEach(function(ch){
+          if(childKeys.indexOf(ch.key) >= 0){
+            // Add the page value (section-level: 'sales', 'training', etc.)
+            if(pageValues.indexOf(ch.page) < 0) pageValues.push(ch.page);
+            // Add section key too
+            if(pageValues.indexOf(sec.key) < 0) pageValues.push(sec.key);
+          }
+        });
+      });
+    }
+    
+    // Combine: child keys + page values + section keys
+    CU.pages = Array.from(new Set(childKeys.concat(pageValues)));
     console.log('Permissions applied for', CU.name, ':', CU.pages);
   }
 }
