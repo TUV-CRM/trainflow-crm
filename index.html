@@ -3571,6 +3571,7 @@ function renderQuotes(sc){
   fb.innerHTML += '<select onchange="window._quoteFilterYear=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:60px"><option value="all">'+t('كل السنوات','All Years')+'</option>'+years.map(function(y){return '<option value="'+y+'"'+(fYear===y?' selected':'')+'>'+y+'</option>'}).join('')+'</select>';
   
   // New quote button
+  fb.innerHTML += '<button onclick="exportQuotesExcel()" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:8px;color:#23A0B5;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap" title="'+t('تصدير Excel','Export Excel')+'">📊 Excel</button>';
   fb.innerHTML += '<button onclick="openQuoteModal()" style="background:#1A8A5A;border:none;border-radius:8px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">+ '+t('عرض سعر جديد','New Quote')+'</button>';
   sc.appendChild(fb);
   
@@ -4329,9 +4330,10 @@ function saveAndPrintQuote(){
   renderSales();
 }
 
-function printQuotePDF(i){
-  const q = lsQuotes()[i];
-  if(!q) return;
+function printQuotePDF(idOrIdx){
+  var allQ = lsQuotes();
+  var q = typeof idOrIdx==='number' ? allQ[idOrIdx] : allQ.find(function(x){return x.id===idOrIdx});
+  if(!q){ showSuccessToast('⚠️ لم يتم العثور على العرض'); return; }
   launchQuotePrint(q);
 }
 
@@ -4944,9 +4946,10 @@ function _downloadPDFthenSend(q){
 }
 
 
-function downloadQuotePDF(i){
-  const q = lsQuotes()[i];
-  if(!q) return;
+function downloadQuotePDF(idOrIdx){
+  var allQ = lsQuotes();
+  var q = typeof idOrIdx==='number' ? allQ[idOrIdx] : allQ.find(function(x){return x.id===idOrIdx});
+  if(!q){ showSuccessToast('⚠️ لم يتم العثور على العرض'); return; }
   launchQuotePrint(q);
 }
 
