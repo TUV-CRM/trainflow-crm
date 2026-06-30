@@ -3598,7 +3598,8 @@ function renderQuotes(sc){
         +(q.status!=='مرفوض'?'<button onclick="changeQuoteStatus(\''+qId+'\',\'مرفوض\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">رفض</button>':'')
         +'<button onclick="editQuote(\''+qId+'\')" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:4px;color:#C9A84C;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">✏️</button>'
         +'<button onclick="deleteQuote(\''+qId+'\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px">🗑️</button>'
-        +'<button onclick="previewQuotePDF(\''+qId+'\')" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:4px;color:#9B59B6;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">📄</button>'
+        +'<button onclick="printQuotePDF(\''+qId+'\')" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:4px;color:#9B59B6;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit" title="معاينة">📄</button>'
+        +'<button onclick="downloadQuotePDF(\''+qId+'\')" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:4px;color:#23A0B5;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit" title="تحميل PDF">⬇️</button>'
         +'</div></td></tr>';
     }).join('') : '<tr><td colspan="8" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد عروض أسعار','No quotes')+'</td></tr>')
     +'</tbody></table>';
