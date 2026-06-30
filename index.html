@@ -11724,12 +11724,20 @@ function applyUserPermissions(){
   }
 }
 function getUserPerms(userId){
-  const allPerms = JSON.parse(localStorage.getItem('tf4_user_perms')||'{}');
-  return allPerms[userId] || null; // null = use defaults from USERS.pages
+  var allPerms = JSON.parse(localStorage.getItem('tf4_user_perms')||'{}');
+  var perms = allPerms[userId] || null;
+  if(perms){
+    if(!perms.pages) perms.pages = [];
+    if(!perms.actions) perms.actions = {};
+  }
+  return perms;
 }
 
 function saveUserPerms(userId, perms){
-  const allPerms = JSON.parse(localStorage.getItem('tf4_user_perms')||'{}');
+  // Ensure complete structure
+  if(!perms.pages) perms.pages = [];
+  if(!perms.actions) perms.actions = {};
+  var allPerms = JSON.parse(localStorage.getItem('tf4_user_perms')||'{}');
   allPerms[userId] = perms;
   localStorage.setItem('tf4_user_perms', JSON.stringify(allPerms));
   save();
@@ -11769,6 +11777,9 @@ function openPermissionsEditor(userId){
   if(ex) ex.remove();
 
   const currentPerms = getUserPerms(userId) || {pages: [], actions: {}};
+  // Ensure actions object always exists
+  if(!currentPerms.actions) currentPerms.actions = {};
+  if(!currentPerms.pages) currentPerms.pages = [];
   // If no custom perms, build from user.pages
   if(!currentPerms.pages.length && user.pages){
     // Map old page keys to new child keys
