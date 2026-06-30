@@ -3497,153 +3497,111 @@ function exportQuotesExcel(){
 }
 
 function renderQuotes(sc){
-  const allQuotes = lsQuotes();
-  const spFilter = window._quoteSPFilter || 'all';
-  const quotes = spFilter==='all' ? allQuotes : allQuotes.filter(q=>(q.salesperson||q.createdBy)===spFilter);
-  const statusColor = {مسودة:'#6A85A5', مُرسَل:'#23A0B5', مقبول:'#1A8A5A', مرفوض:'#C0392B'};
-
-  // Build filter bar
-  const _filterBar = document.createElement('div');
-  _filterBar.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;margin-top:4px';
+  var allQuotes = lsQuotes();
+  var isOps = CU && CU.dept==='ops';
   
-  const _fbLabel = document.createElement('span');
-  _fbLabel.style.cssText = 'color:#6A85A5;font-size:11px';
-  _fbLabel.textContent = isAR()?'فلتر الموظف:':'Salesperson:';
+  // Filters
+  var fEmployee = window._quoteFilterEmployee || 'all';
+  var fMonth = window._quoteFilterMonth || 'all';
+  var fYear = window._quoteFilterYear || 'all';
+  var fSearch = (window._quoteFilterSearch || '').toLowerCase();
   
-  const _fbSelect = document.createElement('select');
-  _fbSelect.style.cssText = 'background:#0D1A2E;border:1px solid #1A2E4A;color:#F5F7FA;border-radius:7px;padding:6px 12px;font-size:11px;font-family:inherit;cursor:pointer';
-  _fbSelect.innerHTML = '<option value="all">'+(isAR()?'جميع الموظفين':'All Staff')+'</option>'
-    + getDynUsers().filter(u=>u.dept==='sales'||u.dept==='ops').map(u=>'<option value="'+u.name+'"'+(spFilter===u.name?' selected':'')+'>'+u.name+'</option>').join('');
-  _fbSelect.onchange = function(){ window._quoteSPFilter=this.value; renderSales(); };
+  // Role filter
+  var quotes = isOps ? allQuotes.slice() : allQuotes.filter(function(q){ return q.salesperson===CU.name || q.createdBy===CU.name; });
   
-  const _fbExport = document.createElement('button');
-  _fbExport.style.cssText = 'background:rgba(26,138,90,.15);border:1px solid rgba(26,138,90,.3);border-radius:7px;color:#1A8A5A;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit';
-  _fbExport.textContent = '📥 '+(isAR()?'تصدير Excel':'Export');
-  _fbExport.onclick = function(){ exportQuotesExcel(); };
+  // Apply filters
+  if(fEmployee!=='all') quotes = quotes.filter(function(q){ return q.salesperson===fEmployee || q.createdBy===fEmployee; });
+  if(fMonth!=='all') quotes = quotes.filter(function(q){ var d=q.createdAt||q.date||''; return d.slice(5,7)===fMonth; });
+  if(fYear!=='all') quotes = quotes.filter(function(q){ var d=q.createdAt||q.date||''; return d.slice(0,4)===fYear; });
+  if(fSearch) quotes = quotes.filter(function(q){ return (q.client||'').toLowerCase().includes(fSearch)||(q.id||'').toLowerCase().includes(fSearch); });
   
-  const _fbCount = document.createElement('span');
-  _fbCount.style.cssText = 'color:#6A85A5;font-size:11px;margin-right:auto';
-  _fbCount.textContent = quotes.length+' '+(isAR()?'عرض':'quotes');
+  // KPIs
+  var draft=0,sent=0,accepted=0,rejected=0,totalVal=0;
+  quotes.forEach(function(q){
+    if(q.status==='مسودة'||q.status==='draft') draft++;
+    else if(q.status==='مُرسَل'||q.status==='sent') sent++;
+    else if(q.status==='مقبول'||q.status==='accepted') accepted++;
+    else if(q.status==='مرفوض'||q.status==='rejected') rejected++;
+    totalVal += q.netTotal||q.total||0;
+  });
   
-  _filterBar.appendChild(_fbLabel);
-  _filterBar.appendChild(_fbSelect);
-  _filterBar.appendChild(_fbExport);
-  _filterBar.appendChild(document.createElement('div')).style.flex='1';
-  _filterBar.appendChild(_fbCount);
-
-  sc.innerHTML=`
-    <!-- KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px">
-      ${[
-        {labelKey:'totalQuotes', val:quotes.length, color:'#23A0B5', icon:'📄'},
-        {labelKey:'sent', val:quotes.filter(q=>q.status==='مُرسَل'||q.status==='Sent').length, color:'#9B59B6', icon:'📤'},
-        {labelKey:'accepted', val:quotes.filter(q=>q.status==='مقبول'||q.status==='Accepted').length, color:'#1A8A5A', icon:'✅'},
-        {labelKey:'totalValue', val:'SAR '+fmt(quotes.reduce((a,q)=>a+q.netTotal,0)), color:'#C9A84C', icon:'💰'},
-      ].map(k=>`<div class="kpi" style="display:flex;align-items:center;gap:12px">
-        <div style="width:42px;height:42px;border-radius:11px;background:${k.color}18;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${k.icon}</div>
-        <div>
-          <div style="color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px">${T().quotePage[k.labelKey]||k.labelKey}</div>
-          <div style="color:#F5F7FA;font-size:20px;font-weight:800;font-family:'Playfair Display',serif">${k.val}</div>
-        </div>
-      </div>`).join('')}
-    </div>
-
-    <!-- Quotes List -->
-    <!-- ══ TARGET PROGRESS WIDGET ══ -->
-    ${(()=>{
-      const salesUsers = getDynUsers().filter(u=>u.dept==='sales');
-      if(!salesUsers.length) return '';
-      return '<div class="card" style="margin-bottom:4px">'
-        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
-        +'<div style="color:#F5F7FA;font-weight:700;font-size:13px;font-family:\'Playfair Display\',serif">'
-        +'🎯 '+(isAR()?'التارجت الشهري — المبيعات':'Monthly Sales Target')+'</div>'
-        +'<span style="color:#6A85A5;font-size:10px">'+(isAR()?'محسوب من الفواتير المُصدَرة':'Based on issued invoices')+'</span>'
-        +'</div>'
-        + salesUsers.map(u=>{
-          const prog = getTargetProgress(u.name);
-          const pct  = prog.pct||0;
-          const barColor = pct>=100?'#1A8A5A':pct>=70?'#C9A84C':'#C0392B';
-          return '<div style="margin-bottom:14px">'
-            +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">'
-            +'<span style="color:#D0D8EC;font-size:12px;font-weight:600">'+u.name+'</span>'
-            +'<div style="display:flex;align-items:center;gap:10px">'
-            +'<span style="color:#6A85A5;font-size:11px">'
-            +(isAR()?'محقق: ':'Achieved: ')+'<strong style="color:#C9A84C">SAR '+fmt(prog.achieved)+'</strong>'
-            +' / '+(isAR()?'تارجت: ':'Target: ')+'<strong style="color:#F5F7FA">SAR '+fmt(prog.target)+'</strong>'
-            +'</span>'
-            +'<span style="background:'+barColor+'22;color:'+barColor+';border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700">'+pct+'%</span>'
-            +'</div></div>'
-            +'<div style="background:#060F1E;border-radius:6px;height:8px;overflow:hidden">'
-            +'<div style="height:8px;border-radius:6px;background:linear-gradient(90deg,'+barColor+','+barColor+'99);width:'+pct+'%;transition:width .5s"></div>'
-            +'</div>'
-            +(prog.remaining>0
-              ? '<div style="color:#6A85A5;font-size:10px;margin-top:3px">'
-                +(isAR()?'المتبقي: ':'Remaining: ')+'SAR '+fmt(prog.remaining)+'</div>'
-              : '<div style="color:#1A8A5A;font-size:10px;margin-top:3px">✅ '+(isAR()?'تم تحقيق التارجت!':'Target achieved!')+'</div>'
-            )
-            +'</div>';
-        }).join('')
-        +'</div>';
-    })()}
-
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #1A2E4A">
-        <span style="color:#F5F7FA;font-weight:700;font-size:14px;font-family:'Playfair Display',serif">${T().quotePage.title}</span>
-        <button class="btn btn-teal" onclick="openNewQuoteForm()" style="padding:8px 16px">${T().quotePage.newQuote}</button>
-      </div>
-      
-      <!-- Filter Bar -->
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:6px">
-      ${quotes.length===0
-        ? `<div style="padding:50px;text-align:center;color:#6A85A5"><div style="font-size:40px;margin-bottom:12px">📄</div><div style="font-size:14px;color:#F5F7FA;margin-bottom:6px">لا توجد عروض أسعار</div><div style="font-size:12px">اضغط "+ عرض سعر جديد" للبدء</div></div>`
-        : `<table style="width:100%;border-collapse:collapse">
-            <thead><tr style="background:rgba(26,46,74,.5)">
-              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.quoteNum}</th>
-              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.customerCol}</th>
-              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.dateCol}</th>
-              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${isAR()?'وقت الإنشاء':'Created At'}</th>
-              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.coursesCol}</th>
-              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.amountCol}</th>
-              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:right;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.statusCol}</th>
-              <th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-transform:uppercase;letter-spacing:.9px;text-align:center;border-bottom:1px solid #1A2E4A;font-weight:700">${T().quotePage.actionCol}</th>
-            </tr></thead>
-            <tbody>
-              ${quotes.map((q,i)=>`<tr style="border-bottom:1px solid rgba(26,46,74,.4)" >
-                <td style="padding:11px 14px;color:#23A0B5;font-family:monospace;font-size:12px;font-weight:700">${q.id}</td>
-                <td style="padding:11px 14px">
-                  <div style="color:#F5F7FA;font-size:13px;font-weight:600">${q.client}</div>
-                  <div style="color:#6A85A5;font-size:10px">${q.salesperson||'—'}</div>
-                </td>
-                <td style="padding:11px 14px;color:#6A85A5;font-size:12px">${q.date||'—'}</td>
-                <td style="padding:11px 14px;color:#3A5070;font-size:10px;white-space:nowrap;font-family:monospace">${q.createdAt?new Date(q.createdAt).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}):'—'}</td>
-                <td style="padding:11px 14px;color:#D0D8EC;font-size:12px">${q.items.length} ${q.items.length===1?'دورة':'دورات'}</td>
-                <td style="padding:11px 14px;color:#C9A84C;font-size:14px;font-weight:800;font-family:monospace">SAR ${fmt(q.netTotal)}</td>
-                <td style="padding:11px 14px">
-                  <select onchange="changeQuoteStatus('${q.id}',this.value)"
-                    style="background:${(statusColor[q.status]||'#6A85A5')}22;border:1px solid ${(statusColor[q.status]||'#6A85A5')}44;color:${statusColor[q.status]||'#6A85A5'};border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer">
-                    ${['مسودة','مُرسَل','مقبول','مرفوض'].map(s=>'<option value="'+s+'" '+(q.status===s?'selected':'')+'>'+s+'</option>').join('')}
-                  </select>
-                </td>
-                <td style="padding:11px 14px;text-align:center">
-                  <div style="display:flex;gap:6px;justify-content:center">
-                    <button onclick="editQuote('${q.id}')" style="width:30px;height:30px;border-radius:7px;background:rgba(26,122,138,.2);border:1px solid rgba(26,122,138,.3);color:#23A0B5;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="${isAR()?'تعديل':'Edit'}">✏️</button>
-                    <button onclick="printQuotePDF(${i})" style="width:30px;height:30px;border-radius:7px;background:rgba(26,138,90,.2);border:1px solid rgba(26,138,90,.3);color:#1A8A5A;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="${isAR()?'طباعة':'Print'}">🖨️</button>
-                    <button onclick="downloadQuotePDF(${i})" style="width:30px;height:30px;border-radius:7px;background:rgba(201,168,76,.2);border:1px solid rgba(201,168,76,.35);color:#C9A84C;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="${isAR()?'تحميل PDF':'Download PDF'}">⬇️</button>
-                    <button onclick="sendQuoteWhatsApp(${i})" style="width:30px;height:30px;border-radius:7px;background:rgba(37,211,102,.15);border:1px solid rgba(37,211,102,.3);color:#25D366;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="إرسال عبر واتساب">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-                    </button>
-                    <button onclick="sendQuoteEmail(${i})" style="width:30px;height:30px;border-radius:7px;background:rgba(66,133,244,.15);border:1px solid rgba(66,133,244,.3);color:#4285F4;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="إرسال عبر البريد">📧</button>
-                    <button onclick="deleteQuote('${q.id}')" style="width:30px;height:30px;border-radius:7px;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:#E74C3C;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center" title="${isAR()?'حذف':'Delete'}">🗑</button>
-                  </div>
-                </td>
-              </tr>`).join('')}
-            </tbody>
-          </table>`}
-    </div>
-  `;
-  sc.prepend(_filterBar);
-
+  sc.innerHTML = '';
+  
+  // KPI cards
+  var k = document.createElement('div');
+  k.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px';
+  [{l:t('مسودة','Draft'),v:draft,c:'#6A85A5',i:'📝'},{l:t('مُرسَل','Sent'),v:sent,c:'#23A0B5',i:'📤'},{l:t('مقبول','Accepted'),v:accepted,c:'#1A8A5A',i:'✅'},{l:t('مرفوض','Rejected'),v:rejected,c:'#C0392B',i:'❌'}].forEach(function(item){
+    k.innerHTML += '<div class="kpi" style="padding:12px;text-align:center"><div style="font-size:18px">'+item.i+'</div><div style="color:'+item.c+';font-size:20px;font-weight:800">'+item.v+'</div><div style="color:#6A85A5;font-size:9px">'+item.l+'</div></div>';
+  });
+  sc.appendChild(k);
+  
+  // Total value KPI
+  var tv = document.createElement('div');
+  tv.className = 'kpi';
+  tv.style.cssText = 'padding:12px;text-align:center;margin-bottom:12px';
+  tv.innerHTML = '<div style="color:#6A85A5;font-size:10px">'+t('إجمالي قيمة العروض','Total Quotes Value')+'</div><div style="color:#C9A84C;font-size:22px;font-weight:800;font-family:monospace">SAR '+fmt(totalVal)+'</div>';
+  sc.appendChild(tv);
+  
+  // Filter bar
+  var fb = document.createElement('div');
+  fb.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px';
+  
+  // Search
+  fb.innerHTML = '<input placeholder="'+t('بحث...','Search...')+'" value="'+(window._quoteFilterSearch||'')+'" oninput="window._quoteFilterSearch=this.value;renderQuotes(this.closest(\'[id]\'))" class="fc" style="flex:1;min-width:120px"/>';
+  
+  // Employee filter (ops only)
+  if(isOps){
+    var emps = [];
+    allQuotes.forEach(function(q){ var n=q.salesperson||q.createdBy; if(n&&emps.indexOf(n)<0) emps.push(n); });
+    fb.innerHTML += '<select onchange="window._quoteFilterEmployee=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:90px"><option value="all">'+t('كل الموظفين','All Staff')+'</option>'+emps.map(function(e){return '<option value="'+e+'"'+(fEmployee===e?' selected':'')+'>'+e+'</option>'}).join('')+'</select>';
+  }
+  
+  // Month filter
+  var months=['01','02','03','04','05','06','07','08','09','10','11','12'];
+  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  fb.innerHTML += '<select onchange="window._quoteFilterMonth=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:70px"><option value="all">'+t('كل الشهور','All Months')+'</option>'+months.map(function(m,i){return '<option value="'+m+'"'+(fMonth===m?' selected':'')+'>'+mNames[i]+'</option>'}).join('')+'</select>';
+  
+  // Year filter
+  var years = [];
+  allQuotes.forEach(function(q){ var d=q.createdAt||q.date||''; var y=d.slice(0,4); if(y&&years.indexOf(y)<0) years.push(y); });
+  if(years.indexOf('2025')<0) years.push('2025');
+  if(years.indexOf('2026')<0) years.push('2026');
+  if(years.indexOf('2027')<0) years.push('2027');
+  years.sort();
+  fb.innerHTML += '<select onchange="window._quoteFilterYear=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:60px"><option value="all">'+t('كل السنوات','All Years')+'</option>'+years.map(function(y){return '<option value="'+y+'"'+(fYear===y?' selected':'')+'>'+y+'</option>'}).join('')+'</select>';
+  
+  // New quote button
+  fb.innerHTML += '<button onclick="openQuoteForm()" style="background:#1A8A5A;border:none;border-radius:8px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">+ '+t('عرض سعر جديد','New Quote')+'</button>';
+  sc.appendChild(fb);
+  
+  // Table
+  var tbl = document.createElement('div');
+  tbl.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow-x:auto';
+  var stColors = {'مسودة':'#6A85A5','draft':'#6A85A5','مُرسَل':'#23A0B5','sent':'#23A0B5','مقبول':'#1A8A5A','accepted':'#1A8A5A','مرفوض':'#C0392B','rejected':'#C0392B','منتهي':'#C9A84C','expired':'#C9A84C'};
+  
+  tbl.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +['#',t('رقم العرض','Quote #'),t('العميل','Client'),t('القيمة','Value'),t('الحالة','Status'),t('الموظف','Staff'),t('التاريخ','Date'),t('إجراء','Actions')].map(function(h){return '<th style="padding:8px;color:#6A85A5;font-size:10px;text-align:right;white-space:nowrap">'+h+'</th>'}).join('')
+    +'</tr></thead><tbody>'
+    +(quotes.length ? quotes.map(function(q,i){
+      var qId = q.id;
+      var sc2 = stColors[q.status]||'#6A85A5';
+      return '<tr style="border-bottom:1px solid rgba(26,46,74,.3)">'
+        +'<td style="padding:7px 8px;color:#3A5070;font-size:10px">'+(i+1)+'</td>'
+        +'<td style="padding:7px 8px;color:#23A0B5;font-size:11px;font-family:monospace;font-weight:600">'+(q.id||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#F5F7FA;font-size:11px;font-weight:600">'+(q.client||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#C9A84C;font-weight:700;font-size:11px;font-family:monospace">SAR '+fmt(q.netTotal||q.total||0)+'</td>'
+        +'<td style="padding:7px 8px"><span style="background:'+sc2+'22;color:'+sc2+';padding:2px 8px;border-radius:5px;font-size:9px;font-weight:700">'+(q.status||'—')+'</span></td>'
+        +'<td style="padding:7px 8px;color:#8BABC9;font-size:10px">'+(q.salesperson||q.createdBy||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#6A85A5;font-size:10px">'+(q.createdAt||q.date||'—').slice(0,10)+'</td>'
+        +'<td style="padding:5px 6px"><div style="display:flex;gap:3px;flex-wrap:wrap">'
+        +(q.status!=='مقبول'?'<button onclick="changeQuoteStatus(\''+qId+'\',\'مقبول\')" style="background:rgba(26,138,90,.15);border:1px solid rgba(26,138,90,.3);border-radius:4px;color:#1A8A5A;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">قبول</button>':'')
+        +(q.status!=='مرفوض'?'<button onclick="changeQuoteStatus(\''+qId+'\',\'مرفوض\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">رفض</button>':'')
+        +'<button onclick="editQuote(\''+qId+'\')" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:4px;color:#C9A84C;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">✏️</button>'
+        +'<button onclick="deleteQuote(\''+qId+'\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px">🗑️</button>'
+        +'</div></td></tr>';
+    }).join('') : '<tr><td colspan="8" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد عروض أسعار','No quotes')+'</td></tr>')
+    +'</tbody></table>';
+  sc.appendChild(tbl);
 }
 
 function changeQuoteStatus(quoteId, newStatus){
@@ -4293,7 +4251,19 @@ function buildQuoteObj(status){
   const quotes= lsQuotes();
   const qNum  = String(quotes.length+1).padStart(3,'0');
   return {
-    id: existingId || ('QUO-'+new Date().getFullYear()+'-'+new Date().getMonth().toString().padStart(2,'0')+'-'+String(Date.now()).slice(-6)),
+    id: (function(){
+      var now=new Date();
+      var y=now.getFullYear();
+      var m=String(now.getMonth()+1).padStart(2,'0');
+      var allQ=lsQuotes();
+      var maxSeq=700000;
+      allQ.forEach(function(q){
+        var parts=(q.id||'').split('-');
+        var last=parseInt(parts[parts.length-1])||0;
+        if(last>maxSeq) maxSeq=last;
+      });
+      return 'QUO-'+y+'-'+m+'-'+(maxSeq+1);
+    })(),'0')+'-'+String(Date.now()).slice(-6)),
     createdBy: CU ? CU.name : '—',
     client:   window._pickerSelected || document.getElementById('q-client')?.value || document.getElementById('clientPickerInput')?.value || '—',
     attn:     document.getElementById('q-attn')?.value.trim()||'',
