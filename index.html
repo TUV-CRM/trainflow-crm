@@ -3571,7 +3571,7 @@ function renderQuotes(sc){
   fb.innerHTML += '<select onchange="window._quoteFilterYear=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:60px"><option value="all">'+t('كل السنوات','All Years')+'</option>'+years.map(function(y){return '<option value="'+y+'"'+(fYear===y?' selected':'')+'>'+y+'</option>'}).join('')+'</select>';
   
   // New quote button
-  fb.innerHTML += '<button onclick="openQuoteForm()" style="background:#1A8A5A;border:none;border-radius:8px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">+ '+t('عرض سعر جديد','New Quote')+'</button>';
+  fb.innerHTML += '<button onclick="openQuoteModal()" style="background:#1A8A5A;border:none;border-radius:8px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">+ '+t('عرض سعر جديد','New Quote')+'</button>';
   sc.appendChild(fb);
   
   // Table
@@ -3598,6 +3598,7 @@ function renderQuotes(sc){
         +(q.status!=='مرفوض'?'<button onclick="changeQuoteStatus(\''+qId+'\',\'مرفوض\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">رفض</button>':'')
         +'<button onclick="editQuote(\''+qId+'\')" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:4px;color:#C9A84C;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">✏️</button>'
         +'<button onclick="deleteQuote(\''+qId+'\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px">🗑️</button>'
+        +'<button onclick="previewQuotePDF(\''+qId+'\')" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:4px;color:#9B59B6;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">📄</button>'
         +'</div></td></tr>';
     }).join('') : '<tr><td colspan="8" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد عروض أسعار','No quotes')+'</td></tr>')
     +'</tbody></table>';
