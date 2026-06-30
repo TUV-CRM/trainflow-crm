@@ -1209,6 +1209,8 @@ async function loadFromGist(){
     localStorage.setItem('tf4_deleted_leads', JSON.stringify(delL));
     localStorage.setItem('tf4_deleted_clients', JSON.stringify(delC));
     
+    // Apply permissions after sync
+    applyUserPermissions();
     showSyncIndicator('synced');
     return true;
   } catch(e){
@@ -1414,6 +1416,7 @@ function doLogin(){
   if(!u)return;
   if(document.getElementById('lPwd').value===u.pw){
     CU=u;sessionStorage.setItem('tf4_user',JSON.stringify(u));
+    applyUserPermissions();
     launchApp();
   }else{
     document.getElementById('lError').style.display='block';
@@ -11708,6 +11711,18 @@ const PERM_MAP = {
 };
 
 // Action permissions: add, edit, delete per page
+
+function applyUserPermissions(){
+  if(!CU) return;
+  if(CU.dept==='ops') return; // Admin always has full access
+  
+  var perms = getUserPerms(CU.id);
+  if(perms && perms.pages && perms.pages.length > 0){
+    // Override CU.pages with custom permissions
+    CU.pages = perms.pages;
+    console.log('Permissions applied for', CU.name, ':', CU.pages);
+  }
+}
 function getUserPerms(userId){
   const allPerms = JSON.parse(localStorage.getItem('tf4_user_perms')||'{}');
   return allPerms[userId] || null; // null = use defaults from USERS.pages
