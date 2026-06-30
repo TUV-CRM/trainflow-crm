@@ -3622,19 +3622,33 @@ function changeQuoteStatus(quoteId, newStatus){
   var isAccepted = newStatus==='مقبول' || newStatus==='Accepted';
   var wasAccepted = prevStatus==='مقبول' || prevStatus==='Accepted';
   if(isAccepted && !wasAccepted){
+    console.log('Quote accepted:', q.id, '→ Creating invoice...');
     autoCreateInvoiceFromQuote(q);
+  } else {
+    console.log('Status change:', q.id, prevStatus, '→', newStatus, '(no invoice needed)');
   }
   
+  // Save quotes + invoices
+  ss('invoices', DB.invoices); // Ensure invoice is in localStorage before save()
   save();
   renderSales();
   showSuccessToast('✅ '+(isAR()?'تم تحديث الحالة':'Status updated'));
 }
 
 function autoCreateInvoiceFromQuote(quote){
+  // Reload invoices from localStorage to get latest data
+  DB.invoices = JSON.parse(localStorage.getItem('tf4_invoices')||'[]');
   if(!DB.invoices) DB.invoices = [];
+  
+  console.log('autoCreateInvoice for:', quote.id, 'Existing invoices:', DB.invoices.length);
+  
   // Check if invoice already exists for this quote
   var exists = DB.invoices.some(function(inv){return inv.quoteId===quote.id});
-  if(exists) return;
+  if(exists){
+    console.log('Invoice already exists for', quote.id);
+    showSuccessToast('ℹ️ الفاتورة موجودة مسبقاً لهذا العرض');
+    return;
+  }
   
   var courseName = (quote.items&&quote.items.length) ? quote.items.map(function(it){return it.course}).join(', ') : '';
   var inv = {
@@ -3645,7 +3659,7 @@ function autoCreateInvoiceFromQuote(quote){
     quotationNumber: quote.id,
     client: quote.client,
     course: courseName,
-    amount: quote.netTotal || 0,
+    amount: quote.netTotal || quote.total || quote.subtotal || 0,
     paidAmount: 0,
     date: new Date().toISOString().slice(0,10),
     dueDate: (function(){ var d=new Date(); d.setDate(d.getDate()+30); return d.toISOString().slice(0,10); })(),
