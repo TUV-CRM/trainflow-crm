@@ -4251,7 +4251,7 @@ function buildQuoteObj(status){
   const quotes= lsQuotes();
   const qNum  = String(quotes.length+1).padStart(3,'0');
   return {
-    id: (function(){
+    id: existingId || (function(){
       var now=new Date();
       var y=now.getFullYear();
       var m=String(now.getMonth()+1).padStart(2,'0');
@@ -4263,7 +4263,7 @@ function buildQuoteObj(status){
         if(last>maxSeq) maxSeq=last;
       });
       return 'QUO-'+y+'-'+m+'-'+(maxSeq+1);
-    })(),'0')+'-'+String(Date.now()).slice(-6)),
+    })(),
     createdBy: CU ? CU.name : '—',
     client:   window._pickerSelected || document.getElementById('q-client')?.value || document.getElementById('clientPickerInput')?.value || '—',
     attn:     document.getElementById('q-attn')?.value.trim()||'',
