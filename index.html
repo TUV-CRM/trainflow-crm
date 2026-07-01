@@ -7192,12 +7192,14 @@ function saveSession(){
     DB.sessions[_editingSessionIdx] = obj;
     showSuccessToast('✅ تم تحديث الجلسة');
   } else {
-    DB.sessions.push(obj);
+    s.updatedAt = new Date().toISOString();
+  DB.sessions.push(obj);
     showSuccessToast('✅ تمت إضافة الجلسة — جاري إرسال الإشعار...');
     // Send email notification
     setTimeout(()=>sendSessionEmailNotification(obj), 300);
   }
   _editingSessionIdx = null;
+  ss('sessions', DB.sessions); // Save to localStorage
   save();
   closeModal('modalSession');
   currentChildKey = 'training-schedule';
