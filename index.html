@@ -6243,6 +6243,7 @@ function renderReportsPage(){
 
   // Export buttons
   filterBar.innerHTML += '<button onclick="exportDashboardExcel()" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:5px 10px;cursor:pointer;font-size:10px;font-family:inherit;margin-right:auto">📊 Excel</button>';
+  filterBar.innerHTML += '<button onclick="exportDashboardPDF()" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:6px;color:#E74C3C;padding:5px 10px;cursor:pointer;font-size:10px;font-family:inherit">📄 PDF</button>';
   filterBar.innerHTML += '<button onclick="window.print()" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:6px;color:#9B59B6;padding:5px 10px;cursor:pointer;font-size:10px;font-family:inherit">🖨️ '+t('طباعة','Print')+'</button>';
 
   sc.appendChild(filterBar);
@@ -6472,6 +6473,68 @@ function renderReportsPage(){
   ctHtml += '</tbody></table>';
   clientTbl.innerHTML = ctHtml;
   sc.appendChild(clientTbl);
+
+  // ══ OVERDUE INVOICES TABLE ══
+  var overdueList = invoices.filter(function(i){return i.status==='متأخر'});
+  if(overdueList.length > 0){
+    addSectionTitle(sc, '⚠️ '+t('الفواتير المتأخرة','Overdue Invoices'));
+    var odTbl = document.createElement('div');
+    odTbl.style.cssText = 'background:#060F1E;border:1px solid #C0392B44;border-radius:12px;overflow:hidden;margin-bottom:14px';
+    var odHtml = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px;text-align:right">'+t('رقم الفاتورة','Invoice #')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('العميل','Client')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('الموظف','Staff')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('تاريخ الاستحقاق','Due Date')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('أيام التأخير','Days Late')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('القيمة','Amount')+'</th>'
+      +'</tr></thead><tbody>';
+    overdueList.sort(function(a,b){return (a.dueDate||'').localeCompare(b.dueDate||'')}).forEach(function(inv){
+      var daysLate = inv.dueDate ? Math.floor((new Date(today)-new Date(inv.dueDate))/86400000) : 0;
+      odHtml += '<tr style="border-top:1px solid #1A2E4A">'
+        +'<td style="padding:7px 8px;color:#23A0B5;font-size:11px;font-family:monospace">'+(inv.invoiceNumber||inv.id)+'</td>'
+        +'<td style="padding:7px 8px;color:#F5F7FA;font-size:11px;font-weight:600">'+(inv.client||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#8BABC9;font-size:10px">'+(inv.salesPerson||inv.createdBy||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#6A85A5;font-size:10px">'+(inv.dueDate||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#C0392B;font-size:11px;font-weight:700;text-align:center">'+daysLate+' '+t('يوم','days')+'</td>'
+        +'<td style="padding:7px 8px;color:#C9A84C;font-size:11px;font-family:monospace">SAR '+fmt((inv.amount||0)-(inv.paidAmount||0))+'</td>'
+        +'</tr>';
+    });
+    odHtml += '</tbody></table>';
+    odTbl.innerHTML = odHtml;
+    sc.appendChild(odTbl);
+  }
+
+  // ══ PENDING QUOTES TABLE ══
+  var pendingQuotes = fQuotes.filter(function(q){return q.status==='مسودة'||q.status==='مُرسَل'||q.status==='draft'||q.status==='sent'});
+  if(pendingQuotes.length > 0){
+    addSectionTitle(sc, '⏳ '+t('عروض الأسعار المعلقة','Pending Quotes'));
+    var pqTbl = document.createElement('div');
+    pqTbl.style.cssText = 'background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow:hidden;margin-bottom:14px';
+    var pqHtml = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px;text-align:right">'+t('رقم العرض','Quote #')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('العميل','Client')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('الموظف','Staff')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('تاريخ الإنشاء','Created')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('مدة الانتظار','Waiting')+'</th>'
+      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('القيمة','Value')+'</th>'
+      +'</tr></thead><tbody>';
+    pendingQuotes.sort(function(a,b){return (a.createdAt||'').localeCompare(b.createdAt||'')}).forEach(function(q){
+      var d = q.createdAt||q.date||today;
+      var waitDays = Math.floor((new Date(today)-new Date(d))/86400000);
+      var warnColor = waitDays > 7 ? '#C0392B' : '#6A85A5';
+      pqHtml += '<tr style="border-top:1px solid #1A2E4A">'
+        +'<td style="padding:7px 8px;color:#23A0B5;font-size:11px;font-family:monospace">'+q.id+'</td>'
+        +'<td style="padding:7px 8px;color:#F5F7FA;font-size:11px;font-weight:600">'+(q.client||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#8BABC9;font-size:10px">'+(q.salesperson||q.createdBy||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#6A85A5;font-size:10px">'+d.slice(0,10)+'</td>'
+        +'<td style="padding:7px 8px;color:'+warnColor+';font-size:11px;font-weight:700;text-align:center">'+waitDays+' '+t('يوم','days')+'</td>'
+        +'<td style="padding:7px 8px;color:#C9A84C;font-size:11px;font-family:monospace">SAR '+fmt(q.netTotal||q.total||0)+'</td>'
+        +'</tr>';
+    });
+    pqHtml += '</tbody></table>';
+    pqTbl.innerHTML = pqHtml;
+    sc.appendChild(pqTbl);
+  }
 }
 
 // ══ Helper Functions ══
@@ -6525,6 +6588,24 @@ function exportDashboardExcel(){
   XLSX.utils.book_append_sheet(wb, ws1, t('ملخص','Summary'));
   XLSX.writeFile(wb, 'Dashboard_Report_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showSuccessToast('📊 '+t('تم تصدير التقرير','Report exported'));
+}
+
+function exportDashboardPDF(){
+  var el = document.getElementById('page-reports');
+  if(!el){ showSuccessToast('⚠️ الصفحة غير موجودة'); return; }
+  var win = window.open('', '_blank');
+  win.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>Dashboard Report</title>'
+    +'<style>body{font-family:Tahoma,Arial;background:#fff;color:#111;padding:20px}'
+    +'.kpi{border:1px solid #ccc;border-radius:8px;padding:10px;text-align:center}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:20px}'
+    +'th,td{border:1px solid #ddd;padding:6px;font-size:11px;text-align:right}'
+    +'th{background:#333;color:#fff}</style></head><body>'
+    +'<h2>'+t('تقرير لوحة القيادة التنفيذية','Executive Dashboard Report')+'</h2>'
+    +'<p>'+new Date().toLocaleDateString('ar-SA')+'</p>'
+    +el.innerHTML.replace(/background:[^;"]+/g,'background:#f5f5f5').replace(/color:#[0-9A-Fa-f]{6}/g,'color:#111')
+    +'</body></html>');
+  win.document.close();
+  setTimeout(function(){win.print()}, 500);
 }
 
 // Redirect sub-pages to main dashboard
