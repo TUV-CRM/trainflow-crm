@@ -12346,7 +12346,7 @@ function addInvoiceLine(container, courses, item){
     +'<div><label style="color:#6A85A5;font-size:9px">'+t('الكمية','Qty')+'</label><input type="number" class="fc inv-qty" value="'+(item?item.qty||1:1)+'" min="1" oninput="recalcInvoiceTotals()" style="width:100%;font-size:11px;text-align:center"/></div>'
     +'<div><label style="color:#6A85A5;font-size:9px">'+t('السعر','Price')+'</label><input type="number" class="fc inv-price" value="'+(item?item.price||0:0)+'" oninput="recalcInvoiceTotals()" style="width:100%;font-size:11px"/></div>'
     +'<div><label style="color:#6A85A5;font-size:9px">'+t('الإجمالي','Total')+'</label><div class="inv-line-total" style="color:#C9A84C;font-size:12px;font-weight:700;font-family:monospace;padding:6px 0">0</div></div>'
-    +'<div><button onclick="this.closest('.inv-item-row').remove();recalcInvoiceTotals()" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:4px;cursor:pointer;font-size:10px;margin-top:12px">✕</button></div>';
+    +'<div><button onclick="this.parentElement.parentElement.remove();recalcInvoiceTotals()" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:4px;cursor:pointer;font-size:10px;margin-top:12px">✕</button></div>';
   
   container.appendChild(row);
   recalcInvoiceTotals();
