@@ -7189,10 +7189,11 @@ function saveSession(){
 
   const isEdit = _editingSessionIdx !== null;
   if(isEdit){
+    obj.updatedAt = new Date().toISOString();
     DB.sessions[_editingSessionIdx] = obj;
     showSuccessToast('✅ تم تحديث الجلسة');
   } else {
-    s.updatedAt = new Date().toISOString();
+    obj.updatedAt = new Date().toISOString();
   DB.sessions.push(obj);
     showSuccessToast('✅ تمت إضافة الجلسة — جاري إرسال الإشعار...');
     // Send email notification
