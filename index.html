@@ -12380,80 +12380,6 @@ function recalcInvoiceTotals(){
   }
 }
 
-function saveInvoice(editId){
-  var client = document.getElementById('inv-client').value;
-  var invoiceDate = document.getElementById('inv-date').value;
-  var dueDate = document.getElementById('inv-due').value;
-  var status = document.getElementById('inv-status').value;
-  var paidAmount = parseFloat(document.getElementById('inv-paid').value)||0;
-  
-  if(!client){alert(t('اختر العميل','Select client'));return;}
-  
-  // Collect items
-  var items = [];
-  var rows = document.querySelectorAll('.inv-item-row');
-  rows.forEach(function(row){
-    var course = row.querySelector('.inv-course')?.value||'';
-    var qty = parseFloat(row.querySelector('.inv-qty')?.value)||0;
-    var price = parseFloat(row.querySelector('.inv-price')?.value)||0;
-    if(course && qty > 0) items.push({course:course,qty:qty,price:price,total:qty*price});
-  });
-  
-  if(items.length===0){alert(t('أضف دورة واحدة على الأقل','Add at least one course'));return;}
-  
-  var subtotal = items.reduce(function(s,i){return s+i.total},0);
-  var vat = Math.round(subtotal * 0.15);
-  var amount = subtotal + vat;
-  var courseName = items.map(function(i){return i.course}).join(' | ');
-  
-  DB.invoices = JSON.parse(localStorage.getItem('tf4_invoices')||'[]');
-  
-  if(editId){
-    var inv = DB.invoices.find(function(x){return x.id===editId});
-    if(inv){
-      inv.client = client;
-      inv.course = courseName;
-      inv.items = items;
-      inv.subtotal = subtotal;
-      inv.vat = vat;
-      inv.amount = amount;
-      inv.paidAmount = paidAmount;
-      inv.invoiceDate = invoiceDate;
-      inv.date = invoiceDate;
-      inv.dueDate = dueDate;
-      inv.status = status;
-      inv.updatedAt = new Date().toISOString();
-    }
-  } else {
-    var maxNum = DB.invoices.reduce(function(mx,x){var n=parseInt((x.invoiceNumber||'0').replace(/\D/g,''))||0;return n>mx?n:mx},0)+1;
-    DB.invoices.push({
-      id: 'INV-'+Date.now(),
-      invoiceNumber: String(maxNum).padStart(4,'0'),
-      client: client,
-      course: courseName,
-      items: items,
-      subtotal: subtotal,
-      vat: vat,
-      amount: amount,
-      paidAmount: paidAmount,
-      invoiceDate: invoiceDate,
-      date: invoiceDate,
-      dueDate: dueDate,
-      status: status,
-      createdBy: CU?CU.name:'',
-      salesPerson: CU?CU.name:'',
-      updatedAt: new Date().toISOString()
-    });
-  }
-  
-  ss('invoices', DB.invoices);
-  document.getElementById('invoiceModal').remove();
-  save();
-  var sc = document.getElementById('salesContent');
-  if(sc) renderInvoicesTab(sc);
-  else renderSales();
-  showSuccessToast('✅ '+t('تم حفظ الفاتورة','Invoice saved'));
-}
 
 function getActivities(){ return JSON.parse(localStorage.getItem('tf4_activities')||'[]'); }
 function saveActivities(a){ localStorage.setItem('tf4_activities', JSON.stringify(a)); }
@@ -16275,61 +16201,6 @@ function updateInvStatus(invId, newStatus){
 }
 
 
-function openInvoiceModal(editId){
-  var t = function(ar,en){return isAR()?ar:en};
-  var inv = editId ? (DB.invoices||[]).find(function(x){return x.id===editId}) : null;
-  var ex = document.getElementById('invoiceModal');
-  if(ex) ex.remove();
-  var overlay = document.createElement('div');
-  overlay.id = 'invoiceModal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center';
-  var box = document.createElement('div');
-  box.style.cssText = 'background:#0B1E3D;border:1px solid #1A2E4A;border-radius:16px;padding:24px;width:500px;max-width:95vw';
-
-  var title = document.createElement('div');
-  title.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:16px';
-  title.innerHTML = '<span style="color:#F5F7FA;font-weight:800;font-size:15px">🧾 '+(inv?t('تعديل فاتورة','Edit Invoice'):t('فاتورة جديدة','New Invoice'))+'</span>';
-  var closeBtn = document.createElement('button');
-  closeBtn.textContent = '✕';
-  closeBtn.style.cssText = 'background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:7px;cursor:pointer';
-  closeBtn.onclick = function(){overlay.remove()};
-  title.appendChild(closeBtn);
-  box.appendChild(title);
-
-  var form = document.createElement('div');
-  form.style.cssText = 'display:flex;flex-direction:column;gap:12px';
-  var r1 = document.createElement('div');
-  r1.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px';
-  r1.innerHTML = '<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('العميل','Client')+'</label><input id="inv-client" class="fc" value="'+(inv?inv.client:'')+'" style="width:100%"/></div>'
-    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الدورة','Course')+'</label><input id="inv-course" class="fc" value="'+(inv&&inv.course?inv.course:'')+'" style="width:100%"/></div>';
-  form.appendChild(r1);
-
-  var r2 = document.createElement('div');
-  r2.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px';
-  r2.innerHTML = '<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('المبلغ','Amount')+'</label><input id="inv-amount" type="number" class="fc" value="'+(inv?inv.amount:'')+'" style="width:100%"/></div>'
-    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('المدفوع','Paid')+'</label><input id="inv-paid" type="number" class="fc" value="'+(inv?inv.paidAmount||0:0)+'" style="width:100%"/></div>'
-    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الاستحقاق','Due')+'</label><input id="inv-due" type="date" class="fc" value="'+(inv?inv.dueDate:'')+'" style="width:100%"/></div>';
-  form.appendChild(r2);
-
-  var statusDiv = document.createElement('div');
-  statusDiv.innerHTML = '<label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الحالة','Status')+'</label>';
-  var sel = document.createElement('select');
-  sel.id = 'inv-status'; sel.className = 'fc'; sel.style.cssText = 'width:100%';
-  ['معلق','معتمد','مدفوع','متأخر'].forEach(function(s){ var o=document.createElement('option'); o.value=s; o.textContent=s; if(inv&&inv.status===s) o.selected=true; sel.appendChild(o); });
-  statusDiv.appendChild(sel);
-  form.appendChild(statusDiv);
-
-  var saveBtn = document.createElement('button');
-  saveBtn.style.cssText = 'background:#1A8A5A;border:none;border-radius:10px;color:white;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit';
-  saveBtn.textContent = '💾 '+t('حفظ','Save');
-  saveBtn.onclick = function(){saveInvoice(editId||null)};
-  form.appendChild(saveBtn);
-
-  box.appendChild(form);
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-}
-
 
 function saveInvoice(editIdx){
   var client = document.getElementById('inv-client').value.trim();
@@ -16393,9 +16264,7 @@ const EXPENSE_CATEGORIES = [
 const INCOME_CATEGORIES = [
   {id:'training',  ar:'إيرادات الدورات التدريبية', icon:'🎓'},
   {id:'consulting',ar:'استشارات',                  icon:'💼'},
-  {id:'other_inc', ar:'إيرادات أخرى',              icon:'💰'},
-];
-
+  {id:'other_inc', ar:'إيرادات أخرى',      
 function getFinanceData(){
   return JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}');
 }
