@@ -12306,6 +12306,92 @@ function openInvoiceModal(editId){
   document.body.appendChild(overlay);
 }
 
+function saveInvoice(editId){
+  var clientEl = document.getElementById('inv-client');
+  var dateEl = document.getElementById('inv-date');
+  var dueEl = document.getElementById('inv-due');
+  var statusEl = document.getElementById('inv-status');
+  var paidEl = document.getElementById('inv-paid');
+  
+  var client = clientEl ? clientEl.value : '';
+  var invoiceDate = dateEl ? dateEl.value : new Date().toISOString().slice(0,10);
+  var dueDate = dueEl ? dueEl.value : '';
+  var status = statusEl ? statusEl.value : 'معلق';
+  var paidAmount = paidEl ? parseFloat(paidEl.value)||0 : 0;
+  
+  if(!client){alert(t('اختر العميل','Select client'));return;}
+  
+  // Collect items from multi-line form
+  var items = [];
+  var rows = document.querySelectorAll('.inv-item-row');
+  rows.forEach(function(row){
+    var courseEl = row.querySelector('.inv-course');
+    var qtyEl = row.querySelector('.inv-qty');
+    var priceEl = row.querySelector('.inv-price');
+    var course = courseEl ? courseEl.value : '';
+    var qty = qtyEl ? parseFloat(qtyEl.value)||0 : 0;
+    var price = priceEl ? parseFloat(priceEl.value)||0 : 0;
+    if(course && qty > 0) items.push({course:course, qty:qty, price:price, total:qty*price});
+  });
+  
+  if(items.length===0){alert(t('أضف دورة واحدة على الأقل','Add at least one course'));return;}
+  
+  var subtotal = items.reduce(function(s,i){return s+i.total},0);
+  var vat = Math.round(subtotal * 0.15);
+  var amount = subtotal + vat;
+  var courseName = items.map(function(i){return i.course}).join(' | ');
+  
+  DB.invoices = JSON.parse(localStorage.getItem('tf4_invoices')||'[]');
+  
+  if(editId){
+    var inv = DB.invoices.find(function(x){return x.id===editId});
+    if(inv){
+      inv.client = client;
+      inv.course = courseName;
+      inv.items = items;
+      inv.subtotal = subtotal;
+      inv.vat = vat;
+      inv.amount = amount;
+      inv.paidAmount = paidAmount;
+      inv.invoiceDate = invoiceDate;
+      inv.date = invoiceDate;
+      inv.dueDate = dueDate;
+      inv.status = status;
+      inv.updatedAt = new Date().toISOString();
+    }
+  } else {
+    var maxNum = DB.invoices.reduce(function(mx,x){var n=parseInt((x.invoiceNumber||'0').replace(/\D/g,''))||0;return n>mx?n:mx},0)+1;
+    DB.invoices.push({
+      id: 'INV-'+Date.now(),
+      invoiceNumber: String(maxNum).padStart(4,'0'),
+      client: client,
+      course: courseName,
+      items: items,
+      subtotal: subtotal,
+      vat: vat,
+      amount: amount,
+      paidAmount: paidAmount,
+      invoiceDate: invoiceDate,
+      date: invoiceDate,
+      dueDate: dueDate,
+      status: status,
+      createdBy: CU?CU.name:'',
+      salesPerson: CU?CU.name:'',
+      updatedAt: new Date().toISOString()
+    });
+  }
+  
+  ss('invoices', DB.invoices);
+  var modal = document.getElementById('invoiceModal');
+  if(modal) modal.remove();
+  save();
+  var sc = document.getElementById('salesContent');
+  if(sc) renderInvoicesTab(sc);
+  else renderSales();
+  showSuccessToast('✅ '+t('تم حفظ الفاتورة','Invoice saved'));
+}
+
+
 function addInvoiceLine(container, courses, item){
   var row = document.createElement('div');
   row.className = 'inv-item-row';
