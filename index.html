@@ -12522,7 +12522,9 @@ const EXPENSE_CATEGORIES = [
 const INCOME_CATEGORIES = [
   {id:'training',  ar:'إيرادات الدورات التدريبية', icon:'🎓'},
   {id:'consulting',ar:'استشارات',                  icon:'💼'},
-  {id:'other_inc', ar:'إيرادات أخرى',      
+  {id:'other_inc', ar:'إيرادات أخرى',              icon:'📋'},
+];
+
 function getFinanceData(){
   return JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}');
 }
