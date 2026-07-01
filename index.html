@@ -12483,7 +12483,11 @@ function getTargetProgress(userName){
     remaining: Math.max(tgt-rev, 0),
     type:      cfg.type,
     monthly:   cfg.monthly,
-    quarterly: cffunction editInvoiceStatus(idx){
+    quarterly: cfg.quarterly
+  };
+}
+
+function editInvoiceStatus(idx){
   openInvoiceModal(idx);
 }
 
