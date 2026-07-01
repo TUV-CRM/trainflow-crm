@@ -8382,28 +8382,7 @@ function collectPayment(i){
   inv.status=inv.paid>=inv.amount?'مدفوع':inv.paid>0?'جزئي':'معلق';
   save();renderFinance();
 }
-function saveInvoice(editId){
-  var client = document.getElementById('inv-client').value.trim();
-  var course = document.getElementById('inv-course').value.trim();
-  var amount = parseFloat(document.getElementById('inv-amount').value)||0;
-  var paidAmount = parseFloat(document.getElementById('inv-paid').value)||0;
-  var dueDate = document.getElementById('inv-due').value;
-  var status = document.getElementById('inv-status').value;
-  if(!client||!amount){alert(isAR()?'أدخل العميل والمبلغ':'Enter client and amount');return;}
-  
-  if(editId){
-    var inv = (DB.invoices||[]).find(function(x){return x.id===editId});
-    if(inv){ inv.client=client; inv.course=course; inv.amount=amount; inv.paidAmount=paidAmount; inv.dueDate=dueDate; inv.status=status; inv.updatedAt=new Date().toISOString(); }
-  } else {
-    var nextNum = (DB.invoices||[]).reduce(function(mx,x){var n=parseInt((x.invoiceNumber||'0').replace(/\D/g,''))||0;return n>mx?n:mx},0)+1;
-    DB.invoices.push({id:'INV-'+Date.now(), invoiceNumber:String(nextNum).padStart(4,'0'), client:client, course:course, amount:amount, paidAmount:paidAmount, dueDate:dueDate, status:status, date:new Date().toISOString().slice(0,10), createdBy:CU?CU.name:'', salesPerson:CU?CU.name:'', updatedAt:new Date().toISOString()});
-  }
-  ss('invoices', DB.invoices);
-  document.getElementById('invoiceModal').remove();
-  save();
-  renderSales();
-  showSuccessToast('✅ '+(isAR()?'تم حفظ الفاتورة':'Invoice saved'));
-}
+
 function getActivities(){ return JSON.parse(localStorage.getItem('tf4_activities')||'[]'); }
 function saveActivities(a){ localStorage.setItem('tf4_activities', JSON.stringify(a)); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
