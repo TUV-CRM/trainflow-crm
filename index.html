@@ -1162,7 +1162,19 @@ async function loadFromGist(){
       DB.leads = data.leads.filter(function(l){return delL.indexOf(l.id)<0});
       ss('leads', DB.leads);
     }
-    if(data.sessions){ DB.sessions = data.sessions; ss('sessions', DB.sessions); }
+    if(data.sessions){
+      var localSes = DB.sessions || [];
+      var remoteSesIds = {};
+      data.sessions.forEach(function(s){ if(s&&s.id) remoteSesIds[s.id]=s; });
+      localSes.forEach(function(s){
+        if(s && s.id && !remoteSesIds[s.id]) remoteSesIds[s.id] = s;
+        else if(s && s.id && s.updatedAt && remoteSesIds[s.id] && (!remoteSesIds[s.id].updatedAt || s.updatedAt > remoteSesIds[s.id].updatedAt)){
+          remoteSesIds[s.id] = s;
+        }
+      });
+      DB.sessions = Object.values(remoteSesIds);
+      ss('sessions', DB.sessions);
+    }
     if(data.clients) localStorage.setItem('tf4_clients', JSON.stringify(
       data.clients.filter(function(c){return delC.indexOf(c.id)<0})
     ));
@@ -1170,8 +1182,30 @@ async function loadFromGist(){
     if(data.financeData) localStorage.setItem('tf4_finance', JSON.stringify(data.financeData));
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
-    if(data.trainees){ DB.trainees = data.trainees; ss('trainees', data.trainees); }
-    if(data.trainers){ DB.trainers = data.trainers; ss('trainers', data.trainers); }
+    if(data.trainees){
+      var localTe = DB.trainees || [];
+      var remoteTeIds = {};
+      data.trainees.forEach(function(t){ if(t&&t.id) remoteTeIds[t.id]=t; });
+      localTe.forEach(function(t){
+        if(t && t.id && !remoteTeIds[t.id]) remoteTeIds[t.id] = t;
+      });
+      DB.trainees = Object.values(remoteTeIds);
+      ss('trainees', DB.trainees);
+    }
+    if(data.trainers){
+      // MERGE instead of replace — preserve locally-added trainers
+      var localTr = DB.trainers || [];
+      var remoteTrIds = {};
+      data.trainers.forEach(function(t){ if(t&&t.id) remoteTrIds[t.id]=t; });
+      localTr.forEach(function(t){
+        if(t && t.id && !remoteTrIds[t.id]) remoteTrIds[t.id] = t; // Keep local-only trainers
+        else if(t && t.id && t.updatedAt && remoteTrIds[t.id] && (!remoteTrIds[t.id].updatedAt || t.updatedAt > remoteTrIds[t.id].updatedAt)){
+          remoteTrIds[t.id] = t; // Local is newer
+        }
+      });
+      DB.trainers = Object.values(remoteTrIds);
+      ss('trainers', DB.trainers);
+    }
     if(data.traineeProfiles) localStorage.setItem('tf4_trainee_profiles', JSON.stringify(data.traineeProfiles));
     if(data.sessionTraining){
       Object.keys(data.sessionTraining).forEach(function(k){
