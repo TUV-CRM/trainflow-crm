@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!-- BUILD v7.2 -->
 <title>TrainFlow CRM — معهد TUV التدريبي</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Cairo:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -675,7 +676,7 @@ async function firebaseAuth(){
     var data = await resp.json();
     if(data.idToken){
       FIREBASE_AUTH_TOKEN = data.idToken;
-      console.log('✅ Firebase authenticated — TrainFlow v7.1');
+      console.log('✅ Firebase authenticated — TrainFlow v7.2 (token-refresh build)');
       return true;
     }
     console.warn('Firebase auth failed:', data.error);
@@ -693,7 +694,18 @@ async function firebaseFetch(path, options){
   if(FIREBASE_AUTH_TOKEN){
     url += (url.includes('?') ? '&' : '?') + 'auth=' + FIREBASE_AUTH_TOKEN;
   }
-  return fetch(url, options);
+  var resp = await fetch(url, options);
+  // Token expired (Firebase tokens last 1 hour) → re-auth and retry ONCE
+  if(resp.status === 401 || resp.status === 403){
+    console.warn('Firebase token expired — re-authenticating...');
+    FIREBASE_AUTH_TOKEN = null;
+    await firebaseAuth();
+    if(FIREBASE_AUTH_TOKEN){
+      var url2 = FIREBASE_URL + path + (path.includes('?') ? '&' : '?') + 'auth=' + FIREBASE_AUTH_TOKEN;
+      resp = await fetch(url2, options);
+    }
+  }
+  return resp;
 }
 
 const TUV_CATEGORIES = [
@@ -1093,15 +1105,25 @@ async function save(){
       savedBy:         CU ? CU.name : 'System'
     };
     
-    await firebaseFetch('/data.json', {
+    localStorage.setItem('tf4_pending_save', '1'); // Cleared only on confirmed success
+    var putResp = await firebaseFetch('/data.json', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(dataToSave)
     });
-    showSyncIndicator('synced');
+    if(putResp && putResp.ok){
+      localStorage.removeItem('tf4_pending_save');
+      console.log('✅ Firebase save confirmed:', new Date().toLocaleTimeString());
+      showSyncIndicator('synced');
+    } else {
+      console.error('❌ Firebase save FAILED — HTTP', putResp ? putResp.status : '?');
+      showSyncIndicator('offline');
+      showSuccessToast('⚠️ فشل الحفظ على السيرفر — سيُعاد تلقائياً');
+    }
   } catch(e){
-    console.warn('Save error:', e.message);
-    showSyncIndicator('synced');
+    console.error('❌ Save error:', e.message);
+    showSyncIndicator('offline');
+    showSuccessToast('⚠️ فشل الحفظ على السيرفر — سيُعاد تلقائياً');
   } finally {
     window._saving = false;
   }
@@ -1248,6 +1270,11 @@ async function loadFromGist(){
     // Apply permissions after sync
     applyUserPermissions();
     showSyncIndicator('synced');
+    // If a previous save never confirmed (F5 mid-save / expired token) → re-push local data
+    if(localStorage.getItem('tf4_pending_save')==='1'){
+      console.warn('⏳ Pending unsaved changes detected — re-saving to Firebase...');
+      setTimeout(function(){ save(); }, 1500);
+    }
     return true;
   } catch(e){
     console.warn('Firebase load error:', e.message);
@@ -1728,9 +1755,10 @@ function launchApp(){
   // Auto-refresh from Gist every 60 seconds
   if(window._autoSyncInterval) clearInterval(window._autoSyncInterval);
   window._autoSyncInterval = setInterval(async ()=>{
-    // Re-auth every cycle (token may expire)
-    if(!FIREBASE_AUTH_TOKEN) await firebaseAuth();
-  }, 3600000); // Re-auth every hour
+    // Tokens expire after 60 min — force refresh every 50 min
+    FIREBASE_AUTH_TOKEN = null;
+    await firebaseAuth();
+  }, 3000000); // Re-auth every 50 minutes
   setInterval(async ()=>{
     const cfg = getGistConfig();
     if(!FIREBASE_URL) return; // Firebase auto-sync
