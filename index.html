@@ -1086,6 +1086,7 @@ async function save(){
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
       dailyReports:    mergeArrays(JSON.parse(localStorage.getItem('tf4_daily')||'[]'), remote.dailyReports, []),
       trainees:        mergeArrays(DB.trainees||[], remote.trainees, []),
+      trainers:        mergeArrays(DB.trainers||[], remote.trainers, []),
       traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
       sessionTraining: mergedST,
       lastSaved:       new Date().toISOString(),
@@ -1170,6 +1171,7 @@ async function loadFromGist(){
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
     if(data.trainees){ DB.trainees = data.trainees; ss('trainees', data.trainees); }
+    if(data.trainers){ DB.trainers = data.trainers; ss('trainers', data.trainers); }
     if(data.traineeProfiles) localStorage.setItem('tf4_trainee_profiles', JSON.stringify(data.traineeProfiles));
     if(data.sessionTraining){
       Object.keys(data.sessionTraining).forEach(function(k){
@@ -5049,9 +5051,10 @@ function editTrainer(i){openTrainerModal(i);}
 function saveTrainer(){
   const n=document.getElementById('tr-name').value.trim();
   if(!n)return alert('أدخل الاسم');
-  const obj={id:'tr'+(Date.now()),name:n,specialty:document.getElementById('tr-specialty').value,phone:document.getElementById('tr-phone').value,email:document.getElementById('tr-email').value,sessions:0,rating:5.0};
+  const obj={id:'tr'+(Date.now()),updatedAt:new Date().toISOString(),name:n,specialty:document.getElementById('tr-specialty').value,phone:document.getElementById('tr-phone').value,email:document.getElementById('tr-email').value,sessions:0,rating:5.0};
   if(editingTrainerId!==null){DB.trainers[editingTrainerId]={...DB.trainers[editingTrainerId],...obj};}
   else DB.trainers.push(obj);
+  ss('trainers', DB.trainers);
   save();closeModal('modalTrainer');renderTrainers();
 }
 function deleteTrainer(i){if(confirm('حذف هذا المدرب؟')){DB.trainers.splice(i,1);save();renderTrainers();}}
@@ -10807,8 +10810,13 @@ function renderClients(){
 }
 
 function openClientModal(idx){
-  _editClientIdx = (idx!==undefined) ? idx : null;
-  const c = (_editClientIdx!==null) ? getClients()[_editClientIdx] : null;
+  // Accept either index (number) or client ID (string)
+  var c = null;
+  if(idx !== undefined && idx !== null){
+    var clients = getClients();
+    c = (typeof idx === 'number') ? clients[idx] : clients.find(function(x){return x.id===idx});
+  }
+  _editClientIdx = c ? c.id : null; // ALWAYS store the ID
   document.getElementById('modalClientTitle').textContent = c ? (isAR()?'تعديل بيانات العميل':'Edit Client') : (isAR()?'إضافة عميل جديد':'Add New Client');
   document.getElementById('cl-company').value    = c ? (c.company||'')   : '';
   const enEl = document.getElementById('cl-company-en');
