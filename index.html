@@ -10122,7 +10122,32 @@ function renderTrainees(){
   const active=DB.trainees.filter(t=>t.status==='نشط');
   const grads=DB.trainees.filter(t=>t.status==='خريج');
   const _tab=getTraineeTab();
-  const list=_tab==='active'?active:grads;
+  var fM = window._trFilterMonth || 'all';
+  var fY = window._trFilterYear || 'all';
+  var fC = window._trFilterCourse || 'all';
+  var baseList=_tab==='active'?active:grads;
+  var list = baseList.filter(function(t){
+    var d = (t.start||t.date||'');
+    if(fM!=='all' && d.slice(5,7)!==fM) return false;
+    if(fY!=='all' && d.slice(0,4)!==fY) return false;
+    if(fC!=='all' && (t.course||'')!==fC) return false;
+    return true;
+  });
+  // Build filter options from REAL data
+  var trYears = [];
+  var trCourses = [];
+  DB.trainees.forEach(function(t){
+    var y=(t.start||t.date||'').slice(0,4);
+    if(y && trYears.indexOf(y)<0) trYears.push(y);
+    var c=t.course||'';
+    if(c && trCourses.indexOf(c)<0) trCourses.push(c);
+  });
+  trYears.sort(); trCourses.sort();
+  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mOpts='<option value="all">'+(isAR()?'كل الأشهر':'All Months')+'</option>';
+  for(var mi=0;mi<12;mi++){var mv=String(mi+1).padStart(2,'0');mOpts+='<option value="'+mv+'"'+(fM===mv?' selected':'')+'>'+mNames[mi]+'</option>';}
+  var yOpts='<option value="all">'+(isAR()?'كل السنوات':'All Years')+'</option>'+trYears.map(function(y){return '<option value="'+y+'"'+(fY===y?' selected':'')+'>'+y+'</option>'}).join('');
+  var cOpts='<option value="all">'+(isAR()?'كل البرامج':'All Programs')+'</option>'+trCourses.map(function(c){var esc=c.replace(/"/g,'&quot;');return '<option value="'+esc+'"'+(fC===c?' selected':'')+'>'+c+'</option>'}).join('');
   pg.innerHTML=`
     <div class="page-header">
       <div><div class="page-title">المتدربون</div><div class="page-sub">النشطون والخريجون</div></div>
@@ -10145,6 +10170,13 @@ function renderTrainees(){
     <div class="tab-bar">
       <button class="tab ${_tab==='active'?'active':''}" onclick="traineeTab='active';renderTrainees()">✅ نشطون (${active.length})</button>
       <button class="tab ${_tab==='grads'?'active':''}" onclick="traineeTab='grads';renderTrainees()">🎓 خريجون (${grads.length})</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 10px">
+      <span style="color:#6A85A5;font-size:11px">🔎 ${isAR()?'تصفية:':'Filter:'}</span>
+      <select class="fc" style="min-width:110px;font-size:11px" onchange="window._trFilterMonth=this.value;renderTrainees()">${mOpts}</select>
+      <select class="fc" style="min-width:90px;font-size:11px" onchange="window._trFilterYear=this.value;renderTrainees()">${yOpts}</select>
+      <select class="fc" style="min-width:170px;font-size:11px" onchange="window._trFilterCourse=this.value;renderTrainees()">${cOpts}</select>
+      ${(fM!=='all'||fY!=='all'||fC!=='all')?`<button onclick="window._trFilterMonth='all';window._trFilterYear='all';window._trFilterCourse='all';renderTrainees()" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:6px;color:#E74C3C;padding:4px 10px;cursor:pointer;font-size:10px;font-family:inherit">✕ ${isAR()?'مسح الفلاتر':'Clear'}</button><span style="color:#C9A84C;font-size:10px">${list.length} ${isAR()?'نتيجة':'results'}</span>`:''}
     </div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>${isAR()?'الاسم':'Name'}</th><th>${isAR()?'الشركة':'Company'}</th><th>${isAR()?'الدورة':'Course'}</th><th>${isAR()?'الهاتف':'Phone'}</th><th>${isAR()?'تاريخ البداية':'Start Date'}</th><th>${isAR()?'الحالة':'Status'}</th><th>${isAR()?'إجراء':'Action'}</th></tr></thead>
