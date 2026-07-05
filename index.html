@@ -1094,7 +1094,17 @@ async function save(){
       clients:         mergeArrays(JSON.parse(localStorage.getItem('tf4_clients')||'[]'), remote.clients, allDelC),
       deletedClients:  allDelC,
       customCourses:   JSON.parse(localStorage.getItem('tf4_custom_courses')||'[]'),
-      financeData:     JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'),
+      financeData:     (function(){
+        var localFd = JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}');
+        var remoteFd = remote.financeData || {income:[],expenses:[]};
+        function mergeFin(l,r){
+          var map={};
+          (r||[]).forEach(function(e){if(e&&e.id)map[e.id]=e;});
+          (l||[]).forEach(function(e){if(e&&e.id)map[e.id]=e;});
+          return Object.values(map);
+        }
+        return { income: mergeFin(localFd.income, remoteFd.income), expenses: mergeFin(localFd.expenses, remoteFd.expenses) };
+      })(),
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
       dailyReports:    mergeArrays(JSON.parse(localStorage.getItem('tf4_daily')||'[]'), remote.dailyReports, []),
       trainees:        mergeArrays(DB.trainees||[], remote.trainees, []),
@@ -1201,7 +1211,12 @@ async function loadFromGist(){
       data.clients.filter(function(c){return delC.indexOf(c.id)<0})
     ));
     if(data.customCourses) localStorage.setItem('tf4_custom_courses', JSON.stringify(data.customCourses));
-    if(data.financeData) localStorage.setItem('tf4_finance', JSON.stringify(data.financeData));
+    if(data.financeData){
+      var _localFd = JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}');
+      function _mfin(l,r){var m={};(r||[]).forEach(function(e){if(e&&e.id)m[e.id]=e});(l||[]).forEach(function(e){if(e&&e.id&&!m[e.id])m[e.id]=e});return Object.values(m);}
+      var _mergedFd = { income:_mfin(_localFd.income, data.financeData.income), expenses:_mfin(_localFd.expenses, data.financeData.expenses) };
+      localStorage.setItem('tf4_finance', JSON.stringify(_mergedFd));
+    }
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
     if(data.trainees){
@@ -13150,7 +13165,7 @@ function openFinEntryModal(type){
     +'<div style="display:flex;flex-direction:column;gap:12px">'
     +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الفئة','Category')+'</label><select id="fin-cat" class="fc" style="width:100%">'+cats.map(c=>'<option value="'+c.id+'">'+c.icon+' '+c.ar+'</option>').join('')+'</select></div>'
     +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('الوصف','Description')+'</label><input id="fin-desc" class="fc" placeholder="'+t('وصف الإيراد/المصروف...','Description...')+'" style="width:100%"/></div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('المبلغ (ريال)','Amount (SAR)')+'</label><input id="fin-amount" type="number" class="fc" placeholder="0" style="width:100%"/></div><div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('التاريخ','Date')+'</label><input id="fin-date" type="date" class="fc" value="'+new Date().toISOString().slice(0,10)+'" style="width:100%"/></div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('المبلغ (ريال)','Amount (SAR)')+'</label><input id="fin-amount" type="number" class="fc" placeholder="0" style="width:100%"/></div><div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('تاريخ العملية المالية','Transaction Date')+'</label><input id="fin-date" type="date" class="fc" value="'+new Date().toISOString().slice(0,10)+'" style="width:100%"/></div></div>'
     +'<button onclick="saveFinEntry(\''+type+'\')" style="background:'+(isIncome?'#1A8A5A':'#C0392B')+';border:none;border-radius:10px;color:white;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:6px">💾 '+t('حفظ','Save')+'</button>'
     +'</div>';
   overlay.appendChild(box);
@@ -13172,7 +13187,9 @@ function saveFinEntry(type){
 
   saveFinanceData(fd);
   document.getElementById('finEntryOverlay').remove();
-  showSuccessToast('✅ '+(isAR()?'تم الحفظ':'Saved'));
+  // Show the month of the TRANSACTION date so the entry is immediately visible
+  window._finMonth = date.slice(0,7);
+  showSuccessToast('✅ '+(isAR()?'تم الحفظ في شهر ':'Saved to ')+date.slice(0,7));
   renderFinanceSystem();
 }
 
