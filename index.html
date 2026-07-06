@@ -13463,10 +13463,13 @@ function saveFinEntry(type){
 function deleteFinEntry(type, id, isAuto){
   if(!confirm(isAR()?'حذف هذا البند؟':'Delete this entry?')) return;
   if(type==='income' && isAuto){
-    // Delete the invoice itself
+    // Delete the source invoice + TOMBSTONE it so sync can't resurrect it
     const invId = id.replace('auto_','');
     DB.invoices = (DB.invoices||[]).filter(inv=>inv.id!==invId);
     ss('invoices', DB.invoices);
+    var delInv = JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]');
+    if(delInv.indexOf(invId)<0) delInv.push(invId);
+    localStorage.setItem('tf4_deleted_invoices', JSON.stringify(delInv));
   } else {
     const fd = getFinanceData();
     if(type==='income') fd.income = fd.income.filter(i=>i.id!==id);
