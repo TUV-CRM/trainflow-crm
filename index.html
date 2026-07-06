@@ -12862,6 +12862,169 @@ function getQuarterlyReport(year, quarter){
 }
 
 // ══ FINANCE MAIN RENDERER ══
+
+// ════════════════════════════════════════════
+//  CUSTOMER STATEMENT OF ACCOUNT (read-only)
+// ════════════════════════════════════════════
+function buildStatementRows(clientName, fromD, toD){
+  // Data sources: DB.invoices (debit=invoice, credit=payment) + accepted quotes (informational)
+  var rows = [];
+  (DB.invoices||[]).forEach(function(inv){
+    if((inv.client||'') !== clientName) return;
+    var d = inv.invoiceDate || inv.date || '';
+    rows.push({date:d, doc:inv.invoiceNumber||inv.id, type:'فاتورة', desc:inv.course||'', debit:inv.amount||0, credit:0, status:inv.status||'', sort:d+'-1'});
+    var paid = inv.paidAmount!==undefined ? inv.paidAmount : (inv.paid||0);
+    if(inv.status==='مدفوع' && !paid) paid = inv.amount||0;
+    if(paid > 0){
+      var pd = (inv.updatedAt||d||'').slice(0,10) || d;
+      rows.push({date:pd, doc:inv.invoiceNumber||inv.id, type:'دفعة', desc:'سداد '+(inv.invoiceNumber||inv.id), debit:0, credit:paid, status:'', sort:pd+'-2'});
+    }
+  });
+  lsQuotes().forEach(function(q){
+    if((q.client||'') !== clientName) return;
+    if(q.status!=='مقبول' && q.status!=='accepted') return;
+    var d = (q.createdAt||q.date||'').slice(0,10);
+    rows.push({date:d, doc:q.id, type:'عرض سعر مقبول', desc:(q.items||[]).map(function(i){return i.course||i.name||''}).join(' | '), debit:0, credit:0, status:'مقبول', info:true, sort:d+'-0'});
+  });
+  // Period filter
+  rows = rows.filter(function(r){
+    if(!r.date) return false;
+    if(fromD && r.date < fromD) return false;
+    if(toD && r.date > toD) return false;
+    return true;
+  });
+  rows.sort(function(a,b){ return a.sort.localeCompare(b.sort); });
+  // Running balance (debit increases what client owes, credit decreases)
+  var bal = 0;
+  rows.forEach(function(r){ if(!r.info){ bal += r.debit - r.credit; } r.balance = bal; });
+  return rows;
+}
+
+function renderCustomerStatement(el){
+  var clients = getClients();
+  var selClient = window._stmtClient || '';
+  var fromD = window._stmtFrom || '';
+  var toD = window._stmtTo || '';
+
+  el.innerHTML = '';
+  var bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:end;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px';
+  var cOpts = '<option value="">'+t('اختر العميل...','Select client...')+'</option>'+clients.map(function(c){var n=(c.company||'').replace(/"/g,'&quot;');return '<option value="'+n+'"'+(selClient===c.company?' selected':'')+'>'+c.company+'</option>'}).join('');
+  bar.innerHTML =
+    '<div style="flex:1;min-width:180px"><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('العميل','Client')+'</label><select class="fc" style="width:100%" onchange="window._stmtClient=this.value;renderFinanceSystem()">'+cOpts+'</select></div>'
+    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('من تاريخ','From')+'</label><input type="date" class="fc" value="'+fromD+'" onchange="window._stmtFrom=this.value;renderFinanceSystem()"/></div>'
+    +'<div><label style="color:#6A85A5;font-size:10px;display:block;margin-bottom:4px">'+t('إلى تاريخ','To')+'</label><input type="date" class="fc" value="'+toD+'" onchange="window._stmtTo=this.value;renderFinanceSystem()"/></div>'
+    +'<button onclick="stmtQuick(\'thisMonth\')" class="fc" style="cursor:pointer;font-size:10px">'+t('الشهر الحالي','This Month')+'</button>'
+    +'<button onclick="stmtQuick(\'lastMonth\')" class="fc" style="cursor:pointer;font-size:10px">'+t('الشهر الماضي','Last Month')+'</button>'
+    +'<button onclick="stmtQuick(\'thisYear\')" class="fc" style="cursor:pointer;font-size:10px">'+t('هذا العام','This Year')+'</button>'
+    +'<button onclick="stmtQuick(\'all\')" class="fc" style="cursor:pointer;font-size:10px">'+t('الكل','All')+'</button>';
+  el.appendChild(bar);
+
+  if(!selClient){
+    var empty = document.createElement('div');
+    empty.style.cssText='text-align:center;padding:50px;color:#6A85A5';
+    empty.innerHTML = '<div style="font-size:34px;margin-bottom:8px">🧾</div>'+t('اختر عميلاً لعرض كشف الحساب','Select a client to view statement');
+    el.appendChild(empty);
+    return;
+  }
+
+  var rows = buildStatementRows(selClient, fromD, toD);
+  var totInv=0, totPaid=0;
+  rows.forEach(function(r){ totInv+=r.debit; totPaid+=r.credit; });
+  var due = totInv - totPaid;
+
+  // Summary cards
+  var k = document.createElement('div');
+  k.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px';
+  [[t('إجمالي الفواتير','Total Invoices'),totInv,'#23A0B5'],[t('إجمالي المدفوعات','Total Payments'),totPaid,'#1A8A5A'],[t('المبالغ المستحقة','Amount Due'),due,due>0?'#C0392B':'#1A8A5A'],[t('الرصيد الحالي','Current Balance'),due,'#C9A84C']].forEach(function(x){
+    k.innerHTML += '<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+x[0]+'</div><div style="color:'+x[2]+';font-size:16px;font-weight:800;font-family:monospace">SAR '+fmt(x[1])+'</div></div>';
+  });
+  el.appendChild(k);
+
+  // Export buttons
+  var exp = document.createElement('div');
+  exp.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:10px';
+  exp.innerHTML = '<button onclick="exportStatementExcel()" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">📊 Excel</button>'
+    +'<button onclick="printStatement()" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:6px;color:#9B59B6;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">🖨️ '+t('طباعة / PDF','Print / PDF')+'</button>';
+  el.appendChild(exp);
+
+  // Statement table
+  var tbl = document.createElement('div');
+  tbl.style.cssText = 'background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow-x:auto;margin-top:8px';
+  var stC = {'مدفوع':'#1A8A5A','معلق':'#C9A84C','معتمد':'#23A0B5','متأخر':'#C0392B','مقبول':'#1A8A5A'};
+  var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +[t('التاريخ','Date'),t('رقم المستند','Doc #'),t('نوع العملية','Type'),t('البيان','Description'),t('مدين','Debit'),t('دائن','Credit'),t('الرصيد','Balance'),t('الحالة','Status')].map(function(h){return '<th style="padding:8px;color:#6A85A5;font-size:10px;text-align:right;white-space:nowrap">'+h+'</th>'}).join('')
+    +'</tr></thead><tbody>';
+  if(rows.length===0){
+    html += '<tr><td colspan="8" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد عمليات في هذه الفترة','No transactions in this period')+'</td></tr>';
+  } else {
+    rows.forEach(function(r){
+      var sc2 = stC[r.status]||'#6A85A5';
+      html += '<tr style="border-top:1px solid rgba(26,46,74,.4)'+(r.info?';opacity:.65':'')+'">'
+        +'<td style="padding:7px 8px;color:#6A85A5;font-size:10px;white-space:nowrap">'+r.date+'</td>'
+        +'<td style="padding:7px 8px;color:#23A0B5;font-size:10px;font-family:monospace">'+r.doc+'</td>'
+        +'<td style="padding:7px 8px;color:#D0D8E8;font-size:10px">'+r.type+'</td>'
+        +'<td style="padding:7px 8px;color:#8BABC9;font-size:10px">'+(r.desc||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:'+(r.debit?'#C0392B':'#3A5070')+';font-size:11px;font-family:monospace">'+(r.debit?fmt(r.debit):'—')+'</td>'
+        +'<td style="padding:7px 8px;color:'+(r.credit?'#1A8A5A':'#3A5070')+';font-size:11px;font-family:monospace">'+(r.credit?fmt(r.credit):'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#C9A84C;font-size:11px;font-weight:700;font-family:monospace">'+(r.info?'—':fmt(r.balance))+'</td>'
+        +'<td style="padding:7px 8px">'+(r.status?'<span style="background:'+sc2+'22;color:'+sc2+';padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700">'+r.status+'</span>':'—')+'</td>'
+        +'</tr>';
+    });
+  }
+  html += '</tbody></table>';
+  tbl.innerHTML = html;
+  el.appendChild(tbl);
+}
+
+function stmtQuick(which){
+  var now = new Date();
+  var y = now.getFullYear(), m = now.getMonth();
+  function iso(d){ return d.toISOString().slice(0,10); }
+  if(which==='thisMonth'){ window._stmtFrom = iso(new Date(y,m,1)); window._stmtTo = iso(new Date(y,m+1,0)); }
+  else if(which==='lastMonth'){ window._stmtFrom = iso(new Date(y,m-1,1)); window._stmtTo = iso(new Date(y,m,0)); }
+  else if(which==='thisYear'){ window._stmtFrom = y+'-01-01'; window._stmtTo = y+'-12-31'; }
+  else { window._stmtFrom=''; window._stmtTo=''; }
+  renderFinanceSystem();
+}
+
+function exportStatementExcel(){
+  var client = window._stmtClient||'';
+  if(!client){ showSuccessToast('⚠️ اختر عميلاً أولاً'); return; }
+  var rows = buildStatementRows(client, window._stmtFrom||'', window._stmtTo||'');
+  var aoa = [[t('كشف حساب عميل','Customer Statement')],[t('العميل','Client'), client],[t('الفترة','Period'), (window._stmtFrom||'الكل')+' → '+(window._stmtTo||'الآن')],[''],
+    [t('التاريخ','Date'),t('رقم المستند','Doc'),t('النوع','Type'),t('البيان','Desc'),t('مدين','Debit'),t('دائن','Credit'),t('الرصيد','Balance'),t('الحالة','Status')]];
+  rows.forEach(function(r){ aoa.push([r.date,r.doc,r.type,r.desc||'',r.debit||'',r.credit||'',r.info?'':r.balance,r.status||'']); });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Statement');
+  XLSX.writeFile(wb, 'Statement_'+client.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showSuccessToast('📊 تم التصدير');
+}
+
+function printStatement(){
+  var client = window._stmtClient||'';
+  if(!client){ showSuccessToast('⚠️ اختر عميلاً أولاً'); return; }
+  var rows = buildStatementRows(client, window._stmtFrom||'', window._stmtTo||'');
+  var totInv=0, totPaid=0;
+  rows.forEach(function(r){ totInv+=r.debit; totPaid+=r.credit; });
+  var w = window.open('','_blank');
+  var trs = rows.map(function(r){
+    return '<tr><td>'+r.date+'</td><td>'+r.doc+'</td><td>'+r.type+'</td><td>'+(r.desc||'')+'</td>'
+      +'<td style="color:#a00">'+(r.debit?fmt(r.debit):'—')+'</td><td style="color:#070">'+(r.credit?fmt(r.credit):'—')+'</td>'
+      +'<td><b>'+(r.info?'—':fmt(r.balance))+'</b></td><td>'+(r.status||'')+'</td></tr>';
+  }).join('');
+  w.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>كشف حساب — '+client+'</title>'
+    +'<style>body{font-family:Tahoma,Arial;padding:24px;color:#111}h2{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border:1px solid #ccc;padding:6px;font-size:11px;text-align:right}th{background:#0B1E3D;color:#fff}.sum{display:flex;gap:18px;margin-top:10px;font-size:13px}</style></head><body>'
+    +'<h2>كشف حساب عميل</h2><div>'+client+'</div>'
+    +'<div style="color:#666;font-size:11px">الفترة: '+(window._stmtFrom||'الكل')+' → '+(window._stmtTo||'الآن')+' | تاريخ الإصدار: '+new Date().toLocaleDateString('ar-SA')+'</div>'
+    +'<div class="sum"><div>إجمالي الفواتير: <b>SAR '+fmt(totInv)+'</b></div><div>المدفوعات: <b>SAR '+fmt(totPaid)+'</b></div><div>الرصيد المستحق: <b style="color:'+((totInv-totPaid)>0?'#a00':'#070')+'">SAR '+fmt(totInv-totPaid)+'</b></div></div>'
+    +'<table><thead><tr><th>التاريخ</th><th>رقم المستند</th><th>النوع</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th><th>الحالة</th></tr></thead><tbody>'+trs+'</tbody></table>'
+    +'</body></html>');
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 400);
+}
+
 function renderFinanceSystem(){
   const pg = document.getElementById('page-finance');
   if(!pg) return;
@@ -12884,6 +13047,7 @@ function renderFinanceSystem(){
     {key:'expenses', label:t('💸 المصروفات','💸 Expenses')},
     {key:'monthly',  label:t('📅 تقرير شهري','📅 Monthly')},
     {key:'quarterly',label:t('📈 ربع سنوي','📈 Quarterly')},
+    {key:'statement',label:t('🧾 كشف حساب عميل','🧾 Statement')},
   ];
   const tabBar = document.createElement('div');
   tabBar.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap';
@@ -12903,6 +13067,7 @@ function renderFinanceSystem(){
     else if(sub==='expenses')  renderFinExpenses(body);
     else if(sub==='monthly')   renderFinMonthly(body);
     else if(sub==='quarterly') renderFinQuarterly(body);
+    else if(sub==='statement') renderCustomerStatement(body);
     else renderFinDashboard(body);
   } catch(e){
     body.innerHTML = '<div style="background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:10px;padding:20px;text-align:center"><div style="color:#E74C3C">⚠️ '+e.message+'</div></div>';
