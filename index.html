@@ -8741,6 +8741,7 @@ function getPromData(pageId){
 }
 function savePromData(pageId, extra){
   localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(extra));
+  save(); // Push to Firebase immediately — was previously LOCAL-ONLY (root cause of no-sync)
 }
 
 let _promSearch = {};
@@ -8857,10 +8858,10 @@ function confirmPromDelete(pageId, globalIdx){
   if(!confirm(msg)) return;
 
   if(isBuiltin){
-    // Mark as hidden
     const hidden = JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pageId)||'[]');
     if(!hidden.includes(globalIdx)) hidden.push(globalIdx);
     localStorage.setItem('tf4_prom_hidden_'+pageId, JSON.stringify(hidden));
+    save();
   } else {
     const localIdx = globalIdx - (PROM_DATA_BUILTIN[pageId]||[]).length;
     const local = JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]');
