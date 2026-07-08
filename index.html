@@ -6311,6 +6311,70 @@ function checkExpiringCertificates(){
 //  EXECUTIVE DASHBOARD — Real-Time Analytics
 // ════════════════════════════════════════════════════════════
 
+
+// ════════════════════════════════════════════
+//  ONE-TIME: Reset the Trainees section ONLY
+//  Uses a PARTIAL Firebase PATCH — touches ONLY the 7 prom_* pages.
+//  Every other field (quotes, invoices, clients, income, expenses,
+//  trainers, sessions, activities, reports, permissions, users) is
+//  never read, never sent, never touched.
+// ════════════════════════════════════════════
+async function resetTraineesSection(){
+  if(!CU || CU.dept!=='ops'){ showSuccessToast('⚠️ لمدير التشغيل فقط'); return; }
+  if(!confirm('⚠️ هذا سيحذف نهائياً جميع بيانات قسم المتدربين (7 صفحات) من Firebase.\nلن يتأثر أي قسم آخر (عملاء/فواتير/عروض/جداول/إيرادات...).\nهل أنت متأكد؟')) return;
+  if(!confirm('تأكيد أخير: سيتم مسح TEST, Training, Safety, WPR, First Aid, OSHA, Development بالكامل. لا يمكن التراجع. متابعة؟')) return;
+
+  showSuccessToast('⏳ جاري التنظيف...');
+  var PIDS = ['prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev'];
+  var patch = {};
+  try {
+    var remote = {};
+    var resp = await firebaseFetch('/data.json');
+    if(resp && resp.ok) remote = (await resp.json()) || {};
+
+    PIDS.forEach(function(pid){
+      var builtinLen = (PROM_DATA_BUILTIN[pid]||[]).length;
+      var allHidden = [];
+      for(var i=0;i<builtinLen;i++) allHidden.push(i);
+
+      // Tombstone any leftover "ghost" records currently sitting in Firebase's copy
+      // of this page, so they can never resurface via a future sync merge.
+      var remoteLocal = remote[pid] || [];
+      var delIds = remoteLocal.map(function(r){ return promContentId(r); });
+
+      patch[pid] = [];
+      patch[pid+'_hidden'] = allHidden;
+      patch[pid+'_overrides'] = {};
+      patch[pid+'_deleted'] = delIds;
+
+      // Clear local copies too
+      localStorage.setItem('tf4_prom_'+pid, '[]');
+      localStorage.setItem('tf4_prom_hidden_'+pid, JSON.stringify(allHidden));
+      localStorage.setItem('tf4_prom_overrides_'+pid, '{}');
+      localStorage.setItem('tf4_prom_deleted_'+pid, JSON.stringify(delIds));
+    });
+
+    var patchResp = await firebaseFetch('/data.json', {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(patch)
+    });
+
+    if(patchResp && patchResp.ok){
+      showSuccessToast('✅ تم تنظيف قسم المتدربين بالكامل — 7 صفحات فارغة وجاهزة');
+      console.log('✅ Trainees section reset confirmed by Firebase. Patched keys:', Object.keys(patch));
+    } else {
+      showSuccessToast('⚠️ فشل الحذف على السيرفر — حاول مجدداً');
+      console.error('Reset PATCH failed:', patchResp ? patchResp.status : 'no response');
+    }
+  } catch(e){
+    console.error('Reset error:', e.message);
+    showSuccessToast('⚠️ خطأ: '+e.message);
+  }
+
+  renderPromPage(window.activePage && window.activePage.startsWith('prom_') ? window.activePage : 'prom_test');
+}
+
 function renderReportsPage(){
   var sc = document.getElementById('page-reports');
   if(!sc) return;
@@ -8971,8 +9035,9 @@ function renderPromPage(pageId){
 
   // ── Delete-all (filtered) button ──
   const delAllBar = document.createElement('div');
-  delAllBar.style.cssText = 'display:flex;justify-content:flex-end;margin-top:6px';
-  delAllBar.innerHTML = '<button onclick="deleteAllPromFiltered(\''+pageId+'\')" style="background:rgba(192,57,43,.12);border:1px solid rgba(192,57,43,.3);border-radius:7px;color:#E74C3C;padding:5px 12px;cursor:pointer;font-size:10px;font-family:inherit">🗑️ '+t('حذف كل النتائج','Delete All Results')+'</button>';
+  delAllBar.style.cssText = 'display:flex;justify-content:flex-end;gap:6px;margin-top:6px';
+  delAllBar.innerHTML = '<button onclick="deleteAllPromFiltered(\''+pageId+'\')" style="background:rgba(192,57,43,.12);border:1px solid rgba(192,57,43,.3);border-radius:7px;color:#E74C3C;padding:5px 12px;cursor:pointer;font-size:10px;font-family:inherit">🗑️ '+t('حذف كل النتائج','Delete All Results')+'</button>'
+    +(CU&&CU.dept==='ops'?'<button onclick="resetTraineesSection()" style="background:rgba(192,57,43,.25);border:1px solid #C0392B;border-radius:7px;color:#fff;padding:5px 12px;cursor:pointer;font-size:10px;font-family:inherit;font-weight:700">♻️ '+t('تصفير قسم المتدربين بالكامل','Reset Entire Trainees Section')+'</button>':'');
   wrap.appendChild(delAllBar);
 
   // ── Table ──
