@@ -8813,12 +8813,23 @@ function promCleanMerge(pid, a, b, delIds){
   (PROM_DATA_BUILTIN[pid]||[]).forEach(function(x){ bset[promContentId(x)]=1; });
   var delSet = {};
   (delIds||[]).forEach(function(id){ delSet[id]=1; });
-  var seen={}, out=[];
-  (a||[]).concat(b||[]).forEach(function(rec){
+  var out = [];
+  var fromA = {}; // fingerprints already kept from 'a' (local) — used ONLY to detect
+                   // the SAME record re-appearing in 'b' (remote), never to collapse
+                   // two genuinely different rows within the same source array.
+  (a||[]).forEach(function(rec){
     if(!rec) return;
     var id = promContentId(rec);
-    if(bset[id] || delSet[id] || seen[id]) return;   // TOMBSTONE: real subtraction — catches ghost duplicates too
-    seen[id]=1; out.push(rec);
+    if(bset[id] || delSet[id]) return; // matches default seed data, or was explicitly deleted
+    fromA[id] = (fromA[id]||0) + 1;    // count occurrences, don't collapse
+    out.push(rec);
+  });
+  (b||[]).forEach(function(rec){
+    if(!rec) return;
+    var id = promContentId(rec);
+    if(bset[id] || delSet[id]) return;
+    if(fromA[id] > 0){ fromA[id]--; return; } // this exact record already came from 'a' — skip the duplicate copy
+    out.push(rec); // genuinely new from remote — keep, even if it happens to share content with another distinct row
   });
   return out;
 }
