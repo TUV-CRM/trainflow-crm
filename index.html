@@ -12041,43 +12041,20 @@ function renderPermissionsPage(){
 // ════════════════════════════════════════════
 
 // Permission keys for all sub-pages and actions
-const PERM_MAP = {
-  // Sales
-  'sales-ops':      {label:'عملية البيع',         section:'إدارة المبيعات'},
-  'sales-leads':    {label:'متابعة العملاء',       section:'إدارة المبيعات'},
-  'sales-quotes':   {label:'عروض الأسعار',         section:'إدارة المبيعات'},
-  'sales-invoices': {label:'الفواتير',              section:'إدارة المبيعات'},
-  'sales-daily':    {label:'نشاط اليوم',           section:'إدارة المبيعات'},
-  // Trainers
-  'trainers-list':  {label:'قائمة المدربين',       section:'إدارة المدربين'},
-  'trainers-perf':  {label:'أداء المدربين',        section:'إدارة المدربين'},
-  // Training
-  'training-sched': {label:'الجداول التدريبية',    section:'إدارة التدريب'},
-  'training-courses':{label:'الدورات والأسعار',    section:'إدارة التدريب'},
-  // Finance
-  'finance-main':   {label:'المالية',               section:'المالية'},
-  // Trainees
-  'trainees-main':  {label:'المتدربون',             section:'المتدربون'},
-  // Catalog
-  'catalog-main':   {label:'كتالوج الدورات',       section:'كتالوج الدورات'},
-  // Clients
-  'clients-main':   {label:'قائمة العملاء',        section:'عملاء المعهد'},
-  // Reports
-  'reports-dashboard':{label:'لوحة القيادة',       section:'التقارير'},
-  'reports-revenue': {label:'تقارير الإيرادات',    section:'التقارير'},
-  'reports-occupancy':{label:'نسب الإشغال',        section:'التقارير'},
-  'reports-clients': {label:'تقارير العملاء',      section:'التقارير'},
-  'reports-collection':{label:'تقارير التحصيل',    section:'التقارير'},
-  'reports-export':  {label:'تصدير البيانات',      section:'التقارير'},
-  // Prometric pages
-  'prom_test':      {label:'TEST',            section:'المتدربون'},
-  'prom_training':  {label:'TRAINING',        section:'المتدربون'},
-  'prom_safety':    {label:'SAFETY COURSES',        section:'المتدربون'},
-  'prom_wpr':       {label:'WPR',                   section:'المتدربون'},
-  'prom_firstaid':  {label:'FIRST AID & BLS',       section:'المتدربون'},
-  'prom_osha':      {label:'OSHA',                  section:'المتدربون'},
-  'prom_dev':       {label:'Development Courses',   section:'المتدربون'},
-};
+const PERM_MAP = (function(){
+  // Built directly from NAV — guarantees every checkbox key in the Permissions
+  // editor EXACTLY matches the key the sidebar/router actually checks. No more
+  // hand-maintained duplicate list that can drift out of sync (root cause of the
+  // 'training-sched' vs 'training-schedule' bug, and the prom_x vs prom-x bug).
+  var map = {};
+  NAV.forEach(function(sec){
+    if(sec.key==='ops') return; // Ops section is always full-access for ops role only
+    (sec.children||[]).forEach(function(ch){
+      map[ch.key] = {label: ch.label, section: sec.label};
+    });
+  });
+  return map;
+})();
 
 // Action permissions: add, edit, delete per page
 
@@ -12127,12 +12104,30 @@ function applyUserPermissions(){
     console.log('Permissions applied for', CU.name, ':', CU.pages);
   }
 }
+var PERM_KEY_MIGRATION = {
+  'training-sched': 'training-schedule',
+  'finance-main': 'finance-dashboard',
+  'trainees-main': 'prom-test',
+  'prom_test':'prom-test','prom_training':'prom-training','prom_safety':'prom-safety',
+  'prom_wpr':'prom-wpr','prom_firstaid':'prom-firstaid','prom_osha':'prom-osha','prom_dev':'prom-dev'
+};
 function getUserPerms(userId){
   var allPerms = JSON.parse(localStorage.getItem('tf4_user_perms')||'{}');
   var perms = allPerms[userId] || null;
   if(perms){
     if(!perms.pages) perms.pages = [];
     if(!perms.actions) perms.actions = {};
+    // One-time silent migration of legacy mismatched keys to their correct NAV key
+    var migrated = false;
+    perms.pages = perms.pages.map(function(k){
+      if(PERM_KEY_MIGRATION[k]){ migrated = true; return PERM_KEY_MIGRATION[k]; }
+      return k;
+    });
+    perms.pages = Array.from(new Set(perms.pages));
+    if(migrated){
+      allPerms[userId] = perms;
+      localStorage.setItem('tf4_user_perms', JSON.stringify(allPerms));
+    }
   }
   return perms;
 }
