@@ -1987,7 +1987,7 @@ function showDenied(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const pg=document.getElementById('page-'+page)||document.getElementById('page-ops');
   pg.classList.add('active');
-  pg.innerHTML=`<div class="denied"><div style="font-size:48px">🔒</div><h2 style="color:#F5F7FA;font-family:'Playfair Display',serif">غير مصرح</h2><p>ليس لديك صلاحية لهذا القسم</p></div>`;
+  pg.innerHTML=`<div class="denied"><div style="font-size:48px">🔒</div><h2 style="color:#F5F7FA;font-family:'Playfair Display',serif">غير مصرح</h2><p>ليس لديك صلاحية لهذا القسم</p><p style="color:#6A85A5;font-size:11px;margin-top:8px">اطلب من مدير التشغيل تفعيل هذه الصلاحية، أو نفّذ debugMyPermissions() في Console لمعرفة التفاصيل</p></div>`;
 }
 function renderPage(p){
   if(p==='ops')      renderOps();
@@ -12081,6 +12081,22 @@ const PERM_MAP = {
 
 // Action permissions: add, edit, delete per page
 
+function debugMyPermissions(){
+  if(!CU){ console.log('لا يوجد مستخدم مسجل دخول'); return; }
+  var perms = getUserPerms(CU.id);
+  console.log('══ تشخيص صلاحيات:', CU.name, '══');
+  console.log('القسم:', CU.dept, '(ops = يرى كل شيء دائماً)');
+  console.log('الصلاحيات المخصصة المحفوظة (raw):', perms ? perms.pages : 'لا يوجد — يستخدم الإعدادات الافتراضية');
+  console.log('CU.pages بعد التطبيق:', CU.pages);
+  if(typeof NAV !== 'undefined'){
+    NAV.forEach(function(sec){
+      (sec.children||[]).forEach(function(ch){
+        var has = CU.dept==='ops' || (perms && perms.pages && perms.pages.includes(ch.key)) || (!perms || !perms.pages || !perms.pages.length);
+        console.log('  '+(has?'✅':'❌')+' ['+sec.label+'] '+ch.label+'  (key: '+ch.key+')');
+      });
+    });
+  }
+}
 function applyUserPermissions(){
   if(!CU) return;
   if(CU.dept==='ops') return; // Admin always has full access
