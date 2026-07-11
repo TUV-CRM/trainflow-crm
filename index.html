@@ -1206,6 +1206,7 @@ function smartMerge(localArr, remoteArr){
 
 
 async function loadFromGist(){
+  console.log('🔄 [loadFromGist بدأت]', CU?CU.name:'(قبل تسجيل الدخول)', new Date().toLocaleTimeString());
   try {
     showSyncIndicator('loading');
     var resp = await firebaseFetch('/data.json');
@@ -1292,7 +1293,7 @@ async function loadFromGist(){
       });
     }
     if(data['prom_test_deleted']){ var _pd_prom_test=Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]').concat(data['prom_test_deleted']))); localStorage.setItem('tf4_prom_deleted_prom_test', JSON.stringify(_pd_prom_test)); }
-    if(data['prom_test']){ var _pdel_prom_test=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]'); localStorage.setItem('tf4_prom_prom_test', JSON.stringify(promCleanMerge('prom_test', promEnsureIds('prom_test', JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]')), data['prom_test'], _pdel_prom_test))); }
+    if(data['prom_test']){ var _pdel_prom_test=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]'); var _before_pt=JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]').length; var _merged_pt=promCleanMerge('prom_test', JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'), data['prom_test'], _pdel_prom_test); localStorage.setItem('tf4_prom_prom_test', JSON.stringify(_merged_pt)); console.log('📥 [مزامنة] prom_test | المستخدم:', CU?CU.name:'-', '| من Firebase:', (data['prom_test']||[]).length, '| محلي قبل:', _before_pt, '| بعد الدمج:', _merged_pt.length); }
     if(data['prom_test_overrides']) localStorage.setItem('tf4_prom_overrides_prom_test', JSON.stringify(Object.assign({}, data['prom_test_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_test')||'{}'))));
     if(data['prom_test_hidden']) localStorage.setItem('tf4_prom_hidden_prom_test', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_test')||'[]').concat(data['prom_test_hidden'])))));
     if(data['prom_training_deleted']){ var _pd_prom_training=Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_training')||'[]').concat(data['prom_training_deleted']))); localStorage.setItem('tf4_prom_deleted_prom_training', JSON.stringify(_pd_prom_training)); }
