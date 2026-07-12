@@ -677,7 +677,7 @@ async function firebaseAuth(){
     var data = await resp.json();
     if(data.idToken){
       FIREBASE_AUTH_TOKEN = data.idToken;
-      console.log('✅ Firebase authenticated — TrainFlow v7.3 (prom-sync build)');
+      console.log('✅ Firebase authenticated — TrainFlow v7.12 (verified build)');
       return true;
     }
     console.warn('Firebase auth failed:', data.error);
@@ -12059,6 +12059,36 @@ const PERM_MAP = (function(){
 
 // Action permissions: add, edit, delete per page
 
+async function debugPromSync(pageId){
+  pageId = pageId || 'prom_test';
+  console.log('════ تشخيص مزامنة: '+pageId+' ════');
+  console.log('المستخدم الحالي:', CU?CU.name:'(غير مسجل دخول)', '| القسم:', CU?CU.dept:'-');
+  console.log('هل يملك صلاحية الصفحة؟', CU && CU.pages ? CU.pages.includes(pageId) : '-');
+  var localArr = JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]');
+  var hiddenArr = JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pageId)||'[]');
+  var builtinLen = (PROM_DATA_BUILTIN[pageId]||[]).length;
+  console.log('── من المتصفح (localStorage) ──');
+  console.log('  سجلات محلية مضافة:', localArr.length);
+  console.log('  سجلات افتراضية مخفية:', hiddenArr.length, '/', builtinLen);
+  console.log('  الإجمالي المعروض حالياً في الصفحة:', getPromData(pageId).length);
+  console.log('── من Firebase مباشرة (الآن، لحظياً) ──');
+  try {
+    var resp = await firebaseFetch('/data/'+pageId+'.json');
+    if(resp && resp.ok){
+      var remote = await resp.json();
+      console.log('  حالة الاتصال: نجح (HTTP '+resp.status+')');
+      console.log('  عدد السجلات في Firebase لهذه الصفحة:', (remote||[]).length);
+    } else {
+      console.log('  ⚠️ فشل الاتصال — HTTP', resp?resp.status:'?');
+    }
+    var respH = await firebaseFetch('/data/'+pageId+'_hidden.json');
+    var remoteH = respH && respH.ok ? await respH.json() : null;
+    console.log('  عدد المخفي في Firebase:', (remoteH||[]).length);
+  } catch(e){
+    console.log('  ⚠️ خطأ في الاتصال بـ Firebase:', e.message);
+  }
+  console.log('════════════════════════════');
+}
 function debugMyPermissions(){
   if(!CU){ console.log('لا يوجد مستخدم مسجل دخول'); return; }
   var perms = getUserPerms(CU.id);
