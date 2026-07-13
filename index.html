@@ -8303,9 +8303,11 @@ function getFinanceTab(){
 // ════════════════════════════════════════════
 
 function deleteInvoice(invId){
+  if(!CU || CU.dept!=='ops'){ showSuccessToast('⚠️ حذف الفواتير متاح لمدير التشغيل فقط'); return; }
   var inv = (DB.invoices||[]).find(function(x){return x.id===invId});
-  if(!inv) return;
-  if(!confirm(isAR()?'حذف الفاتورة "'+inv.client+'"؟':'Delete "'+inv.client+'"?')) return;
+  if(!inv){ showSuccessToast('⚠️ لم يتم العثور على الفاتورة'); return; }
+  var invNo = inv.invoiceNumber||inv.id;
+  if(!confirm('⚠️ حذف الفاتورة رقم '+invNo+'\nالعميل: '+(inv.client||'—')+'\nالقيمة: SAR '+fmt(inv.amount||0)+'\nالموظف: '+(inv.salesPerson||inv.createdBy||'—')+'\n\nالحذف نهائي ولن تعود بعد المزامنة. متابعة؟')) return;
   DB.invoices = DB.invoices.filter(function(x){return x.id!==invId});
   ss('invoices', DB.invoices);
   var deleted = JSON.parse(localStorage.getItem('tf4_deleted_invoices')||'[]');
@@ -8666,7 +8668,7 @@ function renderFinance(){
             <div style="display:flex;gap:5px">
               <button onclick="exportInvoicePDF(${i})" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:6px;color:#E74C3C;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer">📄 PDF</button>
               <button onclick="openEditInvoice(${i})" style="width:26px;height:26px;border-radius:6px;background:rgba(26,122,138,.2);border:1px solid rgba(26,122,138,.3);color:#23A0B5;cursor:pointer">✏️</button>
-              <button onclick="deleteInvoice(${i})" style="width:26px;height:26px;border-radius:6px;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:#E74C3C;cursor:pointer">🗑</button>
+              ${(CU&&CU.dept==='ops')?`<button onclick="deleteInvoice('${inv.id}')" style="width:26px;height:26px;border-radius:6px;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:#E74C3C;cursor:pointer">🗑</button>`:''}
               ${bal>0?('<button class="btn btn-sm" style="background:rgba(201,168,76,.2);color:#C9A84C;border:1px solid rgba(201,168,76,.3)" onclick="collectPayment('+i+')">'+(isAR()?'تحصيل':'Collect')+'</button>'):''}
             </div>
           </td>
@@ -12658,7 +12660,7 @@ function renderInvoicesTab(sc){
         +(inv.status!=='متأخر'?'<button onclick="updateInvStatus(\''+invId+'\',\'متأخر\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">متأخر</button>':'')
         +(inv.status!=='معلق'?'<button onclick="updateInvStatus(\''+invId+'\',\'معلق\')" style="background:rgba(106,133,165,.15);border:1px solid rgba(106,133,165,.3);border-radius:4px;color:#6A85A5;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">معلق</button>':'')
         +'<button onclick="openInvoiceModal(\''+invId+'\')" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:4px;color:#C9A84C;padding:2px 5px;cursor:pointer;font-size:8px;font-family:inherit">✏️</button>'
-        +'<button onclick="deleteInvoice(\''+invId+'\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px">🗑️</button>'
+        +((CU&&CU.dept==='ops')?'<button onclick="deleteInvoice(\''+invId+'\')" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#C0392B;padding:2px 5px;cursor:pointer;font-size:8px">🗑️</button>':'')
         +'</div></td></tr>';
     }).join('') : '<tr><td colspan="10" style="text-align:center;padding:30px;color:#6A85A5">'+t('لا توجد فواتير','No invoices')+'</td></tr>')
     +'</tbody></table>';
@@ -13054,14 +13056,7 @@ function editInvoiceStatus(idx){
   openInvoiceModal(idx);
 }
 
-function deleteInvoice(idx){
-  if(!confirm(isAR()?'حذف هذه الفاتورة؟':'Delete this invoice?'))return;
-  DB.invoices.splice(idx,1);
-  ss('invoices',DB.invoices);
-  save();
-  showSuccessToast('✅ '+(isAR()?'تم الحذف':'Deleted'));
-  renderSales();
-}
+
 
 
 // ════════════════════════════════════════════
