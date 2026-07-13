@@ -1115,6 +1115,7 @@ async function save(){
         return { income: mergeFin(localFd.income, remoteFd.income), expenses: mergeFin(localFd.expenses, remoteFd.expenses) };
       })(),
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
+      salesTargets:    Object.assign({}, remote.salesTargets||{}, JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}')),
       dailyReports:    mergeArrays(JSON.parse(localStorage.getItem('tf4_daily')||'[]'), remote.dailyReports, []),
       trainees:        mergeArrays(DB.trainees||[], remote.trainees, []),
       trainers:        mergeArrays(DB.trainers||[], remote.trainers, []),
@@ -1261,6 +1262,7 @@ async function loadFromGist(){
       localStorage.setItem('tf4_finance', JSON.stringify(_mergedFd));
     }
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
+    if(data.salesTargets) localStorage.setItem('tf4_sales_targets', JSON.stringify(Object.assign({}, data.salesTargets, JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}'))));
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
     if(data.trainees){
       var localTe = DB.trainees || [];
@@ -13454,6 +13456,159 @@ function printStatement(){
   setTimeout(function(){ w.print(); }, 400);
 }
 
+
+// ════════════════════════════════════════════
+//  SALES TARGETS REPORT (ops-only) — monthly achieved vs target per salesperson
+// ════════════════════════════════════════════
+function getSalesTargets(){ return JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}'); }
+function setSalesTarget(monthKey, emp, val){
+  var t2 = getSalesTargets();
+  if(!t2[monthKey]) t2[monthKey] = {};
+  t2[monthKey][emp] = parseFloat(val)||0;
+  localStorage.setItem('tf4_sales_targets', JSON.stringify(t2));
+  save();
+}
+function computeTargetRows(monthKey){
+  var emps = [];
+  (typeof USERS!=='undefined'?USERS:[]).forEach(function(u){ if(u.dept==='sales') emps.push(u.name); });
+  (DB.invoices||[]).forEach(function(inv){ var n=inv.salesPerson||inv.createdBy; if(n && emps.indexOf(n)<0 && n!=='حسين القصبي') emps.push(n); });
+  var targets = getSalesTargets()[monthKey] || {};
+  var quotes = lsQuotes();
+  return emps.map(function(emp){
+    var invs = (DB.invoices||[]).filter(function(i){ return (i.salesPerson||i.createdBy)===emp && ((i.invoiceDate||i.date||'').slice(0,7)===monthKey); });
+    var invoiced = invs.reduce(function(s,i){ return s+(i.amount||0); },0);
+    var collected = invs.reduce(function(s,i){ return s+(i.status==='مدفوع'?(i.amount||0):(i.paidAmount||0)); },0);
+    var qs = quotes.filter(function(q){ return (q.salesperson||q.createdBy)===emp && ((q.createdAt||q.date||'').slice(0,7)===monthKey); });
+    var accepted = qs.filter(function(q){ return q.status==='مقبول'||q.status==='accepted'; }).length;
+    var target = targets[emp]||0;
+    var pct = target>0 ? Math.round((invoiced/target)*100) : 0;
+    return {emp:emp, target:target, invoiced:invoiced, collected:collected, invCount:invs.length, quotes:qs.length, accepted:accepted, pct:pct};
+  });
+}
+function renderSalesTargets(el){
+  var now = new Date();
+  var y = window._tgYear || String(now.getFullYear());
+  var m = window._tgMonth || String(now.getMonth()+1).padStart(2,'0');
+  var monthKey = y+'-'+m;
+  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+
+  el.innerHTML = '';
+  var bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px';
+  var mOpts='';
+  for(var i=0;i<12;i++){var v=String(i+1).padStart(2,'0');mOpts+='<option value="'+v+'"'+(m===v?' selected':'')+'>'+mNames[i]+'</option>';}
+  var yOpts='';
+  ['2025','2026','2027'].forEach(function(yy){ yOpts+='<option value="'+yy+'"'+(y===yy?' selected':'')+'>'+yy+'</option>'; });
+  bar.innerHTML = '<span style="color:#C9A84C;font-weight:800;font-size:13px">🎯 '+t('تقرير التارجت الشهري','Monthly Targets Report')+'</span>'
+    +'<select class="fc" style="font-size:11px" onchange="window._tgMonth=this.value;renderFinanceSystem()">'+mOpts+'</select>'
+    +'<select class="fc" style="font-size:11px" onchange="window._tgYear=this.value;renderFinanceSystem()">'+yOpts+'</select>'
+    +'<div style="margin-right:auto;display:flex;gap:6px">'
+    +'<button onclick="exportTargetsExcel()" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">📊 Excel</button>'
+    +'<button onclick="printTargetsReport()" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:6px;color:#9B59B6;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">🖨️ '+t('تقرير للإدارة العليا','Executive PDF')+'</button>'
+    +'</div>';
+  el.appendChild(bar);
+
+  var rows = computeTargetRows(monthKey);
+  var totT=0, totI=0, totC=0;
+  rows.forEach(function(r){ totT+=r.target; totI+=r.invoiced; totC+=r.collected; });
+  var totPct = totT>0 ? Math.round((totI/totT)*100) : 0;
+
+  // Summary KPIs
+  var k = document.createElement('div');
+  k.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px';
+  [[t('التارجت الإجمالي','Total Target'),'SAR '+fmt(totT),'#C9A84C'],
+   [t('المبيعات المحققة','Achieved'),'SAR '+fmt(totI),'#23A0B5'],
+   [t('المحصّل فعلياً','Collected'),'SAR '+fmt(totC),'#1A8A5A'],
+   [t('نسبة تحقيق الفريق','Team Achievement'),totPct+'%',totPct>=100?'#1A8A5A':(totPct>=70?'#C9A84C':'#C0392B')]].forEach(function(x){
+    k.innerHTML += '<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+x[0]+'</div><div style="color:'+x[2]+';font-size:16px;font-weight:800;font-family:monospace">'+x[1]+'</div></div>';
+  });
+  el.appendChild(k);
+
+  // Per-employee table
+  var tbl = document.createElement('div');
+  tbl.style.cssText = 'background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow-x:auto;margin-top:12px';
+  var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+    +[t('الموظف','Employee'),t('التارجت (SAR)','Target'),t('المبيعات المحققة','Achieved'),t('المحصّل','Collected'),t('نسبة التحقيق','%'),t('التقدم','Progress'),t('فواتير','Inv'),t('عروض','Quotes'),t('مقبول','Won')].map(function(h){return '<th style="padding:9px;color:#6A85A5;font-size:10px;text-align:right;white-space:nowrap">'+h+'</th>'}).join('')
+    +'</tr></thead><tbody>';
+  rows.forEach(function(r){
+    var col = r.pct>=100?'#1A8A5A':(r.pct>=70?'#C9A84C':'#C0392B');
+    var badge = r.pct>=100?t('حقق التارجت ✓','Target ✓'):(r.pct>=70?t('قريب','Close'):t('أقل من المطلوب','Below'));
+    html += '<tr style="border-top:1px solid rgba(26,46,74,.4)">'
+      +'<td style="padding:8px;color:#F5F7FA;font-size:12px;font-weight:700">'+r.emp+'</td>'
+      +'<td style="padding:8px"><input type="number" value="'+r.target+'" onchange="setSalesTarget(\''+monthKey+'\',\''+r.emp.replace(/'/g,"\\'")+'\',this.value);renderFinanceSystem()" class="fc" style="width:110px;font-size:11px;font-family:monospace"/></td>'
+      +'<td style="padding:8px;color:#23A0B5;font-size:12px;font-family:monospace;font-weight:700">'+fmt(r.invoiced)+'</td>'
+      +'<td style="padding:8px;color:#1A8A5A;font-size:11px;font-family:monospace">'+fmt(r.collected)+'</td>'
+      +'<td style="padding:8px;color:'+col+';font-size:13px;font-weight:800;font-family:monospace">'+r.pct+'%</td>'
+      +'<td style="padding:8px;min-width:140px"><div style="background:#0B1E3D;border-radius:6px;height:14px;overflow:hidden;position:relative"><div style="background:'+col+';height:100%;width:'+Math.min(r.pct,100)+'%;border-radius:6px;transition:width .3s"></div></div><div style="color:'+col+';font-size:8px;margin-top:2px">'+badge+'</div></td>'
+      +'<td style="padding:8px;color:#8BABC9;font-size:11px;text-align:center">'+r.invCount+'</td>'
+      +'<td style="padding:8px;color:#8BABC9;font-size:11px;text-align:center">'+r.quotes+'</td>'
+      +'<td style="padding:8px;color:#1A8A5A;font-size:11px;text-align:center">'+r.accepted+'</td>'
+      +'</tr>';
+  });
+  html += '</tbody></table>';
+  tbl.innerHTML = html;
+  el.appendChild(tbl);
+
+  var note = document.createElement('div');
+  note.style.cssText = 'color:#3A5070;font-size:10px;margin-top:8px';
+  note.textContent = t('💡 عدّل التارجت مباشرة في الجدول — يُحفظ ويُزامن تلقائياً. المبيعات المحققة = إجمالي فواتير الموظف بتاريخ الشهر المحدد.','Edit targets inline — auto-saved & synced.');
+  el.appendChild(note);
+}
+function exportTargetsExcel(){
+  var y = window._tgYear || String(new Date().getFullYear());
+  var m = window._tgMonth || String(new Date().getMonth()+1).padStart(2,'0');
+  var monthKey = y+'-'+m;
+  var rows = computeTargetRows(monthKey);
+  var aoa = [[ 'تقرير التارجت الشهري — معهد TUV التدريبي'],['الشهر', monthKey],[''],
+    ['الموظف','التارجت','المبيعات المحققة','المحصّل','نسبة التحقيق %','عدد الفواتير','عروض الأسعار','المقبول']];
+  rows.forEach(function(r){ aoa.push([r.emp, r.target, r.invoiced, r.collected, r.pct, r.invCount, r.quotes, r.accepted]); });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Targets');
+  XLSX.writeFile(wb, 'Sales_Targets_'+monthKey+'.xlsx');
+  showSuccessToast('📊 تم التصدير');
+}
+function printTargetsReport(){
+  var y = window._tgYear || String(new Date().getFullYear());
+  var m = window._tgMonth || String(new Date().getMonth()+1).padStart(2,'0');
+  var monthKey = y+'-'+m;
+  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var monthName = mNames[parseInt(m)-1]+' '+y;
+  var rows = computeTargetRows(monthKey);
+  var totT=0, totI=0, totC=0;
+  rows.forEach(function(r){ totT+=r.target; totI+=r.invoiced; totC+=r.collected; });
+  var totPct = totT>0 ? Math.round((totI/totT)*100) : 0;
+  var trs = rows.map(function(r,i){
+    var col = r.pct>=100?'#1A8A5A':(r.pct>=70?'#B7950B':'#C0392B');
+    return '<tr><td>'+(i+1)+'</td><td style="text-align:right;font-weight:700">'+r.emp+'</td>'
+      +'<td>'+fmt(r.target)+'</td><td>'+fmt(r.invoiced)+'</td><td>'+fmt(r.collected)+'</td>'
+      +'<td style="color:'+col+';font-weight:800">'+r.pct+'%</td>'
+      +'<td><div style="background:#eee;border-radius:4px;height:12px;width:120px;margin:0 auto"><div style="background:'+col+';height:100%;border-radius:4px;width:'+Math.min(r.pct,100)+'%"></div></div></td>'
+      +'<td>'+r.invCount+'</td><td>'+r.accepted+'/'+r.quotes+'</td></tr>';
+  }).join('');
+  var w = window.open('','_blank');
+  w.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>تقرير التارجت — '+monthName+'</title>'
+    +'<style>body{font-family:Tahoma,Arial;padding:28px;color:#111}h1{margin:0;font-size:20px;color:#0B1E3D}'
+    +'.sub{color:#666;font-size:12px;margin-bottom:4px}.hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0B1E3D;padding-bottom:12px;margin-bottom:16px}'
+    +'.kpis{display:flex;gap:14px;margin:14px 0}.kpi{flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center}.kpi b{font-size:16px;display:block}'
+    +'table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ccc;padding:7px;font-size:11px;text-align:center}th{background:#0B1E3D;color:#fff}'
+    +'.sig{display:flex;justify-content:space-between;margin-top:40px}.sig div{text-align:center;width:200px;border-top:1px solid #999;padding-top:6px;font-size:11px;color:#555}</style></head><body>'
+    +'<div class="hdr"><div><h1>تقرير تحقيق التارجت الشهري</h1><div class="sub">معهد TUV التدريبي — إدارة المبيعات</div><div class="sub">الشهر: <b>'+monthName+'</b> | تاريخ الإصدار: '+new Date().toLocaleDateString('ar-SA')+'</div></div>'
+    +'<div style="font-weight:800;color:#0B1E3D;font-size:22px">TUV</div></div>'
+    +'<div class="kpis">'
+    +'<div class="kpi">التارجت الإجمالي<b>SAR '+fmt(totT)+'</b></div>'
+    +'<div class="kpi">المبيعات المحققة<b style="color:#23A0B5">SAR '+fmt(totI)+'</b></div>'
+    +'<div class="kpi">المحصّل فعلياً<b style="color:#1A8A5A">SAR '+fmt(totC)+'</b></div>'
+    +'<div class="kpi">نسبة تحقيق الفريق<b style="color:'+(totPct>=100?'#1A8A5A':(totPct>=70?'#B7950B':'#C0392B'))+'">'+totPct+'%</b></div>'
+    +'</div>'
+    +'<table><thead><tr><th>#</th><th>الموظف</th><th>التارجت (SAR)</th><th>المحقق (SAR)</th><th>المحصّل (SAR)</th><th>النسبة</th><th>التقدم</th><th>الفواتير</th><th>عروض مقبولة</th></tr></thead>'
+    +'<tbody>'+trs+'</tbody></table>'
+    +'<div class="sig"><div>مدير التشغيل</div><div>الإدارة العليا</div></div>'
+    +'</body></html>');
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 400);
+}
+
 function renderFinanceSystem(){
   const pg = document.getElementById('page-finance');
   if(!pg) return;
@@ -13478,6 +13633,7 @@ function renderFinanceSystem(){
     {key:'quarterly',label:t('📈 ربع سنوي','📈 Quarterly')},
     {key:'statement',label:t('🧾 كشف حساب عميل','🧾 Statement')},
   ];
+  if(CU && CU.dept==='ops') tabs.push({key:'targets', label:t('🎯 تقرير التارجت','🎯 Targets')});
   const tabBar = document.createElement('div');
   tabBar.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap';
   tabs.forEach(tab=>{
@@ -13497,6 +13653,7 @@ function renderFinanceSystem(){
     else if(sub==='monthly')   renderFinMonthly(body);
     else if(sub==='quarterly') renderFinQuarterly(body);
     else if(sub==='statement') renderCustomerStatement(body);
+    else if(sub==='targets'){ if(CU && CU.dept==='ops') renderSalesTargets(body); else body.innerHTML='<div style="text-align:center;padding:40px;color:#6A85A5">🔒 لمدير التشغيل فقط</div>'; }
     else renderFinDashboard(body);
   } catch(e){
     body.innerHTML = '<div style="background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:10px;padding:20px;text-align:center"><div style="color:#E74C3C">⚠️ '+e.message+'</div></div>';
