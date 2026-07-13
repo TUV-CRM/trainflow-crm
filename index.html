@@ -13489,6 +13489,10 @@ function renderSalesTargets(el){
   var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 
   el.innerHTML = '';
+  var selEmp = window._tgEmp || 'all';
+  var allRowsPre = computeTargetRows(monthKey);
+  var empOpts = '<option value="all"'+(selEmp==='all'?' selected':'')+'>'+t('كل الموظفين','All Employees')+'</option>'
+    + allRowsPre.map(function(r){ var e=r.emp.replace(/"/g,'&quot;'); return '<option value="'+e+'"'+(selEmp===r.emp?' selected':'')+'>'+r.emp+'</option>'; }).join('');
   var bar = document.createElement('div');
   bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px';
   var mOpts='';
@@ -13498,13 +13502,14 @@ function renderSalesTargets(el){
   bar.innerHTML = '<span style="color:#C9A84C;font-weight:800;font-size:13px">🎯 '+t('تقرير التارجت الشهري','Monthly Targets Report')+'</span>'
     +'<select class="fc" style="font-size:11px" onchange="window._tgMonth=this.value;renderFinanceSystem()">'+mOpts+'</select>'
     +'<select class="fc" style="font-size:11px" onchange="window._tgYear=this.value;renderFinanceSystem()">'+yOpts+'</select>'
+    +'<select class="fc" style="font-size:11px;min-width:130px" onchange="window._tgEmp=this.value;renderFinanceSystem()">'+empOpts+'</select>'
     +'<div style="margin-right:auto;display:flex;gap:6px">'
     +'<button onclick="exportTargetsExcel()" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">📊 Excel</button>'
     +'<button onclick="printTargetsReport()" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:6px;color:#9B59B6;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">🖨️ '+t('تقرير للإدارة العليا','Executive PDF')+'</button>'
     +'</div>';
   el.appendChild(bar);
 
-  var rows = computeTargetRows(monthKey);
+  var rows = allRowsPre.filter(function(r){ return selEmp==='all' || r.emp===selEmp; });
   var totT=0, totI=0, totC=0;
   rows.forEach(function(r){ totT+=r.target; totI+=r.invoiced; totC+=r.collected; });
   var totPct = totT>0 ? Math.round((totI/totT)*100) : 0;
@@ -13554,8 +13559,9 @@ function exportTargetsExcel(){
   var y = window._tgYear || String(new Date().getFullYear());
   var m = window._tgMonth || String(new Date().getMonth()+1).padStart(2,'0');
   var monthKey = y+'-'+m;
-  var rows = computeTargetRows(monthKey);
-  var aoa = [[ 'تقرير التارجت الشهري — معهد TUV التدريبي'],['الشهر', monthKey],[''],
+  var selEmp = window._tgEmp || 'all';
+  var rows = computeTargetRows(monthKey).filter(function(r){ return selEmp==='all' || r.emp===selEmp; });
+  var aoa = [[ 'تقرير التارجت الشهري — معهد TUV التدريبي'+(selEmp!=='all'?' — '+selEmp:'')],['الشهر', monthKey],[''],
     ['الموظف','التارجت','المبيعات المحققة','المحصّل','نسبة التحقيق %','عدد الفواتير','عروض الأسعار','المقبول']];
   rows.forEach(function(r){ aoa.push([r.emp, r.target, r.invoiced, r.collected, r.pct, r.invCount, r.quotes, r.accepted]); });
   var ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -13570,7 +13576,8 @@ function printTargetsReport(){
   var monthKey = y+'-'+m;
   var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
   var monthName = mNames[parseInt(m)-1]+' '+y;
-  var rows = computeTargetRows(monthKey);
+  var selEmp = window._tgEmp || 'all';
+  var rows = computeTargetRows(monthKey).filter(function(r){ return selEmp==='all' || r.emp===selEmp; });
   var totT=0, totI=0, totC=0;
   rows.forEach(function(r){ totT+=r.target; totI+=r.invoiced; totC+=r.collected; });
   var totPct = totT>0 ? Math.round((totI/totT)*100) : 0;
@@ -13589,7 +13596,7 @@ function printTargetsReport(){
     +'.kpis{display:flex;gap:14px;margin:14px 0}.kpi{flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center}.kpi b{font-size:16px;display:block}'
     +'table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ccc;padding:7px;font-size:11px;text-align:center}th{background:#0B1E3D;color:#fff}'
     +'.sig{display:flex;justify-content:space-between;margin-top:40px}.sig div{text-align:center;width:200px;border-top:1px solid #999;padding-top:6px;font-size:11px;color:#555}</style></head><body>'
-    +'<div class="hdr"><div><h1>تقرير تحقيق التارجت الشهري</h1><div class="sub">معهد TUV التدريبي — إدارة المبيعات</div><div class="sub">الشهر: <b>'+monthName+'</b> | تاريخ الإصدار: '+new Date().toLocaleDateString('ar-SA')+'</div></div>'
+    +'<div class="hdr"><div><h1>تقرير تحقيق التارجت الشهري'+(selEmp!=='all'?' — '+selEmp:'')+'</h1><div class="sub">معهد TUV التدريبي — إدارة المبيعات</div><div class="sub">'+(selEmp!=='all'?'الموظف: <b>'+selEmp+'</b> | ':'')+'الشهر: <b>'+monthName+'</b> | تاريخ الإصدار: '+new Date().toLocaleDateString('ar-SA')+'</div></div>'
     +'<div style="font-weight:800;color:#0B1E3D;font-size:22px">TUV</div></div>'
     +'<div class="kpis">'
     +'<div class="kpi">التارجت الإجمالي<b>SAR '+fmt(totT)+'</b></div>'
