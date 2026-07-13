@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.16</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.18</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -13567,8 +13567,67 @@ function exportTargetsExcel(){
   var ws = XLSX.utils.aoa_to_sheet(aoa);
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Targets');
+  // Sheet 2: full invoice details
+  var aoa2 = [['تفاصيل الفواتير — '+monthKey],[''],['الموظف','رقم الفاتورة','التاريخ','العميل','البيان','القيمة','المدفوع','المتبقي','الحالة']];
+  rows.forEach(function(r){
+    getEmpMonthInvoices(r.emp, monthKey).forEach(function(inv){
+      var paid = inv.status==='مدفوع' ? (inv.amount||0) : (inv.paidAmount||0);
+      aoa2.push([r.emp, inv.invoiceNumber||inv.id, (inv.invoiceDate||inv.date||'').slice(0,10), inv.client||'', inv.course||'', inv.amount||0, paid, (inv.amount||0)-paid, inv.status||'']);
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa2), 'Invoices');
   XLSX.writeFile(wb, 'Sales_Targets_'+monthKey+'.xlsx');
   showSuccessToast('📊 تم التصدير');
+}
+function getEmpMonthInvoices(emp, monthKey){
+  return (DB.invoices||[]).filter(function(i){
+    return (i.salesPerson||i.createdBy)===emp && ((i.invoiceDate||i.date||'').slice(0,7)===monthKey);
+  }).sort(function(a,b){ return (a.invoiceDate||a.date||'').localeCompare(b.invoiceDate||b.date||''); });
+}
+function buildInvoiceDetailsHTML(rows, monthKey){
+  var stMap = {'مدفوع':'st-paid','معلق':'st-pend','معتمد':'st-appr','متأخر':'st-late'};
+  var html = '<h2>📋 تفاصيل الفواتير الصادرة خلال الشهر</h2>';
+  var grandT=0, grandP=0, grandR=0, grandN=0;
+  rows.forEach(function(r){
+    var invs = getEmpMonthInvoices(r.emp, monthKey);
+    grandN += invs.length;
+    html += '<div class="emp-h"><span>👤 '+r.emp+'</span><span>'+invs.length+' فاتورة — إجمالي: SAR '+fmt(r.invoiced)+'</span></div>';
+    if(invs.length===0){
+      html += '<div style="color:#999;font-size:11px;padding:8px 12px;border:1px dashed #ddd;border-radius:6px">لا توجد فواتير صادرة لهذا الموظف خلال الشهر</div>';
+      return;
+    }
+    var sT=0, sP=0;
+    var trs2 = invs.map(function(inv, i2){
+      var paid = inv.status==='مدفوع' ? (inv.amount||0) : (inv.paidAmount||0);
+      var rem = (inv.amount||0) - paid;
+      sT += inv.amount||0; sP += paid;
+      var stCls = stMap[inv.status]||'st-pend';
+      var desc = inv.course || (inv.items||[]).map(function(x){return x.course}).join(' | ') || '—';
+      if(desc.length > 60) desc = desc.slice(0,57)+'...';
+      return '<tr><td>'+(i2+1)+'</td>'
+        +'<td style="font-family:monospace">'+(inv.invoiceNumber||inv.id)+'</td>'
+        +'<td>'+((inv.invoiceDate||inv.date||'').slice(0,10))+'</td>'
+        +'<td style="text-align:right;font-weight:700">'+(inv.client||'—')+'</td>'
+        +'<td style="text-align:right;font-size:10px">'+desc+'</td>'
+        +'<td style="font-family:monospace">'+fmt(inv.amount||0)+'</td>'
+        +'<td style="font-family:monospace;color:#1A8A5A">'+fmt(paid)+'</td>'
+        +'<td style="font-family:monospace;color:'+(rem>0?'#C0392B':'#1A8A5A')+'">'+fmt(rem)+'</td>'
+        +'<td><span class="st '+stCls+'">'+(inv.status||'—')+'</span></td></tr>';
+    }).join('');
+    grandT += sT; grandP += sP; grandR += (sT-sP);
+    html += '<table><thead><tr><th>#</th><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>البيان</th><th>القيمة (SAR)</th><th>المدفوع</th><th>المتبقي</th><th>الحالة</th></tr></thead>'
+      +'<tbody>'+trs2+'</tbody>'
+      +'<tfoot><tr><td colspan="5">إجمالي '+r.emp+'</td><td style="font-family:monospace">'+fmt(sT)+'</td><td style="font-family:monospace">'+fmt(sP)+'</td><td style="font-family:monospace">'+fmt(sT-sP)+'</td><td>—</td></tr></tfoot></table>';
+  });
+  if(rows.length > 1){
+    html += '<table style="margin-top:16px"><tbody><tr class="tot-row">'
+      +'<td>الإجمالي العام — '+grandN+' فاتورة</td>'
+      +'<td style="font-family:monospace">القيمة: '+fmt(grandT)+'</td>'
+      +'<td style="font-family:monospace">المحصّل: '+fmt(grandP)+'</td>'
+      +'<td style="font-family:monospace">المتبقي: '+fmt(grandR)+'</td>'
+      +'</tr></tbody></table>';
+  }
+  return html;
 }
 function printTargetsReport(){
   var y = window._tgYear || String(new Date().getFullYear());
@@ -13595,6 +13654,12 @@ function printTargetsReport(){
     +'.sub{color:#666;font-size:12px;margin-bottom:4px}.hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0B1E3D;padding-bottom:12px;margin-bottom:16px}'
     +'.kpis{display:flex;gap:14px;margin:14px 0}.kpi{flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center}.kpi b{font-size:16px;display:block}'
     +'table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ccc;padding:7px;font-size:11px;text-align:center}th{background:#0B1E3D;color:#fff}'
+    +'h2{font-size:14px;color:#0B1E3D;border-right:4px solid #C9A84C;padding-right:8px;margin:22px 0 4px}'
+    +'.emp-h{background:#F4F6FA;border:1px solid #ddd;border-radius:6px;padding:8px 12px;margin-top:18px;font-weight:800;font-size:13px;color:#0B1E3D;display:flex;justify-content:space-between}'
+    +'.st{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}'
+    +'.st-paid{background:#E8F6EF;color:#1A8A5A}.st-pend{background:#FDF6E3;color:#B7950B}.st-appr{background:#EAF4FB;color:#23A0B5}.st-late{background:#FDEDEC;color:#C0392B}'
+    +'.tot-row td{background:#0B1E3D;color:#fff;font-weight:800}'
+    +'tfoot td{background:#F4F6FA;font-weight:800}'
     +'.sig{display:flex;justify-content:space-between;margin-top:40px}.sig div{text-align:center;width:200px;border-top:1px solid #999;padding-top:6px;font-size:11px;color:#555}</style></head><body>'
     +'<div class="hdr"><div><h1>تقرير تحقيق التارجت الشهري'+(selEmp!=='all'?' — '+selEmp:'')+'</h1><div class="sub">معهد TUV التدريبي — إدارة المبيعات</div><div class="sub">'+(selEmp!=='all'?'الموظف: <b>'+selEmp+'</b> | ':'')+'الشهر: <b>'+monthName+'</b> | تاريخ الإصدار: '+new Date().toLocaleDateString('ar-SA')+'</div></div>'
     +'<div style="font-weight:800;color:#0B1E3D;font-size:22px">TUV</div></div>'
@@ -13606,7 +13671,9 @@ function printTargetsReport(){
     +'</div>'
     +'<table><thead><tr><th>#</th><th>الموظف</th><th>التارجت (SAR)</th><th>المحقق (SAR)</th><th>المحصّل (SAR)</th><th>النسبة</th><th>التقدم</th><th>الفواتير</th><th>عروض مقبولة</th></tr></thead>'
     +'<tbody>'+trs+'</tbody></table>'
+    +buildInvoiceDetailsHTML(rows, monthKey)
     +'<div class="sig"><div>مدير التشغيل</div><div>الإدارة العليا</div></div>'
+    +'<div style="margin-top:24px;color:#999;font-size:9px;text-align:center;border-top:1px solid #eee;padding-top:8px">تم إنشاء هذا التقرير آلياً من نظام TrainFlow CRM — معهد TUV التدريبي | '+new Date().toLocaleString('ar-SA')+'</div>'
     +'</body></html>');
   w.document.close();
   setTimeout(function(){ w.print(); }, 400);
