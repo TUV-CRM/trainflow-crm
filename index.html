@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.20</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.21</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -6382,6 +6382,267 @@ async function resetTraineesSection(){
   renderPromPage(window.activePage && window.activePage.startsWith('prom_') ? window.activePage : 'prom_test');
 }
 
+
+// ════════ BI REPORTS ENGINE — each report has its OWN data builder (lazy, cached) ════════
+window._repP = window._repP || {};
+window._repCache = window._repCache || {};
+window._repExpand = window._repExpand || {};
+function repRange(key){
+  var p = window._repP[key]||'month';
+  var today=new Date(); var iso=function(d){return d.toISOString().slice(0,10);};
+  var from='', to=iso(today);
+  if(p==='day') from=iso(today);
+  else if(p==='week'){var d=new Date(today);d.setDate(d.getDate()-6);from=iso(d);}
+  else if(p==='month') from=iso(today).slice(0,8)+'01';
+  else if(p==='year') from=today.getFullYear()+'-01-01';
+  else { from=''; to='9999-12-31'; }
+  return {from:from,to:to,label:{day:'اليوم',week:'هذا الأسبوع',month:'هذا الشهر',year:'هذه السنة',all:'كل الفترات'}[p]};
+}
+function repIn(d,r){ if(!d)return false; d=(d+'').slice(0,10); return (!r.from||d>=r.from)&&d<=r.to; }
+function repBtns(key){
+  return ['day','week','month','year','all'].map(function(k){
+    var on=(window._repP[key]||'month')===k;
+    var l={day:'اليوم',week:'أسبوع',month:'شهر',year:'سنة',all:'الكل'}[k];
+    return '<button onclick="window._repP[\''+key+'\']=\''+k+'\';delete window._repCache[\''+key+'\'];renderReportsPage()" style="padding:4px 10px;border-radius:6px;border:1px solid '+(on?'#C9A84C':'#1A2E4A')+';background:'+(on?'rgba(201,168,76,.15)':'#060F1E')+';color:'+(on?'#C9A84C':'#6A85A5')+';cursor:pointer;font-size:9px;font-family:inherit">'+l+'</button>';
+  }).join('');
+}
+function repCard(title, inner){ return '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:13px"><div style="color:#8BABC9;font-size:11px;font-weight:700;margin-bottom:9px">'+title+'</div>'+inner+'</div>'; }
+function repKpis(items){
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px">'+items.map(function(it){
+    return '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:10px;padding:10px;text-align:center"><div style="color:#6A85A5;font-size:8px">'+it[0]+'</div><div style="color:'+(it[2]||'#F5F7FA')+';font-size:14px;font-weight:800;font-family:monospace">'+it[1]+'</div></div>';
+  }).join('')+'</div>';
+}
+function repTable(repKey, tblId, title, heads, rows){
+  var lim = window._repExpand[repKey+tblId]||10;
+  var shown = rows.slice(0, lim);
+  var h = '<table style="width:100%;border-collapse:collapse"><thead><tr>'+heads.map(function(x){return '<th style="padding:7px;color:#6A85A5;font-size:9px;text-align:right;background:#0B1E3D;white-space:nowrap">'+x+'</th>';}).join('')+'</tr></thead><tbody>';
+  shown.forEach(function(rw){ h+='<tr style="border-top:1px solid rgba(26,46,74,.4)">'+rw.map(function(cell){return '<td style="padding:6px;color:#B9CBE0;font-size:10px">'+cell+'</td>';}).join('')+'</tr>'; });
+  h+='</tbody></table>';
+  if(rows.length>lim) h+='<button onclick="window._repExpand[\''+repKey+tblId+'\']='+(lim+20)+';renderReportsPage()" style="margin-top:7px;background:#0B1E3D;border:1px solid #1A2E4A;border-radius:6px;color:#23A0B5;padding:5px 12px;cursor:pointer;font-size:9px;font-family:inherit">عرض المزيد ('+(rows.length-lim)+' متبقٍ)</button>';
+  if(!rows.length) h='<div style="color:#3A5070;font-size:10px">لا توجد بيانات</div>';
+  return repCard(title, h);
+}
+function repMoM(arr){ return arr.map(function(v,i){ if(i===0||!arr[i-1]) return 0; return Math.round((v-arr[i-1])/arr[i-1]*100); }); }
+function repExportBar(repKey){
+  return '<div style="margin-right:auto;display:flex;gap:6px">'
+    +'<button onclick="repExcel(\''+repKey+'\')" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">📊 Excel</button>'
+    +'<button onclick="repPDF(\''+repKey+'\')" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.35);border-radius:6px;color:#9B59B6;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">📑 PDF للإدارة</button></div>';
+}
+function repFinData(){ return JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}'); }
+function repMonthlySum(list, yr){ var out=[]; for(var m2=1;m2<=12;m2++){ var mk=yr+'-'+String(m2).padStart(2,'0'); out.push(list.filter(function(x){return (x.date||'').slice(0,7)===mk;}).reduce(function(s2,x){return s2+(x.amount||0);},0)); } return out; }
+function repBal(i2){ return (i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0)); }
+
+var BI_REPORTS = {
+  revenue: { label:'💰 الإيرادات', build: function(){
+    var key='revenue', r=repRange(key), fd=repFinData();
+    var all=fd.income||[], inR=all.filter(function(x){return repIn(x.date,r);});
+    var today=new Date().toISOString().slice(0,10), yr=new Date().getFullYear();
+    var sum=function(l){return l.reduce(function(s2,x){return s2+(x.amount||0);},0);};
+    var w=new Date(); w.setDate(w.getDate()-6); var ws=w.toISOString().slice(0,10);
+    var byCat={}, byMonth=repMonthlySum(all, yr);
+    inR.forEach(function(x){ byCat[x.category||'أخرى']=(byCat[x.category||'أخرى']||0)+(x.amount||0); });
+    var amounts=inR.map(function(x){return x.amount||0;});
+    var D={key:key, range:r,
+      kpis:[['إجمالي الفترة','SAR '+fmt(sum(inR)),'#23A0B5'],['اليوم','SAR '+fmt(sum(all.filter(function(x){return (x.date||'')===today;})))],['هذا الأسبوع','SAR '+fmt(sum(all.filter(function(x){return (x.date||'')>=ws;})))],['هذا الشهر','SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,7)===today.slice(0,7);})))],['هذه السنة','SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,4)===String(yr);})))],['عدد العمليات',inR.length],['متوسط العملية','SAR '+fmt(inR.length?Math.round(sum(inR)/inR.length):0)],['أكبر عملية','SAR '+fmt(amounts.length?Math.max.apply(null,amounts):0),'#1A8A5A'],['أصغر عملية','SAR '+fmt(amounts.length?Math.min.apply(null,amounts):0)]],
+      charts:[['📊 الإيرادات الشهرية '+yr, execBars(byMonth,'#23A0B5',100)],['🧩 حسب الفئة', Object.keys(byCat).length?execDonut(byCat,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5']):'<div style="color:#3A5070;font-size:10px">—</div>'],['📈 الاتجاه', execLine(byMonth,'#23A0B5',90)],['↗️ النمو الشهري %', execLine(repMoM(byMonth),'#C9A84C',90)]],
+      tables:[['t1','🕐 آخر الإيرادات',['التاريخ','الفئة','البيان','المبلغ'], inR.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})],
+        ['t2','🔝 أعلى الإيرادات',['التاريخ','الفئة','البيان','المبلغ'], inR.slice().sort(function(a,b){return (b.amount||0)-(a.amount||0);}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})]]};
+    return D; } },
+  expenses: { label:'💸 المصروفات', build: function(){
+    var key='expenses', r=repRange(key), fd=repFinData();
+    var all=fd.expenses||[], inR=all.filter(function(x){return repIn(x.date,r);});
+    var today=new Date().toISOString().slice(0,10), yr=new Date().getFullYear();
+    var sum=function(l){return l.reduce(function(s2,x){return s2+(x.amount||0);},0);};
+    var byCat={}, byEmp={}, byMonth=repMonthlySum(all, yr);
+    inR.forEach(function(x){ byCat[x.category||'أخرى']=(byCat[x.category||'أخرى']||0)+(x.amount||0); if(x.createdBy) byEmp[x.createdBy]=(byEmp[x.createdBy]||0)+(x.amount||0); });
+    return {key:key, range:r,
+      kpis:[['إجمالي الفترة','SAR '+fmt(sum(inR)),'#C0392B'],['اليوم','SAR '+fmt(sum(all.filter(function(x){return (x.date||'')===today;})))],['هذا الشهر','SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,7)===today.slice(0,7);})))],['هذه السنة','SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,4)===String(yr);})))],['عدد العمليات',inR.length]],
+      charts:[['📊 المصروفات الشهرية '+yr, execBars(byMonth,'#C0392B',100)],['🧩 حسب التصنيف', Object.keys(byCat).length?execDonut(byCat,['#C0392B','#C9A84C','#9B59B6','#23A0B5','#6A85A5']):'<div style="color:#3A5070;font-size:10px">—</div>'],['👤 حسب الموظف المُسجِّل', Object.keys(byEmp).length?execDonut(byEmp,['#9B59B6','#23A0B5','#C9A84C','#1A8A5A']):'<div style="color:#3A5070;font-size:10px">—</div>']],
+      tables:[['t1','🕐 آخر المصروفات',['التاريخ','التصنيف','البيان','المبلغ'], inR.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})],
+        ['t2','🔝 أكبر المصروفات',['التاريخ','التصنيف','البيان','المبلغ'], inR.slice().sort(function(a,b){return (b.amount||0)-(a.amount||0);}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})]]}; } },
+  profit: { label:'📈 الأرباح', build: function(){
+    var key='profit', r=repRange(key), fd=repFinData(), yr=new Date().getFullYear();
+    var inc=(fd.income||[]).filter(function(x){return repIn(x.date,r);}).reduce(function(s2,x){return s2+(x.amount||0);},0);
+    var exp=(fd.expenses||[]).filter(function(x){return repIn(x.date,r);}).reduce(function(s2,x){return s2+(x.amount||0);},0);
+    var mRev=repMonthlySum(fd.income||[],yr), mExp=repMonthlySum(fd.expenses||[],yr);
+    var mNet=mRev.map(function(v,i){return v-mExp[i];});
+    var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    var monthsRanked = mNet.map(function(v,i){return [mNames[i],v];}).sort(function(a,b){return b[1]-a[1];});
+    var thisM = new Date().getMonth();
+    var dual = '<div style="display:flex;align-items:flex-end;gap:3px;height:110px">'+mRev.map(function(v,i){
+      var mx=Math.max.apply(null,mRev.concat(mExp).concat([1]));
+      return '<div style="flex:1;display:flex;gap:1px;align-items:flex-end;height:100%"><div title="إيراد '+fmt(v)+'" style="flex:1;background:#23A0B5;border-radius:2px 2px 0 0;height:'+Math.max(v/mx*100,1)+'%"></div><div title="مصروف '+fmt(mExp[i])+'" style="flex:1;background:#C0392B;border-radius:2px 2px 0 0;height:'+Math.max(mExp[i]/mx*100,1)+'%"></div></div>';
+    }).join('')+'</div><div style="display:flex;gap:12px;margin-top:5px;font-size:8px"><span style="color:#23A0B5">■ إيرادات</span><span style="color:#C0392B">■ مصروفات</span></div>';
+    return {key:key, range:r,
+      kpis:[['ربح الفترة','SAR '+fmt(inc-exp),(inc-exp)>=0?'#1A8A5A':'#C0392B'],['ربح هذا الشهر','SAR '+fmt(mNet[thisM]),mNet[thisM]>=0?'#1A8A5A':'#C0392B'],['ربح السنة','SAR '+fmt(mNet.reduce(function(a,b){return a+b;},0))],['هامش الربح',(inc?Math.round((inc-exp)/inc*100):0)+'%','#C9A84C'],['الإيرادات','SAR '+fmt(inc),'#23A0B5'],['المصروفات','SAR '+fmt(exp),'#C0392B']],
+      charts:[['⚖️ الإيرادات مقابل المصروفات '+yr, dual],['📈 اتجاه صافي الربح', execLine(mNet,'#1A8A5A',95)],['📉 هامش الربح الشهري %', execLine(mRev.map(function(v,i){return v?Math.round((v-mExp[i])/v*100):0;}),'#C9A84C',95)]],
+      tables:[['t1','🏆 أفضل الأشهر',['الشهر','صافي الربح'], monthsRanked.slice(0,6).map(function(x){return [x[0],'SAR '+fmt(x[1])];})],
+        ['t2','⚠️ أضعف الأشهر',['الشهر','صافي الربح'], monthsRanked.slice().reverse().slice(0,6).map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
+  collection: { label:'💳 التحصيل', build: function(){
+    var key='collection', r=repRange(key), today=new Date().toISOString().slice(0,10);
+    var inR=(DB.invoices||[]).filter(function(i2){return repIn(i2.invoiceDate||i2.date,r);});
+    var tot=inR.reduce(function(s2,i2){return s2+(i2.amount||0);},0);
+    var coll=inR.reduce(function(s2,i2){return s2+((i2.amount||0)-repBal(i2));},0);
+    var out=tot-coll;
+    var over=inR.filter(function(i2){return repBal(i2)>0 && i2.dueDate && i2.dueDate<today;});
+    var overAmt=over.reduce(function(s2,i2){return s2+repBal(i2);},0);
+    var dayDiff=function(d){ return Math.floor((new Date(today)-new Date(d))/(864e5)); };
+    var outInv=inR.filter(function(i2){return repBal(i2)>0;});
+    var dso = outInv.length? Math.round(outInv.reduce(function(s2,i2){return s2+dayDiff(i2.invoiceDate||i2.date||today);},0)/outInv.length) : 0;
+    var aging={'0-30':0,'31-60':0,'61-90':0,'90+':0};
+    outInv.forEach(function(i2){ var dd=dayDiff(i2.invoiceDate||i2.date||today); var b=repBal(i2); if(dd<=30)aging['0-30']+=b; else if(dd<=60)aging['31-60']+=b; else if(dd<=90)aging['61-90']+=b; else aging['90+']+=b; });
+    var debt={}; outInv.forEach(function(i2){ debt[i2.client||'—']=(debt[i2.client||'—']||0)+repBal(i2); });
+    var topDebt=Object.keys(debt).map(function(k){return [k,debt[k]];}).sort(function(a,b){return b[1]-a[1];});
+    var yr=new Date().getFullYear();
+    var mColl=[]; for(var m2=1;m2<=12;m2++){ var mk=yr+'-'+String(m2).padStart(2,'0'); mColl.push((DB.invoices||[]).filter(function(i2){return (i2.invoiceDate||i2.date||'').slice(0,7)===mk;}).reduce(function(s2,i2){return s2+((i2.amount||0)-repBal(i2));},0)); }
+    var payers={}; inR.forEach(function(i2){ if(repBal(i2)<=0 && (i2.amount||0)>0) payers[i2.client||'—']=(payers[i2.client||'—']||0)+(i2.amount||0); });
+    return {key:key, range:r,
+      kpis:[['إجمالي الفواتير','SAR '+fmt(tot)],['المحصّل','SAR '+fmt(coll),'#1A8A5A'],['غير المحصّل','SAR '+fmt(out),'#C9A84C'],['المتأخر','SAR '+fmt(overAmt),'#C0392B'],['نسبة التحصيل',(tot?Math.round(coll/tot*100):0)+'%','#1A8A5A'],['DSO (متوسط أيام التحصيل)',dso+' يوم','#9B59B6']],
+      charts:[['🧩 حالة التحصيل', execDonut({'محصّل':coll||0.001,'غير محصّل':Math.max(out-overAmt,0),'متأخر':overAmt},['#1A8A5A','#C9A84C','#C0392B'])],['⏳ أعمار الديون (Aging)', execDonut(aging,['#1A8A5A','#C9A84C','#E67E22','#C0392B'])],['📊 التحصيل الشهري '+yr, execBars(mColl,'#1A8A5A',95)]],
+      tables:[['t1','⏰ الفواتير المتأخرة',['رقم','العميل','الاستحقاق','المتبقي'], over.map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.dueDate||'','SAR '+fmt(repBal(i2))];})],
+        ['t2','📋 فواتير مستحقة (غير متأخرة)',['رقم','العميل','الاستحقاق','المتبقي'], outInv.filter(function(i2){return !(i2.dueDate&&i2.dueDate<today);}).map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.dueDate||'—','SAR '+fmt(repBal(i2))];})],
+        ['t3','🏅 أفضل العملاء سداداً',['العميل','المسدد بالكامل'], Object.keys(payers).map(function(k){return [k,'SAR '+fmt(payers[k])];}).sort(function(a,b){return parseFloat(b[1].replace(/[^\d.]/g,''))-parseFloat(a[1].replace(/[^\d.]/g,''));})],
+        ['t4','🔻 أكبر المدينين',['العميل','إجمالي الدين'], topDebt.map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
+  clients: { label:'👥 العملاء', build: function(){
+    var key='clients', r=repRange(key), today=new Date();
+    var all=DB.clients||[];
+    var d90=new Date(today); d90.setDate(d90.getDate()-90); var d90s=d90.toISOString().slice(0,10);
+    var salesBy={}; (DB.invoices||[]).forEach(function(i2){ if(i2.client) salesBy[i2.client]=(salesBy[i2.client]||0)+(i2.amount||0); });
+    var activeNames={}; (DB.invoices||[]).forEach(function(i2){ if((i2.invoiceDate||i2.date||'')>=d90s && i2.client) activeNames[i2.client]=1; });
+    var active=all.filter(function(c2){return activeNames[c2.name];});
+    var byMonth={}; all.forEach(function(c2){ var mm=(c2.createdAt||'').slice(0,7); if(/^\d{4}-\d{2}/.test(mm)) byMonth[mm]=(byMonth[mm]||0)+1; });
+    var yr=new Date().getFullYear(), growth=[];
+    for(var m2=1;m2<=12;m2++) growth.push(byMonth[yr+'-'+String(m2).padStart(2,'0')]||0);
+    var topSales=Object.keys(salesBy).map(function(k){return [k,salesBy[k]];}).sort(function(a,b){return b[1]-a[1];});
+    var byCity={}; all.forEach(function(c2){ if(c2.city) byCity[c2.city]=(byCity[c2.city]||0)+1; });
+    return {key:key, range:r,
+      kpis:[['إجمالي العملاء',all.length],['جدد بالفترة',all.filter(function(c2){return repIn(c2.createdAt,r);}).length,'#1A8A5A'],['نشطون (90 يوم)',active.length,'#23A0B5'],['غير نشطين',all.length-active.length,'#C0392B']],
+      charts:[['📈 نمو العملاء '+yr, execBars(growth,'#23A0B5',95)],['🏙️ حسب المدينة', Object.keys(byCity).length?execDonut(byCity,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6']):'<div style="color:#3A5070;font-size:10px">حقل المدينة غير مسجل في بيانات العملاء الحالية</div>'],['💎 أعلى العملاء مبيعاتٍ', topSales.slice(0,8).map(function(x){ var mx=topSales[0][1]||1; return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:120px;color:#F5F7FA;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:4px;height:11px"><div style="background:#C9A84C;height:100%;border-radius:4px;width:'+(x[1]/mx*100)+'%"></div></div><div style="color:#C9A84C;font-size:9px;font-family:monospace">'+fmt(x[1])+'</div></div>';}).join('')||'—']],
+      tables:[['t1','🆕 آخر العملاء',['الاسم','تاريخ الإضافة','المبيعات'], all.slice().sort(function(a,b){return (b.createdAt||'').localeCompare(a.createdAt||'');}).map(function(c2){return [c2.name||'',(c2.createdAt||'').slice(0,10),'SAR '+fmt(salesBy[c2.name]||0)];})],
+        ['t2','💤 العملاء غير النشطين',['الاسم','إجمالي مبيعاته السابقة'], all.filter(function(c2){return !activeNames[c2.name];}).map(function(c2){return [c2.name||'','SAR '+fmt(salesBy[c2.name]||0)];})]]}; } },
+  sales: { label:'💼 المبيعات', build: function(){
+    var key='sales', r=repRange(key);
+    var qAll=lsQuotes(), qIn=qAll.filter(function(q){return repIn(q.createdAt||q.date,r);});
+    var acc=qIn.filter(function(q){return q.status==='مقبول'||q.status==='accepted';});
+    var invIn=(DB.invoices||[]).filter(function(i2){return repIn(i2.invoiceDate||i2.date,r);});
+    var val=invIn.reduce(function(s2,i2){return s2+(i2.amount||0);},0);
+    var byEmp={}, byComp={}, byCourse={};
+    invIn.forEach(function(i2){ var e2=i2.salesPerson||i2.createdBy||'—'; byEmp[e2]=(byEmp[e2]||0)+(i2.amount||0); if(i2.client)byComp[i2.client]=(byComp[i2.client]||0)+(i2.amount||0); var crs=i2.course||(i2.items&&i2.items[0]&&i2.items[0].desc)||''; if(crs)byCourse[crs]=(byCourse[crs]||0)+(i2.amount||0); });
+    var top1=function(o){var e2=Object.keys(o).sort(function(a,b){return o[b]-o[a];})[0]; return e2?e2:'—';};
+    var yr=new Date().getFullYear(), mSales=[];
+    for(var m2=1;m2<=12;m2++){ var mk=yr+'-'+String(m2).padStart(2,'0'); mSales.push((DB.invoices||[]).filter(function(i2){return (i2.invoiceDate||i2.date||'').slice(0,7)===mk;}).reduce(function(s2,i2){return s2+(i2.amount||0);},0)); }
+    var funnel='<div style="display:flex;flex-direction:column;gap:5px">'+[['عروض الأسعار',qIn.length,'#23A0B5',100],['المقبول',acc.length,'#C9A84C',qIn.length?acc.length/qIn.length*100:0],['فواتير صادرة',invIn.length,'#1A8A5A',qIn.length?invIn.length/qIn.length*100:0]].map(function(x){return '<div style="display:flex;align-items:center;gap:8px"><div style="width:85px;color:#8BABC9;font-size:9px">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:5px;height:16px"><div style="background:'+x[2]+';height:100%;border-radius:5px;width:'+Math.max(Math.min(x[3],100),3)+'%;display:flex;align-items:center;justify-content:center;color:#04101F;font-size:9px;font-weight:800">'+x[1]+'</div></div></div>';}).join('')+'</div>';
+    return {key:key, range:r,
+      kpis:[['قيمة المبيعات','SAR '+fmt(val),'#23A0B5'],['عمليات البيع',invIn.length],['عروض الأسعار',qIn.length],['المقبول',acc.length,'#1A8A5A'],['معدل التحويل',(qIn.length?Math.round(acc.length/qIn.length*100):0)+'%','#C9A84C'],['أفضل موظف',top1(byEmp),'#C9A84C'],['أفضل شركة',top1(byComp)],['أفضل دورة',top1(byCourse)]],
+      charts:[['📊 اتجاه المبيعات '+yr, execBars(mSales,'#23A0B5',100)],['🔻 قمع المبيعات (Funnel)', funnel],['👤 حسب الموظف', Object.keys(byEmp).length?execDonut(byEmp,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B']):'—']],
+      tables:[['t1','🕐 آخر عمليات البيع',['رقم','العميل','الموظف','التاريخ','المبلغ'], invIn.slice().sort(function(a,b){return ((b.invoiceDate||b.date)||'').localeCompare((a.invoiceDate||a.date)||'');}).map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.salesPerson||i2.createdBy||'',(i2.invoiceDate||i2.date||'').slice(0,10),'SAR '+fmt(i2.amount||0)];})],
+        ['t2','🏆 أفضل الموظفين',['الموظف','المبيعات'], Object.keys(byEmp).map(function(k){return [k,byEmp[k]];}).sort(function(a,b){return b[1]-a[1];}).map(function(x){return [x[0],'SAR '+fmt(x[1])];})],
+        ['t3','🏢 أفضل الشركات',['الشركة','المبيعات'], Object.keys(byComp).map(function(k){return [k,byComp[k]];}).sort(function(a,b){return b[1]-a[1];}).map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
+  training: { label:'🗓️ التدريب', build: function(){
+    var key='training', r=repRange(key), today=new Date().toISOString().slice(0,10);
+    var inR=(DB.sessions||[]).filter(function(s2){return repIn(s2.startDate,r);});
+    var courses={}; inR.forEach(function(s2){ if(s2.course)courses[s2.course]=(courses[s2.course]||0)+1; });
+    var trainers={}; inR.forEach(function(s2){ if(s2.trainer)trainers[s2.trainer]=(trainers[s2.trainer]||0)+1; });
+    var hours=inR.reduce(function(s2,x){ try{ var a=x.start.split(':'),b=x.end.split(':'); return s2+Math.max((+b[0]+ +b[1]/60)-(+a[0]+ +a[1]/60),0);}catch(e){return s2;} },0);
+    var yr=new Date().getFullYear(), mSess=[];
+    for(var m2=1;m2<=12;m2++){ var mk=yr+'-'+String(m2).padStart(2,'0'); mSess.push((DB.sessions||[]).filter(function(s2){return (s2.startDate||'').slice(0,7)===mk;}).length); }
+    var topTr=Object.keys(trainers).map(function(k){return [k,trainers[k]];}).sort(function(a,b){return b[1]-a[1];});
+    var topCo=Object.keys(courses).map(function(k){return [k,courses[k]];}).sort(function(a,b){return b[1]-a[1];});
+    return {key:key, range:r,
+      kpis:[['عدد الجلسات',inR.length],['عدد الدورات المختلفة',Object.keys(courses).length],['المدربون',Object.keys(trainers).length],['الساعات التدريبية',Math.round(hours)+' ساعة','#C9A84C'],['قادمة',inR.filter(function(s2){return s2.startDate>today;}).length,'#23A0B5'],['منتهية',inR.filter(function(s2){return s2.startDate<today;}).length,'#1A8A5A']],
+      charts:[['📊 الجلسات الشهرية '+yr, execBars(mSess,'#9B59B6',100)],['👨‍🏫 حسب المدرب', Object.keys(trainers).length?execDonut(trainers,['#9B59B6','#23A0B5','#C9A84C','#1A8A5A']):'—'],['📚 أكثر الدورات', topCo.slice(0,8).map(function(x){var mx=topCo[0][1]||1;return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:150px;color:#F5F7FA;font-size:9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:4px;height:11px"><div style="background:#9B59B6;height:100%;border-radius:4px;width:'+(x[1]/mx*100)+'%"></div></div><div style="color:#9B59B6;font-size:9px">'+x[1]+'</div></div>';}).join('')||'—']],
+      tables:[['t1','🔜 الجلسات القادمة',['التاريخ','الدورة','المدرب','النوع'], (DB.sessions||[]).filter(function(s2){return s2.startDate>today;}).sort(function(a,b){return (a.startDate||'').localeCompare(b.startDate||'');}).map(function(s2){return [s2.startDate,s2.course||'',s2.trainer||'',s2.type||''];})],
+        ['t2','✅ الجلسات المنتهية',['التاريخ','الدورة','المدرب'], inR.filter(function(s2){return s2.startDate<today;}).sort(function(a,b){return (b.startDate||'').localeCompare(a.startDate||'');}).map(function(s2){return [s2.startDate,s2.course||'',s2.trainer||''];})]]}; } },
+  trainees: { label:'🎓 المتدربون', build: function(){
+    var key='trainees', r=repRange(key);
+    var PIDS=['prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev'];
+    var all=[]; PIDS.forEach(function(pid){ getPromData(pid).forEach(function(rec){ all.push(rec); }); });
+    var g=function(rec,k){ return (rec[k]||rec[k.toLowerCase()]||'')+''; };
+    var pass=0,fail=0,byNat={},byComp={},byCourse={},byMonth={};
+    all.forEach(function(rec){
+      var res=g(rec,'Result').toLowerCase();
+      if(res.indexOf('pass')>=0||res.indexOf('ناجح')>=0)pass++; else if(res.indexOf('fail')>=0||res.indexOf('راسب')>=0)fail++;
+      var n=g(rec,'Nationality').trim(); if(n)byNat[n]=(byNat[n]||0)+1;
+      var c2=g(rec,'Company Name').trim()||g(rec,'Company').trim(); if(c2)byComp[c2]=(byComp[c2]||0)+1;
+      var cr=g(rec,'Training course').trim()||g(rec,'Course').trim(); if(cr)byCourse[cr]=(byCourse[cr]||0)+1;
+      var mm=g(rec,'Date').slice(0,7); if(/^\d{4}-\d{2}/.test(mm))byMonth[mm]=(byMonth[mm]||0)+1;
+    });
+    var yr=new Date().getFullYear(), trend=[];
+    for(var m2=1;m2<=12;m2++) trend.push(byMonth[yr+'-'+String(m2).padStart(2,'0')]||0);
+    var scored=all.filter(function(rec){ return !isNaN(parseFloat(g(rec,'Score'))); }).sort(function(a,b){ return parseFloat(g(b,'Score'))-parseFloat(g(a,'Score')); });
+    return {key:key, range:r,
+      kpis:[['إجمالي المتدربين',fmt(all.length)],['الناجحون',fmt(pass),'#1A8A5A'],['الراسبون',fail,'#C0392B'],['معدل النجاح',((pass+fail)?Math.round(pass/(pass+fail)*100):0)+'%','#1A8A5A'],['الشركات',Object.keys(byComp).length],['الجنسيات',Object.keys(byNat).length]],
+      charts:[['📈 التسجيل الشهري '+yr, execBars(trend,'#C9A84C',100)],['🌍 حسب الجنسية', Object.keys(byNat).length?execDonut(byNat,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5']):'<div style="color:#3A5070;font-size:10px">حقل الجنسية غير متوفر</div>'],['🏢 حسب الشركة', Object.keys(byComp).length?execDonut(byComp,['#1A8A5A','#23A0B5','#C9A84C','#9B59B6']):'—'],['📚 حسب الدورة', Object.keys(byCourse).length?execDonut(byCourse,['#9B59B6','#C9A84C','#23A0B5','#1A8A5A']):'—']],
+      tables:[['t1','🏅 الأعلى درجات',['الاسم','الشركة','الدرجة'], scored.slice(0,50).map(function(rec){return [g(rec,'Name'),g(rec,'Company Name'),g(rec,'Score')];})],
+        ['t2','❌ الراسبون',['الاسم','الشركة','النتيجة'], all.filter(function(rec){var res=g(rec,'Result').toLowerCase();return res.indexOf('fail')>=0||res.indexOf('راسب')>=0;}).map(function(rec){return [g(rec,'Name'),g(rec,'Company Name'),g(rec,'Result')];})]]}; } },
+  trainersPerf: { label:'👨‍🏫 أداء المدربين', build: function(){
+    var key='trainersPerf', r=repRange(key);
+    var stats={};
+    (DB.sessions||[]).forEach(function(s2){ if(!s2.trainer)return; if(!stats[s2.trainer])stats[s2.trainer]={sessions:0,hours:0}; stats[s2.trainer].sessions++; try{var a=s2.start.split(':'),b=s2.end.split(':');stats[s2.trainer].hours+=Math.max((+b[0]+ +b[1]/60)-(+a[0]+ +a[1]/60),0);}catch(e){} });
+    (DB.trainers||[]).forEach(function(t2){ if(!stats[t2.name])stats[t2.name]={sessions:t2.sessions||0,hours:0}; stats[t2.name].rating=t2.rating||0; });
+    var arr=Object.keys(stats).map(function(n){return {name:n,sessions:stats[n].sessions,hours:Math.round(stats[n].hours),rating:stats[n].rating||0};}).sort(function(a,b){return b.sessions-a.sessions;});
+    var rated=arr.filter(function(t2){return t2.rating>0;});
+    var mx=arr.length?arr[0].sessions||1:1;
+    var ranking=arr.slice(0,10).map(function(t2){return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:120px;color:#F5F7FA;font-size:10px;font-weight:700;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">'+t2.name+'</div><div style="flex:1;background:#0B1E3D;border-radius:5px;height:13px"><div style="background:#C9A84C;height:100%;border-radius:5px;width:'+(t2.sessions/mx*100)+'%"></div></div><div style="color:#C9A84C;font-size:10px;width:26px">'+t2.sessions+'</div><div style="color:#23A0B5;font-size:9px;width:44px">'+t2.hours+' س</div><div style="color:#C9A84C;font-size:10px;width:36px">'+(t2.rating?t2.rating+'⭐':'—')+'</div></div>';}).join('');
+    return {key:key, range:r,
+      kpis:[['عدد المدربين',arr.length],['إجمالي الجلسات',arr.reduce(function(s2,t2){return s2+t2.sessions;},0)],['إجمالي الساعات',arr.reduce(function(s2,t2){return s2+t2.hours;},0)+' ساعة','#23A0B5'],['متوسط التقييم',(rated.length?(rated.reduce(function(s2,t2){return s2+t2.rating;},0)/rated.length).toFixed(1):'—')+' ⭐','#C9A84C'],['الأفضل',arr[0]?arr[0].name:'—','#C9A84C']],
+      charts:[['🏆 ترتيب المدربين (جلسات | ساعات | تقييم)', ranking||'—']],
+      tables:[['t1','🔝 أفضل المدربين',['المدرب','جلسات','ساعات','تقييم'], arr.map(function(t2){return [t2.name,t2.sessions,t2.hours,(t2.rating?t2.rating+'⭐':'—')];})],
+        ['t2','🔻 الأقل نشاطاً',['المدرب','جلسات'], arr.slice().reverse().slice(0,10).map(function(t2){return [t2.name,t2.sessions];})]]}; } }
+};
+function biBuild(key){
+  var sig = key+'|'+(window._repP[key]||'month')+'|'+(DB.invoices||[]).length+'|'+(DB.sessions||[]).length;
+  var c2 = window._repCache[key];
+  if(c2 && c2.sig===sig) return c2.data; // lazy + cached: computed only when ITS page is open and inputs unchanged
+  var data = BI_REPORTS[key].build();
+  window._repCache[key] = {sig:sig, data:data};
+  return data;
+}
+function renderBIReport(el, key){
+  var D = biBuild(key);
+  var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:11px">'
+    +'<span style="color:#C9A84C;font-weight:800;font-size:12px">'+BI_REPORTS[key].label+'</span>'+repBtns(key)+repExportBar(key)+'</div>';
+  html += '<div style="margin-top:12px">'+repKpis(D.kpis)+'</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">'+D.charts.map(function(ch){return repCard(ch[0],ch[1]);}).join('')+'</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:12px;margin-top:12px">'+D.tables.map(function(tb){return repTable(key,tb[0],tb[1],tb[2],tb[3]);}).join('')+'</div>';
+  el.innerHTML = html;
+}
+function repPDF(key){
+  var D = biBuild(key);
+  var repNo = 'RPT-'+key.toUpperCase().slice(0,4)+'-'+new Date().toISOString().slice(0,10).replace(/-/g,'');
+  var issued = new Date().toLocaleString('ar-SA');
+  var kpiHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">'+D.kpis.map(function(it){return '<div style="flex:1;min-width:110px;border:1px solid #ddd;border-radius:8px;padding:9px;text-align:center"><div style="font-size:8px;color:#777">'+it[0]+'</div><div style="font-size:13px;font-weight:800;color:#0B1E3D">'+it[1]+'</div></div>';}).join('')+'</div>';
+  var tblHtml = D.tables.map(function(tb){
+    return '<h3 style="font-size:11px;color:#0B1E3D;margin:14px 0 4px">'+tb[1]+'</h3><table style="width:100%;border-collapse:collapse"><thead><tr>'+tb[2].map(function(h){return '<th style="background:#0B1E3D;color:#fff;font-size:9px;padding:5px">'+h+'</th>';}).join('')+'</tr></thead><tbody>'
+      +tb[3].slice(0,25).map(function(rw){return '<tr>'+rw.map(function(cell){return '<td style="border:1px solid #ddd;font-size:9px;padding:4px;text-align:right">'+cell+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'
+      +(tb[3].length>25?'<div style="font-size:8px;color:#999;margin-top:2px">عرض أول 25 من '+tb[3].length+' — الجدول الكامل في ملف Excel</div>':'');
+  }).join('');
+  var summ = 'يعرض هذا التقرير ('+BI_REPORTS[key].label.replace(/^\S+\s/,'')+') عن '+D.range.label+' — أبرز المؤشرات: '+D.kpis.slice(0,4).map(function(k2){return k2[0]+': '+k2[1];}).join('، ')+'.';
+  var w = window.open('','_blank');
+  w.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>'+repNo+'</title><style>body{font-family:Tahoma;color:#111;padding:30px 38px}h1{font-size:18px;color:#0B1E3D;margin:0}h2{font-size:13px;color:#0B1E3D;border-bottom:2px solid #C9A84C;padding-bottom:4px}.foot{margin-top:26px;border-top:1px solid #eee;padding-top:6px;display:flex;justify-content:space-between;font-size:8px;color:#999}</style></head><body>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0B1E3D;padding-bottom:10px;margin-bottom:12px"><div><h1>'+BI_REPORTS[key].label.replace(/^\S+\s/,'')+' — تقرير تنفيذي</h1><div style="font-size:10px;color:#666">معهد TUV التدريبي | الفترة: '+D.range.label+' ('+(D.range.from||'البداية')+' → '+D.range.to+')</div><div style="font-size:10px;color:#666">أُصدر: '+issued+' | بواسطة: '+(CU?CU.name:'')+' | رقم: '+repNo+'</div></div><div style="font-weight:900;font-size:24px;color:#0B1E3D;border:2px solid #C9A84C;border-radius:9px;padding:5px 14px">TUV</div></div>'
+    +'<h2>الملخص التنفيذي</h2><div style="background:#F7F9FC;border:1px solid #dde;border-radius:8px;padding:10px;font-size:10px;line-height:2">'+summ+'</div>'
+    +'<h2 style="margin-top:14px">المؤشرات</h2>'+kpiHtml
+    +'<h2>الجداول</h2>'+tblHtml
+    +'<div class="foot"><span>'+repNo+'</span><span>TrainFlow CRM — تقرير مُولَّد آلياً</span><span>'+issued+'</span></div>'
+    +'</body></html>');
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 400);
+}
+function repExcel(key){
+  var D = biBuild(key);
+  var wb = XLSX.utils.book_new();
+  var kAoa = [[BI_REPORTS[key].label+' — '+D.range.label],[''],['المؤشر','القيمة']];
+  D.kpis.forEach(function(it){ kAoa.push([it[0], it[1]]); });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kAoa), 'KPIs');
+  D.tables.forEach(function(tb,ix){
+    var aoa=[tb[2]]; tb[3].forEach(function(rw){ aoa.push(rw); });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'T'+(ix+1));
+  });
+  XLSX.writeFile(wb, 'Report_'+key+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showSuccessToast('📊 تم التصدير');
+}
+
 function execRange(){
   var p = window._exPeriod || 'month';
   var today = new Date(); var iso = function(d){ return d.toISOString().slice(0,10); };
@@ -6564,7 +6825,20 @@ function execDonut(counts, palette){
 function renderReportsPage(){
   var pg = document.getElementById('page-reports') || document.getElementById('page-ops');
   var el = pg.querySelector('.reports-body') || pg;
+  // ═ BI tab bar — each report is fully independent (own dataset, lazy-loaded on open) ═
+  var rtab = window._repTab || 'exec';
+  var tabsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;padding:14px 22px 0 22px">'
+    + [['exec','⭐ التنفيذي']].concat(Object.keys(BI_REPORTS).map(function(k){return [k, BI_REPORTS[k].label];})).map(function(tb){
+      var on = rtab===tb[0];
+      return '<button onclick="window._repTab=\''+tb[0]+'\';renderReportsPage()" style="padding:7px 12px;border-radius:8px 8px 0 0;border:1px solid '+(on?'#C9A84C':'#1A2E4A')+';border-bottom:none;background:'+(on?'rgba(201,168,76,.12)':'#060F1E')+';color:'+(on?'#C9A84C':'#6A85A5')+';cursor:pointer;font-size:10px;font-family:inherit;font-weight:'+(on?'800':'400')+'">'+tb[1]+'</button>';
+    }).join('') + '</div>';
+  if(rtab !== 'exec'){
+    el.innerHTML = tabsHtml + '<div style="padding:12px 22px 22px 22px" id="biBody"></div>';
+    renderBIReport(document.getElementById('biBody'), rtab);
+    return;
+  }
   var D = buildExecData();
+  window._execTabsHtml = tabsHtml;
   var r = D.range;
   var pal = ['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5'];
 
@@ -6574,7 +6848,7 @@ function renderReportsPage(){
   var catOpts = '<option value="all">كل الأنواع</option>'+(typeof TUV_CATEGORIES!=='undefined'?TUV_CATEGORIES:[]).map(function(c2){ var n=c2.nameAr||c2.nameEn; return '<option'+(window._exCat===n?' selected':'')+'>'+n+'</option>'; }).join('');
   var perBtn = function(k,l){ var on=(window._exPeriod||'month')===k; return '<button onclick="window._exPeriod=\''+k+'\';window._execCache=null;renderReportsPage()" style="padding:5px 11px;border-radius:6px;border:1px solid '+(on?'#C9A84C':'#1A2E4A')+';background:'+(on?'rgba(201,168,76,.15)':'#060F1E')+';color:'+(on?'#C9A84C':'#6A85A5')+';cursor:pointer;font-size:10px;font-family:inherit">'+l+'</button>'; };
 
-  var html = '<div style="padding:22px;display:flex;flex-direction:column;gap:14px">';
+  var html = (window._execTabsHtml||'') + '<div style="padding:12px 22px 22px 22px;display:flex;flex-direction:column;gap:14px">';
 
   // ═ Filters ═
   html += '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
@@ -12811,6 +13085,8 @@ function saveInvoice(editId){
   var paidEl = document.getElementById('inv-paid');
   
   var client = clientEl ? clientEl.value : '';
+  var _cliObj = (DB.clients||[]).find(function(c2){ return c2.name===client; });
+  var _cliId = _cliObj ? _cliObj.id : null;
   var invoiceDate = dateEl ? dateEl.value : new Date().toISOString().slice(0,10);
   var dueDate = dueEl ? dueEl.value : '';
   var status = statusEl ? statusEl.value : 'معلق';
@@ -12843,7 +13119,7 @@ function saveInvoice(editId){
   if(editId){
     var inv = DB.invoices.find(function(x){return x.id===editId});
     if(inv){
-      inv.client = client;
+      inv.client = client; inv.clientId = _cliId;
       inv.course = courseName;
       inv.items = items;
       inv.subtotal = subtotal;
@@ -12861,6 +13137,7 @@ function saveInvoice(editId){
     DB.invoices.push({
       id: 'INV-'+Date.now(),
       invoiceNumber: String(maxNum).padStart(4,'0'),
+      clientId: _cliId,
       client: client,
       course: courseName,
       items: items,
@@ -13292,8 +13569,12 @@ function getQuarterlyReport(year, quarter){
 function buildStatementRows(clientName, fromD, toD){
   // Data sources: DB.invoices (debit=invoice, credit=payment) + accepted quotes (informational)
   var rows = [];
+  var _selCli = (DB.clients||[]).find(function(c2){ return c2.name===clientName; });
+  var _selId = _selCli ? _selCli.id : null;
   (DB.invoices||[]).forEach(function(inv){
-    if((inv.client||'') !== clientName) return;
+    // Match by Company ID first (survives client renames), fall back to name for legacy invoices
+    var byId = _selId && inv.clientId && inv.clientId===_selId;
+    if(!byId && (inv.client||'') !== clientName) return;
     var d = inv.invoiceDate || inv.date || '';
     rows.push({date:d, doc:inv.invoiceNumber||inv.id, type:'فاتورة', desc:inv.course||'', debit:inv.amount||0, credit:0, status:inv.status||'', sort:d+'-1'});
     var paid = inv.paidAmount!==undefined ? inv.paidAmount : (inv.paid||0);
