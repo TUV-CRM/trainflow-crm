@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.18</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.20</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -6382,362 +6382,358 @@ async function resetTraineesSection(){
   renderPromPage(window.activePage && window.activePage.startsWith('prom_') ? window.activePage : 'prom_test');
 }
 
-function renderReportsPage(){
-  var sc = document.getElementById('page-reports');
-  if(!sc) return;
-  sc.innerHTML = '';
-  sc.style.cssText = 'padding:16px;max-width:1200px;margin:0 auto';
-
-  // Data sources
-  var quotes = lsQuotes();
-  var invoices = DB.invoices || [];
-  var clients = JSON.parse(localStorage.getItem('tf4_clients')||'[]');
-  var sessions = DB.sessions || [];
-  var trainees = DB.trainees || [];
-  var leads = DB.leads || [];
-  var daily = JSON.parse(localStorage.getItem('tf4_daily')||'[]');
-  var finance = JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}');
-  var today = new Date().toISOString().slice(0,10);
-  var thisMonth = today.slice(0,7);
-  var thisYear = today.slice(0,4);
-
-  // ══ FILTERS ══
-  var fYear = window._dashYear || thisYear;
-  var fMonth = window._dashMonth || 'all';
-  var fEmployee = window._dashEmployee || 'all';
-
-  function dateFilter(dateStr){
-    if(!dateStr) return true;
-    var d = dateStr.slice(0,10);
-    if(fYear!=='all' && d.slice(0,4)!==fYear) return false;
-    if(fMonth!=='all' && d.slice(5,7)!==fMonth) return false;
-    return true;
-  }
-  function empFilter(name){
-    if(fEmployee==='all') return true;
-    return name===fEmployee;
-  }
-
-  var fQuotes = quotes.filter(function(q){return dateFilter(q.createdAt||q.date) && empFilter(q.salesperson||q.createdBy)});
-  var fInvoices = invoices.filter(function(i){return dateFilter(i.date)});
-  var fClients = clients;
-
-  // ══ FILTER BAR ══
-  var filterBar = document.createElement('div');
-  filterBar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding:12px;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px';
-  filterBar.innerHTML = '<span style="color:#C9A84C;font-weight:700;font-size:13px;margin-left:8px">📊 '+t('لوحة القيادة التنفيذية','Executive Dashboard')+'</span>';
-
-  // Year filter
-  var years = ['2024','2025','2026','2027'];
-  filterBar.innerHTML += '<select onchange="window._dashYear=this.value;renderReportsPage()" class="fc" style="min-width:70px;font-size:11px">'+years.map(function(y){return '<option value="'+y+'"'+(fYear===y?' selected':'')+'>'+y+'</option>'}).join('')+'</select>';
-
-  // Month filter
-  var months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-  var mNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-  filterBar.innerHTML += '<select onchange="window._dashMonth=this.value;renderReportsPage()" class="fc" style="min-width:70px;font-size:11px"><option value="all"'+(fMonth==='all'?' selected':'')+'>'+t('كل الشهور','All')+'</option>'+months.map(function(m,i){return '<option value="'+m+'"'+(fMonth===m?' selected':'')+'>'+mNames[i]+'</option>'}).join('')+'</select>';
-
-  // Employee filter
-  var emps = [];
-  quotes.forEach(function(q){var n=q.salesperson||q.createdBy;if(n&&emps.indexOf(n)<0)emps.push(n)});
-  filterBar.innerHTML += '<select onchange="window._dashEmployee=this.value;renderReportsPage()" class="fc" style="min-width:80px;font-size:11px"><option value="all"'+(fEmployee==='all'?' selected':'')+'>'+t('كل الموظفين','All Staff')+'</option>'+emps.map(function(e){return '<option value="'+e+'"'+(fEmployee===e?' selected':'')+'>'+e+'</option>'}).join('')+'</select>';
-
-  // Export buttons
-  filterBar.innerHTML += '<button onclick="exportDashboardExcel()" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:5px 10px;cursor:pointer;font-size:10px;font-family:inherit;margin-right:auto">📊 Excel</button>';
-  filterBar.innerHTML += '<button onclick="exportDashboardPDF()" style="background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:6px;color:#E74C3C;padding:5px 10px;cursor:pointer;font-size:10px;font-family:inherit">📄 PDF</button>';
-  filterBar.innerHTML += '<button onclick="window.print()" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);border-radius:6px;color:#9B59B6;padding:5px 10px;cursor:pointer;font-size:10px;font-family:inherit">🖨️ '+t('طباعة','Print')+'</button>';
-
-  sc.appendChild(filterBar);
-
-  // ══ KPI CARDS — Row 1: Sales ══
-  var accepted = fQuotes.filter(function(q){return q.status==='مقبول'||q.status==='accepted'}).length;
-  var convRate = fQuotes.length ? Math.round((accepted/fQuotes.length)*100) : 0;
-  var totalQuoteVal = fQuotes.reduce(function(s,q){return s+(q.netTotal||q.total||0)},0);
-  var paidInv = fInvoices.filter(function(i){return i.status==='مدفوع'});
-  var pendingInv = fInvoices.filter(function(i){return i.status==='معلق'||i.status==='معتمد'});
-  var overdueInv = fInvoices.filter(function(i){return i.status==='متأخر'});
-  var totalRevenue = fInvoices.reduce(function(s,i){return s+(i.amount||0)},0);
-  var collectedRev = paidInv.reduce(function(s,i){return s+(i.amount||0)},0);
-  var pendingRev = totalRevenue - collectedRev;
-
-  addSectionTitle(sc, '💼 '+t('المبيعات والإيرادات','Sales & Revenue'));
-  var row1 = addKPIRow(sc, 5);
-  addKPI(row1, t('عروض الأسعار','Quotes'), fQuotes.length, '#23A0B5', '📋');
-  addKPI(row1, t('مقبولة','Accepted'), accepted, '#1A8A5A', '✅');
-  addKPI(row1, t('نسبة التحويل','Conv. Rate'), convRate+'%', '#C9A84C', '📈');
-  addKPI(row1, t('قيمة العروض','Quotes Value'), 'SAR '+fmt(totalQuoteVal), '#9B59B6', '💰');
-  addKPI(row1, t('العملاء','Clients'), fClients.length, '#E67E22', '🏢');
-
-  // KPI Row 2: Invoices
-  var row2 = addKPIRow(sc, 5);
-  addKPI(row2, t('الفواتير','Invoices'), fInvoices.length, '#23A0B5', '🧾');
-  addKPI(row2, t('مدفوعة','Paid'), paidInv.length, '#1A8A5A', '💚');
-  addKPI(row2, t('معلقة','Pending'), pendingInv.length, '#C9A84C', '⏳');
-  addKPI(row2, t('متأخرة','Overdue'), overdueInv.length, overdueInv.length>0?'#C0392B':'#6A85A5', '⚠️');
-  addKPI(row2, t('إيرادات محصّلة','Collected'), 'SAR '+fmt(collectedRev), '#1A8A5A', '💰');
-
-  // KPI Row 3: Training
-  addSectionTitle(sc, '🎓 '+t('التدريب','Training'));
-  var row3 = addKPIRow(sc, 5);
-  addKPI(row3, t('الجلسات','Sessions'), sessions.length, '#23A0B5', '📅');
-  addKPI(row3, t('المتدربون','Trainees'), trainees.length, '#9B59B6', '👨‍🎓');
-  addKPI(row3, t('المدربون','Trainers'), (DB.trainers||[]).length, '#E67E22', '👨‍🏫');
-  addKPI(row3, t('العملاء المحتملين','Leads'), leads.length, '#C9A84C', '🎯');
-  var todayActivities = daily.filter(function(d){return d.date===today}).length;
-  addKPI(row3, t('أنشطة اليوم','Today Activities'), todayActivities, '#1A8A5A', '📝');
-
-  // ══ CHARTS ══
-  var chartsRow = document.createElement('div');
-  chartsRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px';
-
-  // Chart 1: Monthly Sales (Bar Chart)
-  var monthlyData = [];
-  for(var mi=0;mi<12;mi++){
-    var mm = String(mi+1).padStart(2,'0');
-    var mKey = fYear+'-'+mm;
-    var mQuotes = quotes.filter(function(q){var d=q.createdAt||q.date||'';return d.startsWith(mKey) && empFilter(q.salesperson||q.createdBy)});
-    var mInv = invoices.filter(function(i){return (i.date||'').startsWith(mKey)});
-    var mRev = mInv.reduce(function(s,i){return s+(i.status==='مدفوع'?(i.amount||0):0)},0);
-    monthlyData.push({month:mNames[mi].slice(0,3),quotes:mQuotes.length,invoices:mInv.length,revenue:mRev});
-  }
-
-  var chart1 = createChartCard(t('المبيعات الشهرية','Monthly Sales')+' — '+fYear);
-  var maxQ = Math.max.apply(null,monthlyData.map(function(d){return Math.max(d.quotes,d.invoices)}))||1;
-  var barHtml = '<div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:8px">';
-  monthlyData.forEach(function(d){
-    var h1 = Math.max(2,(d.quotes/maxQ)*100);
-    var h2 = Math.max(2,(d.invoices/maxQ)*100);
-    barHtml += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">'
-      +'<div style="display:flex;gap:1px;align-items:flex-end;height:100px;width:100%">'
-      +'<div style="flex:1;background:#23A0B5;border-radius:2px 2px 0 0;height:'+h1+'px" title="'+t('عروض','Q')+': '+d.quotes+'"></div>'
-      +'<div style="flex:1;background:#1A8A5A;border-radius:2px 2px 0 0;height:'+h2+'px" title="'+t('فواتير','I')+': '+d.invoices+'"></div>'
-      +'</div>'
-      +'<div style="color:#6A85A5;font-size:8px">'+d.month+'</div></div>';
-  });
-  barHtml += '</div>';
-  barHtml += '<div style="display:flex;gap:12px;justify-content:center;margin-top:8px">'
-    +'<span style="color:#23A0B5;font-size:9px">■ '+t('عروض','Quotes')+'</span>'
-    +'<span style="color:#1A8A5A;font-size:9px">■ '+t('فواتير','Invoices')+'</span></div>';
-  chart1.innerHTML += barHtml;
-  chartsRow.appendChild(chart1);
-
-  // Chart 2: Invoice Status (Donut)
-  var chart2 = createChartCard(t('حالة الفواتير','Invoice Status'));
-  var invTotal = fInvoices.length || 1;
-  var slices = [
-    {label:t('مدفوعة','Paid'),count:paidInv.length,color:'#1A8A5A'},
-    {label:t('معلقة','Pending'),count:pendingInv.length,color:'#C9A84C'},
-    {label:t('متأخرة','Overdue'),count:overdueInv.length,color:'#C0392B'}
-  ];
-  var donutHtml = '<div style="display:flex;align-items:center;gap:16px;padding:8px">';
-  donutHtml += '<svg viewBox="0 0 100 100" width="100" height="100">';
-  var cumPct = 0;
-  slices.forEach(function(s){
-    var pct = (s.count/invTotal)*100;
-    if(pct > 0){
-      var dashLen = pct * 2.51;
-      var dashOff = -cumPct * 2.51;
-      donutHtml += '<circle cx="50" cy="50" r="40" fill="none" stroke="'+s.color+'" stroke-width="18" stroke-dasharray="'+dashLen+' 251" stroke-dashoffset="'+dashOff+'" transform="rotate(-90 50 50)"/>';
-      cumPct += pct;
-    }
-  });
-  donutHtml += '<text x="50" y="50" text-anchor="middle" dominant-baseline="central" fill="#F5F7FA" font-size="14" font-weight="800">'+fInvoices.length+'</text>';
-  donutHtml += '</svg>';
-  donutHtml += '<div>';
-  slices.forEach(function(s){
-    donutHtml += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
-      +'<div style="width:10px;height:10px;border-radius:50%;background:'+s.color+'"></div>'
-      +'<span style="color:#D0D8EC;font-size:11px">'+s.label+': <b>'+s.count+'</b></span></div>';
-  });
-  donutHtml += '</div></div>';
-  chart2.innerHTML += donutHtml;
-  chartsRow.appendChild(chart2);
-  sc.appendChild(chartsRow);
-
-  // ══ CHARTS ROW 2 ══
-  var chartsRow2 = document.createElement('div');
-  chartsRow2.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px';
-
-  // Chart 3: Sales Performance
-  var chart3 = createChartCard(t('أداء موظفي المبيعات','Sales Performance'));
-  var perfHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px">';
-  perfHtml += '<tr style="color:#6A85A5"><th style="text-align:right;padding:4px">'+t('الموظف','Staff')+'</th><th>'+t('عروض','Q')+'</th><th>'+t('مقبول','Acc')+'</th><th>%</th><th>'+t('قيمة','Value')+'</th></tr>';
-  emps.forEach(function(emp){
-    var eq = fQuotes.filter(function(q){return (q.salesperson||q.createdBy)===emp});
-    var ea = eq.filter(function(q){return q.status==='مقبول'||q.status==='accepted'}).length;
-    var ev = eq.reduce(function(s,q){return s+(q.netTotal||q.total||0)},0);
-    var ep = eq.length ? Math.round((ea/eq.length)*100) : 0;
-    perfHtml += '<tr style="border-top:1px solid #1A2E4A"><td style="color:#F5F7FA;padding:6px 4px;font-weight:600">'+emp+'</td>'
-      +'<td style="color:#23A0B5;text-align:center">'+eq.length+'</td>'
-      +'<td style="color:#1A8A5A;text-align:center">'+ea+'</td>'
-      +'<td style="color:#C9A84C;text-align:center">'+ep+'%</td>'
-      +'<td style="color:#9B59B6;text-align:center;font-family:monospace">'+fmt(ev)+'</td></tr>';
-  });
-  perfHtml += '</table>';
-  chart3.innerHTML += perfHtml;
-  chartsRow2.appendChild(chart3);
-
-  // Chart 4: Revenue Trend
-  var chart4 = createChartCard(t('الإيرادات الشهرية','Monthly Revenue')+' — SAR');
-  var maxRev = Math.max.apply(null,monthlyData.map(function(d){return d.revenue}))||1;
-  var revHtml = '<div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:8px">';
-  monthlyData.forEach(function(d){
-    var h = Math.max(2,(d.revenue/maxRev)*100);
-    revHtml += '<div style="flex:1;display:flex;flex-direction:column;align-items:center">'
-      +'<div style="color:#1A8A5A;font-size:7px;margin-bottom:2px">'+(d.revenue>0?fmt(d.revenue):'')+'</div>'
-      +'<div style="width:80%;background:linear-gradient(180deg,#1A8A5A,#0D5C3E);border-radius:3px 3px 0 0;height:'+h+'px"></div>'
-      +'<div style="color:#6A85A5;font-size:8px;margin-top:2px">'+d.month+'</div></div>';
-  });
-  revHtml += '</div>';
-  chart4.innerHTML += revHtml;
-  chartsRow2.appendChild(chart4);
-  sc.appendChild(chartsRow2);
-
-  // ══ ALERTS ══
-  addSectionTitle(sc, '🔔 '+t('التنبيهات','Alerts'));
-  var alertBox = document.createElement('div');
-  alertBox.style.cssText = 'background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:14px;margin-bottom:14px';
-  var alerts = [];
-
-  // Overdue invoices
-  if(overdueInv.length > 0){
-    var overdueTotal = overdueInv.reduce(function(s,i){return s+(i.amount||0)},0);
-    alerts.push({icon:'⚠️',color:'#C0392B',text:t('يوجد ','There are ')+overdueInv.length+t(' فاتورة متأخرة بقيمة ',' overdue invoices worth ')+'SAR '+fmt(overdueTotal)});
-  }
-
-  // Unanswered quotes (>7 days)
-  var oldQuotes = quotes.filter(function(q){
-    if(q.status!=='مسودة'&&q.status!=='مُرسَل'&&q.status!=='draft'&&q.status!=='sent') return false;
-    var d = new Date(q.createdAt||q.date||today);
-    return (new Date(today) - d) > 7*86400000;
-  });
-  if(oldQuotes.length > 0){
-    alerts.push({icon:'📋',color:'#C9A84C',text:t('يوجد ','There are ')+oldQuotes.length+t(' عرض سعر لم يتم الرد عليه منذ أكثر من 7 أيام',' quotes unanswered for 7+ days')});
-  }
-
-  // Upcoming sessions (next 7 days)
-  var upcoming = sessions.filter(function(s){
-    var sd = s.startDate||s.date||'';
-    return sd >= today && sd <= new Date(new Date(today).getTime()+7*86400000).toISOString().slice(0,10);
-  });
-  if(upcoming.length > 0){
-    alerts.push({icon:'📅',color:'#23A0B5',text:t('يوجد ','There are ')+upcoming.length+t(' برنامج تدريبي خلال 7 أيام القادمة',' sessions in next 7 days')});
-  }
-
-  // Sessions without trainer
-  var noTrainer = sessions.filter(function(s){return !s.trainer||s.trainer==='—'||s.trainer===''});
-  if(noTrainer.length > 0){
-    alerts.push({icon:'👨‍🏫',color:'#E67E22',text:t('يوجد ','There are ')+noTrainer.length+t(' دورة بدون مدرب معيّن',' sessions without assigned trainer')});
-  }
-
-  if(alerts.length === 0){
-    alerts.push({icon:'✅',color:'#1A8A5A',text:t('لا توجد تنبيهات — كل شيء يعمل بشكل طبيعي','No alerts — everything is running smoothly')});
-  }
-
-  alerts.forEach(function(a){
-    alertBox.innerHTML += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:'+a.color+'08;border:1px solid '+a.color+'22;border-radius:8px;margin-bottom:6px">'
-      +'<span style="font-size:18px">'+a.icon+'</span>'
-      +'<span style="color:#D0D8EC;font-size:12px">'+a.text+'</span></div>';
-  });
-  sc.appendChild(alertBox);
-
-  // ══ TOP CLIENTS TABLE ══
-  addSectionTitle(sc, '🏢 '+t('أكبر العملاء','Top Clients'));
-  var clientStats = {};
-  fInvoices.forEach(function(i){
-    var c = i.client||'—';
-    if(!clientStats[c]) clientStats[c] = {name:c,total:0,paid:0,count:0};
-    clientStats[c].total += i.amount||0;
-    clientStats[c].count++;
-    if(i.status==='مدفوع') clientStats[c].paid += i.amount||0;
-  });
-  var topClients = Object.values(clientStats).sort(function(a,b){return b.total-a.total}).slice(0,8);
-
-  var clientTbl = document.createElement('div');
-  clientTbl.style.cssText = 'background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow:hidden;margin-bottom:14px';
-  var ctHtml = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
-    +'<th style="padding:8px;color:#6A85A5;font-size:10px;text-align:right">'+t('العميل','Client')+'</th>'
-    +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('الفواتير','Invoices')+'</th>'
-    +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('الإجمالي','Total')+'</th>'
-    +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('المحصّل','Collected')+'</th>'
-    +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('المتبقي','Remaining')+'</th>'
-    +'</tr></thead><tbody>';
-  topClients.forEach(function(c){
-    ctHtml += '<tr style="border-top:1px solid #1A2E4A">'
-      +'<td style="padding:7px 8px;color:#F5F7FA;font-size:11px;font-weight:600">'+c.name+'</td>'
-      +'<td style="padding:7px 8px;color:#23A0B5;font-size:11px;text-align:center">'+c.count+'</td>'
-      +'<td style="padding:7px 8px;color:#C9A84C;font-size:11px;text-align:center;font-family:monospace">'+fmt(c.total)+'</td>'
-      +'<td style="padding:7px 8px;color:#1A8A5A;font-size:11px;text-align:center;font-family:monospace">'+fmt(c.paid)+'</td>'
-      +'<td style="padding:7px 8px;color:'+(c.total-c.paid>0?'#C0392B':'#1A8A5A')+';font-size:11px;text-align:center;font-family:monospace">'+fmt(c.total-c.paid)+'</td>'
-      +'</tr>';
-  });
-  ctHtml += '</tbody></table>';
-  clientTbl.innerHTML = ctHtml;
-  sc.appendChild(clientTbl);
-
-  // ══ OVERDUE INVOICES TABLE ══
-  var overdueList = invoices.filter(function(i){return i.status==='متأخر'});
-  if(overdueList.length > 0){
-    addSectionTitle(sc, '⚠️ '+t('الفواتير المتأخرة','Overdue Invoices'));
-    var odTbl = document.createElement('div');
-    odTbl.style.cssText = 'background:#060F1E;border:1px solid #C0392B44;border-radius:12px;overflow:hidden;margin-bottom:14px';
-    var odHtml = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px;text-align:right">'+t('رقم الفاتورة','Invoice #')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('العميل','Client')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('الموظف','Staff')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('تاريخ الاستحقاق','Due Date')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('أيام التأخير','Days Late')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('القيمة','Amount')+'</th>'
-      +'</tr></thead><tbody>';
-    overdueList.sort(function(a,b){return (a.dueDate||'').localeCompare(b.dueDate||'')}).forEach(function(inv){
-      var daysLate = inv.dueDate ? Math.floor((new Date(today)-new Date(inv.dueDate))/86400000) : 0;
-      odHtml += '<tr style="border-top:1px solid #1A2E4A">'
-        +'<td style="padding:7px 8px;color:#23A0B5;font-size:11px;font-family:monospace">'+(inv.invoiceNumber||inv.id)+'</td>'
-        +'<td style="padding:7px 8px;color:#F5F7FA;font-size:11px;font-weight:600">'+(inv.client||'—')+'</td>'
-        +'<td style="padding:7px 8px;color:#8BABC9;font-size:10px">'+(inv.salesPerson||inv.createdBy||'—')+'</td>'
-        +'<td style="padding:7px 8px;color:#6A85A5;font-size:10px">'+(inv.dueDate||'—')+'</td>'
-        +'<td style="padding:7px 8px;color:#C0392B;font-size:11px;font-weight:700;text-align:center">'+daysLate+' '+t('يوم','days')+'</td>'
-        +'<td style="padding:7px 8px;color:#C9A84C;font-size:11px;font-family:monospace">SAR '+fmt((inv.amount||0)-(inv.paidAmount||0))+'</td>'
-        +'</tr>';
-    });
-    odHtml += '</tbody></table>';
-    odTbl.innerHTML = odHtml;
-    sc.appendChild(odTbl);
-  }
-
-  // ══ PENDING QUOTES TABLE ══
-  var pendingQuotes = fQuotes.filter(function(q){return q.status==='مسودة'||q.status==='مُرسَل'||q.status==='draft'||q.status==='sent'});
-  if(pendingQuotes.length > 0){
-    addSectionTitle(sc, '⏳ '+t('عروض الأسعار المعلقة','Pending Quotes'));
-    var pqTbl = document.createElement('div');
-    pqTbl.style.cssText = 'background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow:hidden;margin-bottom:14px';
-    var pqHtml = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px;text-align:right">'+t('رقم العرض','Quote #')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('العميل','Client')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('الموظف','Staff')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('تاريخ الإنشاء','Created')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('مدة الانتظار','Waiting')+'</th>'
-      +'<th style="padding:8px;color:#6A85A5;font-size:10px">'+t('القيمة','Value')+'</th>'
-      +'</tr></thead><tbody>';
-    pendingQuotes.sort(function(a,b){return (a.createdAt||'').localeCompare(b.createdAt||'')}).forEach(function(q){
-      var d = q.createdAt||q.date||today;
-      var waitDays = Math.floor((new Date(today)-new Date(d))/86400000);
-      var warnColor = waitDays > 7 ? '#C0392B' : '#6A85A5';
-      pqHtml += '<tr style="border-top:1px solid #1A2E4A">'
-        +'<td style="padding:7px 8px;color:#23A0B5;font-size:11px;font-family:monospace">'+q.id+'</td>'
-        +'<td style="padding:7px 8px;color:#F5F7FA;font-size:11px;font-weight:600">'+(q.client||'—')+'</td>'
-        +'<td style="padding:7px 8px;color:#8BABC9;font-size:10px">'+(q.salesperson||q.createdBy||'—')+'</td>'
-        +'<td style="padding:7px 8px;color:#6A85A5;font-size:10px">'+d.slice(0,10)+'</td>'
-        +'<td style="padding:7px 8px;color:'+warnColor+';font-size:11px;font-weight:700;text-align:center">'+waitDays+' '+t('يوم','days')+'</td>'
-        +'<td style="padding:7px 8px;color:#C9A84C;font-size:11px;font-family:monospace">SAR '+fmt(q.netTotal||q.total||0)+'</td>'
-        +'</tr>';
-    });
-    pqHtml += '</tbody></table>';
-    pqTbl.innerHTML = pqHtml;
-    sc.appendChild(pqTbl);
-  }
+function execRange(){
+  var p = window._exPeriod || 'month';
+  var today = new Date(); var iso = function(d){ return d.toISOString().slice(0,10); };
+  var from='', to=iso(today);
+  if(p==='day'){ from = iso(today); }
+  else if(p==='week'){ var d=new Date(today); d.setDate(d.getDate()-6); from=iso(d); }
+  else if(p==='month'){ from = iso(today).slice(0,8)+'01'; }
+  else if(p==='quarter'){ var q=Math.floor(today.getMonth()/3)*3; from = today.getFullYear()+'-'+String(q+1).padStart(2,'0')+'-01'; }
+  else if(p==='year'){ from = today.getFullYear()+'-01-01'; }
+  else if(p==='custom'){ from = window._exFrom||''; to = window._exTo||iso(today); }
+  else { from=''; to='9999-12-31'; }
+  return {from:from, to:to};
 }
+function execIn(d, r){ if(!d) return false; d=(d+'').slice(0,10); return (!r.from || d>=r.from) && d<=r.to; }
+function execCourseCat(courseName){
+  if(typeof TUV_CATEGORIES==='undefined') return 'أخرى';
+  for(var i=0;i<TUV_CATEGORIES.length;i++){
+    var cat = TUV_CATEGORIES[i];
+    if((cat.courses||[]).some(function(cr){ return cr.name===courseName; })) return cat.nameAr||cat.nameEn;
+  }
+  return 'أخرى';
+}
+function buildExecData(){
+  var r = execRange();
+  var fTrainer = window._exTrainer||'all', fClient = window._exClient||'all', fCat = window._exCat||'all', fStatus = window._exStatus||'all';
+  var key = JSON.stringify([r, fTrainer, fClient, fCat, fStatus, (DB.sessions||[]).length, (DB.invoices||[]).length]);
+  if(window._execCache && window._execCache.key===key) return window._execCache.data; // CACHE: aggregate once per filter change
 
-// ══ Helper Functions ══
+  var today = new Date().toISOString().slice(0,10);
+  var D = {range:r};
+
+  // ── Sessions/courses ──
+  var sess = (DB.sessions||[]).filter(function(s){
+    if(!execIn(s.startDate, r)) return false;
+    if(fTrainer!=='all' && s.trainer!==fTrainer) return false;
+    if(fCat!=='all' && execCourseCat(s.course)!==fCat) return false;
+    var st = s.startDate<today?'ended':(s.startDate===today?'running':'upcoming');
+    if(fStatus!=='all' && st!==fStatus) return false;
+    if(fClient!=='all' && !((s.companies||[]).some(function(c){return (c.name||c)===fClient;}))) return false;
+    return true;
+  });
+  D.courses = { total:sess.length,
+    ended: sess.filter(function(s){return s.startDate<today;}).length,
+    running: sess.filter(function(s){return s.startDate===today;}).length,
+    upcoming: sess.filter(function(s){return s.startDate>today;}).length };
+  D.courses.completionPct = D.courses.total? Math.round(D.courses.ended/D.courses.total*100) : 0;
+  D.sessList = sess;
+
+  // ── Trainees (all 7 prom pages, real records) ──
+  var PIDS=['prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev'];
+  var allT=[], monthCounts={}, natCounts={};
+  PIDS.forEach(function(pid){ getPromData(pid).forEach(function(rec){ allT.push(rec); }); });
+  var thisMonth = today.slice(0,7);
+  var passN=0, failN=0, tMonth=0;
+  allT.forEach(function(rec){
+    var res = ((rec['Result']||rec['result']||'')+'').toLowerCase();
+    if(res.indexOf('pass')>=0||res.indexOf('ناجح')>=0) passN++;
+    else if(res.indexOf('fail')>=0||res.indexOf('راسب')>=0) failN++;
+    var dt = (rec['Date']||rec['date']||'')+'';
+    var mm = dt.slice(0,7);
+    if(/^\d{4}-\d{2}/.test(mm)){ monthCounts[mm]=(monthCounts[mm]||0)+1; if(mm===thisMonth) tMonth++; }
+    var nat = (rec['Nationality']||rec['nationality']||'')+'';
+    if(nat.trim()) natCounts[nat.trim()]=(natCounts[nat.trim()]||0)+1;
+  });
+  D.trainees = { total:allT.length, month:tMonth, pass:passN, fail:failN,
+    passRate: (passN+failN)? Math.round(passN/(passN+failN)*100) : 0,
+    byMonth: monthCounts, byNat: natCounts };
+
+  // ── Trainers ──
+  var trStats = {};
+  (DB.sessions||[]).forEach(function(s){
+    if(!s.trainer) return;
+    if(!trStats[s.trainer]) trStats[s.trainer]={sessions:0, inRange:0};
+    trStats[s.trainer].sessions++;
+    if(execIn(s.startDate,r)) trStats[s.trainer].inRange++;
+  });
+  (DB.trainers||[]).forEach(function(t2){
+    if(!trStats[t2.name]) trStats[t2.name]={sessions:t2.sessions||0, inRange:0};
+    trStats[t2.name].rating = t2.rating||0;
+  });
+  var trArr = Object.keys(trStats).map(function(n){ return {name:n, sessions:trStats[n].sessions, inRange:trStats[n].inRange, rating:trStats[n].rating||0}; });
+  trArr.sort(function(a,b){ return b.sessions-a.sessions; });
+  D.trainers = { active: trArr.filter(function(t2){return t2.sessions>0;}).length,
+    avgRating: trArr.length? (trArr.reduce(function(s2,t2){return s2+(t2.rating||0);},0)/trArr.filter(function(t2){return t2.rating>0;}).length||0).toFixed(1) : '—',
+    top: trArr.slice(0,10) };
+
+  // ── Sales ──
+  var quotes = lsQuotes();
+  var qIn = quotes.filter(function(q){ return execIn(q.createdAt||q.date, r); });
+  var accepted = qIn.filter(function(q){ return q.status==='مقبول'||q.status==='accepted'; }).length;
+  var newClients = (DB.clients||[]).filter(function(c2){ return execIn(c2.createdAt, r); }).length;
+  D.sales = { clients:(DB.clients||[]).length, newClients:newClients, quotes:qIn.length, accepted:accepted,
+    conversion: qIn.length? Math.round(accepted/qIn.length*100) : 0 };
+
+  // ── Finance ──
+  var fd = JSON.parse(localStorage.getItem('tf4_finance')||'{"income":[],"expenses":[]}');
+  var incIn = (fd.income||[]).filter(function(x){ return execIn(x.date, r); });
+  var expIn = (fd.expenses||[]).filter(function(x){ return execIn(x.date, r); });
+  var revenue = incIn.reduce(function(s2,x){ return s2+(x.amount||0); },0);
+  var expenses = expIn.reduce(function(s2,x){ return s2+(x.amount||0); },0);
+  var invIn = (DB.invoices||[]).filter(function(i2){ return execIn(i2.invoiceDate||i2.date, r); });
+  var collected = invIn.reduce(function(s2,i2){ return s2+(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0)); },0);
+  var uncollected = invIn.reduce(function(s2,i2){ var bal=(i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0)); return s2+Math.max(bal,0); },0);
+  D.finance = { revenue:revenue, collected:collected, uncollected:uncollected, expenses:expenses,
+    net: revenue-expenses, margin: revenue? Math.round((revenue-expenses)/revenue*100) : 0 };
+
+  // ── Monthly series (current year) ──
+  var yr = new Date().getFullYear();
+  D.monthly = {rev:[], exp:[], net:[], tr:[]};
+  for(var m2=1;m2<=12;m2++){
+    var mk = yr+'-'+String(m2).padStart(2,'0');
+    var rv = (fd.income||[]).filter(function(x){return (x.date||'').slice(0,7)===mk;}).reduce(function(s2,x){return s2+(x.amount||0);},0);
+    var ex = (fd.expenses||[]).filter(function(x){return (x.date||'').slice(0,7)===mk;}).reduce(function(s2,x){return s2+(x.amount||0);},0);
+    D.monthly.rev.push(rv); D.monthly.exp.push(ex); D.monthly.net.push(rv-ex);
+    D.monthly.tr.push(monthCounts[mk]||0);
+  }
+
+  // ── Category distribution ──
+  var catCounts = {};
+  sess.forEach(function(s2){ var c2=execCourseCat(s2.course); catCounts[c2]=(catCounts[c2]||0)+1; });
+  D.catDist = catCounts;
+
+  // ── Alerts ──
+  var in7 = new Date(); in7.setDate(in7.getDate()+7); var in7s = in7.toISOString().slice(0,10);
+  var ago7 = new Date(); ago7.setDate(ago7.getDate()-7); var ago7s = ago7.toISOString().slice(0,10);
+  D.alerts = {
+    upcoming7: (DB.sessions||[]).filter(function(s2){ return s2.startDate>today && s2.startDate<=in7s; }),
+    ended7: (DB.sessions||[]).filter(function(s2){ return s2.startDate>=ago7s && s2.startDate<today; }),
+    unpaid: (DB.invoices||[]).filter(function(i2){ var bal=(i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0)); return bal>0; }),
+    overdue: (DB.invoices||[]).filter(function(i2){ var bal=(i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0)); return bal>0 && i2.dueDate && i2.dueDate<today; })
+  };
+
+  // ── Top lists ──
+  var compCounts={}, courseCounts={}, revByClient={};
+  (DB.sessions||[]).forEach(function(s2){
+    (s2.companies||[]).forEach(function(c2){ var n=(c2.name||c2)+''; compCounts[n]=(compCounts[n]||0)+1; });
+    if(s2.course) courseCounts[s2.course]=(courseCounts[s2.course]||0)+1;
+  });
+  (DB.invoices||[]).forEach(function(i2){ if(i2.client) revByClient[i2.client]=(revByClient[i2.client]||0)+(i2.amount||0); });
+  var toSorted = function(o){ return Object.keys(o).map(function(k){return [k,o[k]];}).sort(function(a,b){return b[1]-a[1];}); };
+  D.top = { customers: toSorted(compCounts).slice(0,10), courses: toSorted(courseCounts).slice(0,10), revenue: toSorted(revByClient).slice(0,10) };
+
+  window._execCache = {key:key, data:D};
+  return D;
+}
+function execBars(arr, color, h){
+  var mx = Math.max.apply(null, arr.concat([1]));
+  var mN=['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
+  return '<div style="display:flex;align-items:flex-end;gap:4px;height:'+h+'px">'+arr.map(function(v,i){
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;justify-content:flex-end">'
+      +'<div style="color:#8BABC9;font-size:7px;font-family:monospace">'+(v?fmt(Math.round(v/1000))+'k':'')+'</div>'
+      +'<div title="'+fmt(v)+'" style="width:100%;background:'+color+';border-radius:3px 3px 0 0;height:'+Math.max(v/mx*100,1)+'%;min-height:2px;opacity:.85"></div>'
+      +'<div style="color:#3A5070;font-size:7px">'+mN[i]+'</div></div>';
+  }).join('')+'</div>';
+}
+function execLine(arr, color, h){
+  var mx = Math.max.apply(null, arr.map(Math.abs).concat([1]));
+  var W=560, H=h, pts = arr.map(function(v,i){ return (i*(W/11)).toFixed(1)+','+(H-((v+mx)/(2*mx))*H).toFixed(1); }).join(' ');
+  var zero = H-((0+mx)/(2*mx))*H;
+  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px">'
+    +'<line x1="0" y1="'+zero+'" x2="'+W+'" y2="'+zero+'" stroke="#1A2E4A" stroke-dasharray="4 4"/>'
+    +'<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2.5" stroke-linejoin="round"/>'
+    +arr.map(function(v,i){ return '<circle cx="'+(i*(W/11)).toFixed(1)+'" cy="'+(H-((v+mx)/(2*mx))*H).toFixed(1)+'" r="3" fill="'+color+'"><title>'+fmt(v)+'</title></circle>'; }).join('')
+    +'</svg>';
+}
+function execDonut(counts, palette){
+  var entries = Object.keys(counts).map(function(k){return [k,counts[k]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+  var tot = entries.reduce(function(s2,e2){return s2+e2[1];},0)||1;
+  var C=2*Math.PI*40, off=0, segs='';
+  entries.forEach(function(e2,i){
+    var frac=e2[1]/tot, len=frac*C;
+    segs+='<circle r="40" cx="60" cy="60" fill="none" stroke="'+palette[i%palette.length]+'" stroke-width="18" stroke-dasharray="'+len+' '+(C-len)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 60 60)"/>';
+    off+=len;
+  });
+  var legend = entries.map(function(e2,i){
+    return '<div style="display:flex;align-items:center;gap:5px;font-size:9px;color:#8BABC9"><span style="width:8px;height:8px;border-radius:2px;background:'+palette[i%palette.length]+'"></span>'+e2[0]+' <b style="color:#F5F7FA">'+Math.round(e2[1]/tot*100)+'%</b></div>';
+  }).join('');
+  return '<div style="display:flex;align-items:center;gap:14px"><svg viewBox="0 0 120 120" style="width:110px;height:110px;flex-shrink:0">'+segs+'</svg><div style="display:flex;flex-direction:column;gap:4px">'+legend+'</div></div>';
+}
+function renderReportsPage(){
+  var pg = document.getElementById('page-reports') || document.getElementById('page-ops');
+  var el = pg.querySelector('.reports-body') || pg;
+  var D = buildExecData();
+  var r = D.range;
+  var pal = ['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5'];
+
+  var trainerOpts = '<option value="all">كل المدربين</option>'+(DB.trainers||[]).map(function(t2){ return '<option'+(window._exTrainer===t2.name?' selected':'')+'>'+t2.name+'</option>'; }).join('');
+  var compSet = {}; (DB.sessions||[]).forEach(function(s2){ (s2.companies||[]).forEach(function(c2){ compSet[(c2.name||c2)+'']=1; }); });
+  var clientOpts = '<option value="all">كل العملاء</option>'+Object.keys(compSet).map(function(n){ return '<option'+(window._exClient===n?' selected':'')+'>'+n+'</option>'; }).join('');
+  var catOpts = '<option value="all">كل الأنواع</option>'+(typeof TUV_CATEGORIES!=='undefined'?TUV_CATEGORIES:[]).map(function(c2){ var n=c2.nameAr||c2.nameEn; return '<option'+(window._exCat===n?' selected':'')+'>'+n+'</option>'; }).join('');
+  var perBtn = function(k,l){ var on=(window._exPeriod||'month')===k; return '<button onclick="window._exPeriod=\''+k+'\';window._execCache=null;renderReportsPage()" style="padding:5px 11px;border-radius:6px;border:1px solid '+(on?'#C9A84C':'#1A2E4A')+';background:'+(on?'rgba(201,168,76,.15)':'#060F1E')+';color:'+(on?'#C9A84C':'#6A85A5')+';cursor:pointer;font-size:10px;font-family:inherit">'+l+'</button>'; };
+
+  var html = '<div style="padding:22px;display:flex;flex-direction:column;gap:14px">';
+
+  // ═ Filters ═
+  html += '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
+    +'<span style="color:#C9A84C;font-weight:800;font-size:13px">📊 لوحة القيادة التنفيذية</span>'
+    +perBtn('day','اليوم')+perBtn('week','الأسبوع')+perBtn('month','الشهر')+perBtn('quarter','الربع')+perBtn('year','السنة')+perBtn('all','الكل')+perBtn('custom','مخصص')
+    +((window._exPeriod==='custom')?('<input type="date" class="fc" style="font-size:10px" value="'+(window._exFrom||'')+'" onchange="window._exFrom=this.value;window._execCache=null;renderReportsPage()"/><input type="date" class="fc" style="font-size:10px" value="'+(window._exTo||'')+'" onchange="window._exTo=this.value;window._execCache=null;renderReportsPage()"/>'):'')
+    +'<select class="fc" style="font-size:10px" onchange="window._exTrainer=this.value;window._execCache=null;renderReportsPage()">'+trainerOpts+'</select>'
+    +'<select class="fc" style="font-size:10px" onchange="window._exClient=this.value;window._execCache=null;renderReportsPage()">'+clientOpts+'</select>'
+    +'<select class="fc" style="font-size:10px" onchange="window._exCat=this.value;window._execCache=null;renderReportsPage()">'+catOpts+'</select>'
+    +'<select class="fc" style="font-size:10px" onchange="window._exStatus=this.value;window._execCache=null;renderReportsPage()"><option value="all">كل الحالات</option><option value="ended"'+(window._exStatus==='ended'?' selected':'')+'>منتهية</option><option value="running"'+(window._exStatus==='running'?' selected':'')+'>جارية</option><option value="upcoming"'+(window._exStatus==='upcoming'?' selected':'')+'>قادمة</option></select>'
+    +'<button onclick="exportExecutiveReport()" style="margin-right:auto;background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.35);border-radius:7px;color:#9B59B6;padding:7px 14px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:700">📑 Export Executive Report</button>'
+    +'</div>';
+
+  // ═ Executive Summary KPI groups ═
+  var grp = function(title, icon, items){
+    return '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px">'
+      +'<div style="color:#C9A84C;font-size:11px;font-weight:800;margin-bottom:8px">'+icon+' '+title+'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px">'
+      +items.map(function(it){ return '<div style="background:#0B1E3D;border-radius:8px;padding:8px;text-align:center"><div style="color:#6A85A5;font-size:8px">'+it[0]+'</div><div style="color:'+(it[2]||'#F5F7FA')+';font-size:14px;font-weight:800;font-family:monospace">'+it[1]+'</div></div>'; }).join('')
+      +'</div></div>';
+  };
+  html += grp('الدورات','📚',[['إجمالي الدورات',D.courses.total],['منتهية',D.courses.ended,'#1A8A5A'],['جارية',D.courses.running,'#C9A84C'],['قادمة',D.courses.upcoming,'#23A0B5'],['نسبة الإنجاز',D.courses.completionPct+'%','#9B59B6']]);
+  html += grp('المتدربون','🎓',[['الإجمالي',fmt(D.trainees.total)],['هذا الشهر',D.trainees.month,'#23A0B5'],['ناجح',fmt(D.trainees.pass),'#1A8A5A'],['راسب',D.trainees.fail,'#C0392B'],['معدل النجاح',D.trainees.passRate+'%','#1A8A5A']]);
+  html += grp('المدربون','👨‍🏫',[['نشط',D.trainers.active],['متوسط التقييم',D.trainers.avgRating+' ⭐','#C9A84C'],['الأكثر نشاطاً',(D.trainers.top[0]?D.trainers.top[0].name:'—')],['جلساته',(D.trainers.top[0]?D.trainers.top[0].sessions:0),'#23A0B5']]);
+  html += grp('المبيعات','💼',[['العملاء',D.sales.clients],['جدد بالفترة',D.sales.newClients,'#1A8A5A'],['عروض الأسعار',D.sales.quotes],['المقبول',D.sales.accepted,'#1A8A5A'],['معدل التحويل',D.sales.conversion+'%','#C9A84C']]);
+  html += grp('المالية','💰',[['الإيرادات','SAR '+fmt(D.finance.revenue),'#23A0B5'],['المحصّل','SAR '+fmt(D.finance.collected),'#1A8A5A'],['غير محصّل','SAR '+fmt(D.finance.uncollected),'#C0392B'],['المصروفات','SAR '+fmt(D.finance.expenses),'#C0392B'],['صافي الربح','SAR '+fmt(D.finance.net),D.finance.net>=0?'#1A8A5A':'#C0392B'],['هامش الربح',D.finance.margin+'%','#C9A84C']]);
+
+  // ═ Charts ═
+  var card = function(title, inner){ return '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:14px"><div style="color:#8BABC9;font-size:11px;font-weight:700;margin-bottom:10px">'+title+'</div>'+inner+'</div>'; };
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    + card('💰 الإيرادات الشهرية '+new Date().getFullYear(), execBars(D.monthly.rev,'#23A0B5',110))
+    + card('💸 المصروفات الشهرية', execBars(D.monthly.exp,'#C0392B',110))
+    + card('📈 صافي الربح الشهري', execLine(D.monthly.net,'#1A8A5A',110))
+    + card('🎓 المتدربون حسب الشهر', execLine(D.monthly.tr,'#C9A84C',110))
+    + card('🧩 توزيع الدورات حسب الفئة', Object.keys(D.catDist).length? execDonut(D.catDist,pal) : '<div style="color:#3A5070;font-size:10px">لا توجد دورات في الفترة المحددة</div>')
+    + card('🌍 المتدربون حسب الجنسية', Object.keys(D.trainees.byNat).length? execDonut(D.trainees.byNat,pal) : '<div style="color:#3A5070;font-size:10px">حقل الجنسية غير متوفر في السجلات الحالية</div>')
+    +'</div>';
+
+  // ═ Trainer performance ═
+  var mxTr = Math.max.apply(null, D.trainers.top.map(function(t2){return t2.sessions;}).concat([1]));
+  html += card('🏆 أداء المدربين (Top 10)', D.trainers.top.map(function(t2){
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:130px;color:#F5F7FA;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+t2.name+'</div>'
+      +'<div style="flex:1;background:#0B1E3D;border-radius:5px;height:14px"><div style="background:#23A0B5;height:100%;border-radius:5px;width:'+(t2.sessions/mxTr*100)+'%"></div></div>'
+      +'<div style="color:#23A0B5;font-size:10px;font-family:monospace;width:30px">'+t2.sessions+'</div>'
+      +'<div style="color:#C9A84C;font-size:10px;width:38px">'+(t2.rating?t2.rating+'⭐':'—')+'</div></div>';
+  }).join('')||'<div style="color:#3A5070;font-size:10px">لا يوجد</div>');
+
+  // ═ Alerts ═
+  var alertRow = function(icon,label,items,color,render){
+    if(!items.length) return '';
+    return '<div style="border-right:3px solid '+color+';background:#0B1E3D;border-radius:8px;padding:9px;margin-bottom:7px"><div style="color:'+color+';font-size:10px;font-weight:800;margin-bottom:4px">'+icon+' '+label+' ('+items.length+')</div>'
+      +'<div style="color:#8BABC9;font-size:9px;line-height:1.7">'+items.slice(0,5).map(render).join('<br>')+(items.length>5?'<br>… و'+(items.length-5)+' أخرى':'')+'</div></div>';
+  };
+  html += card('🔔 التنبيهات',
+    alertRow('📅','دورات تبدأ خلال 7 أيام',D.alerts.upcoming7,'#C9A84C',function(s2){return s2.startDate+' — '+s2.course+' ('+(s2.trainer||'')+')';})
+    +alertRow('✅','دورات انتهت خلال آخر 7 أيام',D.alerts.ended7,'#1A8A5A',function(s2){return s2.startDate+' — '+s2.course;})
+    +alertRow('🧾','فواتير غير مسددة',D.alerts.unpaid,'#C0392B',function(i2){var bal=(i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0));return (i2.invoiceNumber||i2.id)+' — '+i2.client+' — متبقي SAR '+fmt(bal);})
+    +alertRow('⏰','عملاء متأخرون بالسداد',D.alerts.overdue,'#C0392B',function(i2){return i2.client+' — استحقاق '+i2.dueDate;})
+    ||'<div style="color:#1A8A5A;font-size:10px">✓ لا توجد تنبيهات</div>');
+
+  // ═ Top lists ═
+  var listCard = function(title, arr, valFmt){
+    return card(title, arr.length? arr.map(function(e2,i){
+      return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(26,46,74,.4);font-size:10px"><span style="color:#F5F7FA">'+(i+1)+'. '+e2[0]+'</span><b style="color:#23A0B5;font-family:monospace">'+valFmt(e2[1])+'</b></div>';
+    }).join('') : '<div style="color:#3A5070;font-size:10px">لا يوجد</div>');
+  };
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'
+    + listCard('🏢 أكثر الشركات تدريباً', D.top.customers, function(v){return v+' جلسة';})
+    + listCard('📚 أكثر الدورات طلباً', D.top.courses, function(v){return v+' مرة';})
+    + listCard('💎 أعلى العملاء إيراداً', D.top.revenue, function(v){return 'SAR '+fmt(v);})
+    +'</div>';
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+function execAnalysisText(D){
+  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var now = new Date();
+  var period = (window._exPeriod||'month')==='month' ? 'شهر '+mNames[now.getMonth()]+' '+now.getFullYear() : 'الفترة من '+(D.range.from||'البداية')+' إلى '+D.range.to;
+  var topTr = D.trainers.top[0], topCo = D.top.courses[0], topRev = D.top.revenue[0];
+  var txt = 'خلال '+period+' تم تنفيذ '+D.courses.total+' دورة تدريبية';
+  if(D.trainees.passRate) txt += ' بمعدل نجاح '+D.trainees.passRate+'%';
+  txt += '، وبلغ إجمالي الإيرادات '+fmt(D.finance.revenue)+' ريال مقابل مصروفات '+fmt(D.finance.expenses)+' ريال، ليحقق النظام صافي '+(D.finance.net>=0?'ربح':'خسارة')+' قدره '+fmt(Math.abs(D.finance.net))+' ريال (هامش '+D.finance.margin+'%).';
+  if(topTr) txt += ' سجل المدرب '+topTr.name+' أعلى عدد من الجلسات ('+topTr.sessions+')';
+  if(topCo) txt += '، بينما كانت دورة "'+topCo[0]+'" الأكثر طلباً ('+topCo[1]+' مرة)';
+  txt += '.';
+  if(topRev) txt += ' ويُعد "'+topRev[0]+'" أعلى العملاء تحقيقاً للإيرادات بقيمة '+fmt(topRev[1])+' ريال.';
+  if(D.sales.newClients) txt += ' وانضم '+D.sales.newClients+' عميل جديد خلال الفترة، بمعدل تحويل للعروض بلغ '+D.sales.conversion+'%.';
+  if(D.finance.uncollected>0) txt += ' يُلفت الانتباه إلى وجود مستحقات غير محصّلة بقيمة '+fmt(D.finance.uncollected)+' ريال تتطلب المتابعة.';
+  return txt;
+}
+function exportExecutiveReport(){
+  var D = buildExecData();
+  var repNo = 'EXR-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+String(Math.floor(Math.random()*900)+100);
+  var issued = new Date().toLocaleString('ar-SA');
+  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var pal = ['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5'];
+  var mN=['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
+  var barTbl = function(arr,color){
+    var mx=Math.max.apply(null,arr.concat([1]));
+    return '<table style="width:100%;border-collapse:collapse"><tr>'+arr.map(function(v){return '<td style="vertical-align:bottom;border:none;padding:1px"><div style="background:'+color+';height:'+Math.max(v/mx*70,2)+'px;border-radius:2px 2px 0 0"></div></td>';}).join('')+'</tr><tr>'+mN.map(function(m2){return '<td style="border:none;text-align:center;font-size:7px;color:#666">'+m2+'</td>';}).join('')+'</tr></table>';
+  };
+  var kpiRow = function(items){
+    return '<div style="display:flex;gap:8px;margin:6px 0">'+items.map(function(it){return '<div style="flex:1;border:1px solid #ddd;border-radius:7px;padding:8px;text-align:center"><div style="font-size:8px;color:#777">'+it[0]+'</div><div style="font-size:13px;font-weight:800;color:'+(it[2]||'#0B1E3D')+'">'+it[1]+'</div></div>';}).join('')+'</div>';
+  };
+  var listTbl = function(arr, h1, valFmt){
+    return '<table style="width:100%;border-collapse:collapse;margin-top:4px"><thead><tr><th style="background:#0B1E3D;color:#fff;font-size:9px;padding:5px">#</th><th style="background:#0B1E3D;color:#fff;font-size:9px;padding:5px;text-align:right">'+h1+'</th><th style="background:#0B1E3D;color:#fff;font-size:9px;padding:5px">القيمة</th></tr></thead><tbody>'
+      +arr.map(function(e2,i){return '<tr><td style="border:1px solid #ddd;font-size:9px;text-align:center;padding:4px">'+(i+1)+'</td><td style="border:1px solid #ddd;font-size:9px;padding:4px;text-align:right">'+e2[0]+'</td><td style="border:1px solid #ddd;font-size:9px;text-align:center;padding:4px;font-family:monospace">'+valFmt(e2[1])+'</td></tr>';}).join('')
+      +'</tbody></table>';
+  };
+  var w = window.open('','_blank');
+  w.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>'+repNo+'</title><style>'
+    +'body{font-family:Tahoma,Arial;color:#111;margin:0}'
+    +'.page{padding:34px 40px;page-break-after:always;position:relative;min-height:92vh}'
+    +'.cover{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;background:linear-gradient(160deg,#0B1E3D,#123058);color:#fff;min-height:96vh}'
+    +'.ftr{position:running(footer);}'
+    +'h2{color:#0B1E3D;border-bottom:2px solid #C9A84C;padding-bottom:5px;font-size:15px}'
+    +'.foot{position:absolute;bottom:12px;left:40px;right:40px;display:flex;justify-content:space-between;font-size:8px;color:#999;border-top:1px solid #eee;padding-top:5px}'
+    +'@media print{.page{min-height:auto}}'
+    +'</style></head><body>'
+    // ── COVER ──
+    +'<div class="page cover"><div style="font-size:44px;font-weight:900;letter-spacing:4px;border:3px solid #C9A84C;padding:10px 26px;border-radius:12px;color:#C9A84C">TUV</div>'
+    +'<div style="font-size:13px;margin-top:10px;color:#8BABC9">معهد TUV التدريبي</div>'
+    +'<h1 style="font-size:26px;margin:34px 0 8px">التقرير التنفيذي الشامل</h1>'
+    +'<div style="color:#C9A84C;font-size:13px">Executive Report — TrainFlow CRM</div>'
+    +'<div style="margin-top:44px;font-size:11px;color:#B9CBE0;line-height:2.3">'
+    +'رقم التقرير: <b style="color:#fff">'+repNo+'</b><br>الفترة: <b style="color:#fff">'+(D.range.from||'البداية')+' → '+D.range.to+'</b><br>تاريخ الإصدار: <b style="color:#fff">'+issued+'</b><br>أصدره: <b style="color:#fff">'+(CU?CU.name:'')+' — مدير التشغيل</b></div>'
+    +'<div style="margin-top:40px;border:1px dashed #3A5070;border-radius:8px;padding:8px 14px;font-size:9px;color:#8BABC9">وثيقة داخلية — للإدارة العليا</div></div>'
+    // ── KPIs ──
+    +'<div class="page"><h2>أولاً: الملخص التنفيذي (KPIs)</h2>'
+    +'<div style="font-size:10px;color:#555;font-weight:800;margin-top:8px">📚 الدورات</div>'+kpiRow([['الإجمالي',D.courses.total],['منتهية',D.courses.ended,'#1A8A5A'],['جارية',D.courses.running,'#B7950B'],['قادمة',D.courses.upcoming,'#23A0B5'],['نسبة الإنجاز',D.courses.completionPct+'%']])
+    +'<div style="font-size:10px;color:#555;font-weight:800">🎓 المتدربون</div>'+kpiRow([['الإجمالي',fmt(D.trainees.total)],['هذا الشهر',D.trainees.month],['ناجح',fmt(D.trainees.pass),'#1A8A5A'],['راسب',D.trainees.fail,'#C0392B'],['معدل النجاح',D.trainees.passRate+'%','#1A8A5A']])
+    +'<div style="font-size:10px;color:#555;font-weight:800">👨‍🏫 المدربون</div>'+kpiRow([['نشط',D.trainers.active],['متوسط التقييم',D.trainers.avgRating+' ⭐'],['الأكثر نشاطاً',(D.trainers.top[0]?D.trainers.top[0].name:'—')]])
+    +'<div style="font-size:10px;color:#555;font-weight:800">💼 المبيعات</div>'+kpiRow([['العملاء',D.sales.clients],['جدد',D.sales.newClients,'#1A8A5A'],['العروض',D.sales.quotes],['المقبول',D.sales.accepted],['التحويل',D.sales.conversion+'%','#B7950B']])
+    +'<div style="font-size:10px;color:#555;font-weight:800">💰 المالية</div>'+kpiRow([['الإيرادات',fmt(D.finance.revenue),'#23A0B5'],['المحصّل',fmt(D.finance.collected),'#1A8A5A'],['غير محصّل',fmt(D.finance.uncollected),'#C0392B'],['المصروفات',fmt(D.finance.expenses),'#C0392B'],['صافي الربح',fmt(D.finance.net),D.finance.net>=0?'#1A8A5A':'#C0392B'],['الهامش',D.finance.margin+'%']])
+    +'<h2 style="margin-top:18px">ثانياً: التحليل التنفيذي</h2>'
+    +'<div style="background:#F7F9FC;border:1px solid #dde;border-radius:9px;padding:13px;font-size:11px;line-height:2.1;text-align:justify">'+execAnalysisText(D)+'</div>'
+    +'<div class="foot"><span>'+repNo+'</span><span>معهد TUV التدريبي — TrainFlow CRM</span><span>صفحة 2</span></div></div>'
+    // ── Charts ──
+    +'<div class="page"><h2>ثالثاً: الرسوم البيانية — '+new Date().getFullYear()+'</h2>'
+    +'<div style="font-size:10px;font-weight:800;color:#23A0B5;margin-top:10px">الإيرادات الشهرية</div>'+barTbl(D.monthly.rev,'#23A0B5')
+    +'<div style="font-size:10px;font-weight:800;color:#C0392B;margin-top:14px">المصروفات الشهرية</div>'+barTbl(D.monthly.exp,'#C0392B')
+    +'<div style="font-size:10px;font-weight:800;color:#1A8A5A;margin-top:14px">صافي الربح الشهري</div>'+barTbl(D.monthly.net.map(function(v){return Math.max(v,0);}),'#1A8A5A')
+    +'<div style="font-size:10px;font-weight:800;color:#B7950B;margin-top:14px">المتدربون حسب الشهر</div>'+barTbl(D.monthly.tr,'#C9A84C')
+    +'<div class="foot"><span>'+repNo+'</span><span>معهد TUV التدريبي</span><span>صفحة 3</span></div></div>'
+    // ── Top lists ──
+    +'<div class="page"><h2>رابعاً: قوائم التميّز</h2>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px">'
+    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">🏆 أفضل المدربين</div>'+listTbl(D.trainers.top.map(function(t2){return [t2.name,t2.sessions+' جلسة'+(t2.rating?' — '+t2.rating+'⭐':'')];}),'المدرب',function(v){return v;})+'</div>'
+    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">🏢 أكثر الشركات تدريباً</div>'+listTbl(D.top.customers,'الشركة',function(v){return v+' جلسة';})+'</div>'
+    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">📚 أكثر الدورات طلباً</div>'+listTbl(D.top.courses,'الدورة',function(v){return v+' مرة';})+'</div>'
+    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">💎 أعلى مصادر الإيرادات</div>'+listTbl(D.top.revenue,'العميل',function(v){return 'SAR '+fmt(v);})+'</div>'
+    +'</div>'
+    +'<div style="margin-top:24px;display:flex;justify-content:space-between"><div style="text-align:center;width:190px;border-top:1px solid #999;padding-top:5px;font-size:10px;color:#555">مدير التشغيل</div><div style="text-align:center;width:190px;border-top:1px solid #999;padding-top:5px;font-size:10px;color:#555">الإدارة العليا</div></div>'
+    +'<div class="foot"><span>'+repNo+'</span><span>تقرير مُولَّد آلياً من TrainFlow CRM — '+issued+'</span><span>صفحة 4</span></div></div>'
+    +'</body></html>');
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 500);
+}
 function addSectionTitle(parent, text){
   var h = document.createElement('div');
   h.style.cssText = 'color:#F5F7FA;font-weight:800;font-size:14px;margin:14px 0 8px';
