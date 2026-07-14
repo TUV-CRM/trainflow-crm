@@ -13466,8 +13466,10 @@ function setSalesTarget(monthKey, emp, val){
 }
 function computeTargetRows(monthKey){
   var emps = [];
-  (typeof USERS!=='undefined'?USERS:[]).forEach(function(u){ if(u.dept==='sales') emps.push(u.name); });
-  (DB.invoices||[]).forEach(function(inv){ var n=inv.salesPerson||inv.createdBy; if(n && emps.indexOf(n)<0 && n!=='حسين القصبي') emps.push(n); });
+  // Sales staff + ops manager (he also closes sales) — ops listed first
+  (typeof USERS!=='undefined'?USERS:[]).forEach(function(u){ if(u.dept==='ops') emps.push(u.name); });
+  (typeof USERS!=='undefined'?USERS:[]).forEach(function(u){ if(u.dept==='sales' && emps.indexOf(u.name)<0) emps.push(u.name); });
+  (DB.invoices||[]).forEach(function(inv){ var n=inv.salesPerson||inv.createdBy; if(n && emps.indexOf(n)<0) emps.push(n); });
   var targets = getSalesTargets()[monthKey] || {};
   var quotes = lsQuotes();
   return emps.map(function(emp){
