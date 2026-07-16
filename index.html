@@ -6834,7 +6834,12 @@ function execDonut(counts, palette){
   return '<div style="display:flex;align-items:center;gap:14px"><svg viewBox="0 0 120 120" style="width:110px;height:110px;flex-shrink:0">'+segs+'</svg><div style="display:flex;flex-direction:column;gap:4px">'+legend+'</div></div>';
 }
 function renderReportsPage(){
-  var pg = document.getElementById('page-reports') || document.getElementById('page-ops');
+  // FIX: 'page-reports' is a dead/inactive legacy container still present in the DOM tree
+  // (display:none, never the active page). It was being picked first by the || fallback,
+  // so the report rendered successfully into an invisible element while the real visible
+  // container ('page-ops') stayed empty — the true cause of the black screen (no exception,
+  // because nothing failed; it wrote to the wrong, hidden target).
+  var pg = document.getElementById('page-ops');
   var el = pg.querySelector('.reports-body') || pg;
   try { _renderReportsInner(el); } catch(err){
     console.error('Reports error:', err);
