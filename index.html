@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.28</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.29</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -1113,7 +1113,7 @@ async function save(){
       trainers:        mergeArrays(DB.trainers||[], remote.trainers, []),
       traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
       sessionTraining: mergedST,
-      'prom_test_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]').concat(remote['prom_test_deleted']||[]))).filter(function(id){ return !fps[id]; }); localStorage.setItem('tf4_prom_deleted_prom_test', JSON.stringify(merged)); return merged; })(),
+      'prom_test_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var _rawList=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]').concat(remote['prom_test_deleted']||[]); var _seen={}; var merged=[]; _rawList.forEach(function(entry){ var id=fpOf(entry); if(!id||_seen[id])return; _seen[id]=1; merged.push(entry); }); merged=merged.filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_test', JSON.stringify(merged)); return merged; })(),
       'prom_test': promCleanMerge('prom_test', JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'), remote['prom_test']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]')),
       'prom_test_hidden': Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_test')||'[]').concat(remote['prom_test_hidden']||[]))),
       'prom_test_overrides': Object.assign({}, remote['prom_test_overrides']||{}, JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_test')||'{}')),
@@ -1286,7 +1286,7 @@ async function loadFromGist(){
         localStorage.setItem(k, JSON.stringify(data.sessionTraining[k]));
       });
     }
-    if(data['prom_test_deleted']){ var _pd_prom_test=Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]').concat(data['prom_test_deleted']))); localStorage.setItem('tf4_prom_deleted_prom_test', JSON.stringify(_pd_prom_test)); }
+    if(data['prom_test_deleted']){ var _raw_pt=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]').concat(data['prom_test_deleted']); var _seen_pt={}; var _pd_prom_test=[]; _raw_pt.forEach(function(entry){ var id=fpOf(entry); if(!id||_seen_pt[id])return; _seen_pt[id]=1; _pd_prom_test.push(entry); }); localStorage.setItem('tf4_prom_deleted_prom_test', JSON.stringify(_pd_prom_test)); }
     if(data['prom_test']){ var _pdel_prom_test=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]'); var _before_pt=JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]').length; var _merged_pt=promCleanMerge('prom_test', JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'), data['prom_test'], _pdel_prom_test); localStorage.setItem('tf4_prom_prom_test', JSON.stringify(_merged_pt)); console.log('📥 [مزامنة] prom_test | المستخدم:', CU?CU.name:'-', '| من Firebase:', (data['prom_test']||[]).length, '| محلي قبل:', _before_pt, '| بعد الدمج:', _merged_pt.length); }
     if(data['prom_test_overrides']) localStorage.setItem('tf4_prom_overrides_prom_test', JSON.stringify(Object.assign({}, data['prom_test_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_test')||'{}'))));
     if(data['prom_test_hidden']) localStorage.setItem('tf4_prom_hidden_prom_test', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_test')||'[]').concat(data['prom_test_hidden'])))));
@@ -9246,7 +9246,7 @@ function promCleanMerge(pid, a, b, delIds){
   var bset={};
   (PROM_DATA_BUILTIN[pid]||[]).forEach(function(x){ bset[promContentId(x)]=1; });
   var delSet = {};
-  (delIds||[]).forEach(function(id){ delSet[id]=1; });
+  (delIds||[]).forEach(function(entry){ var id=fpOf(entry); if(id) delSet[id]=1; });
   var out = [];
   var fromA = {}; // fingerprints already kept from 'a' (local) — used ONLY to detect
                    // the SAME record re-appearing in 'b' (remote), never to collapse
@@ -9279,6 +9279,55 @@ function getPromData(pageId){
     .filter((_,i)=>!hiddenSet.has(i));
   return [...processedBuiltin, ...local];
 }
+
+// ════════════════════════════════════════════
+//  RICH TOMBSTONES — Phase 1 (prom_test only), 100% backward compatible.
+//  Old entries in *_deleted are plain fingerprint strings — untouched, still supported.
+//  New entries (prom_test ONLY for now) are objects: {fingerprint, record, deletedAt,
+//  deletedBy, originalPath, reason, version}. Every reader below accepts BOTH shapes.
+// ════════════════════════════════════════════
+var RICH_TOMBSTONE_PAGES = {prom_test:true}; // ← add more pids here as later phases roll out
+function fpOf(entry){
+  // Extracts the fingerprint whether the array holds an old plain string or a new rich object.
+  return (typeof entry === 'string') ? entry : (entry && entry.fingerprint);
+}
+function promDeletedEntry(pageId, rec){
+  if(!RICH_TOMBSTONE_PAGES[pageId]) return promContentId(rec); // unaffected pages: old format, unchanged
+  return {
+    fingerprint: promContentId(rec),
+    record: rec,
+    deletedAt: new Date().toISOString(),
+    deletedBy: { uid:(CU&&CU.id)||'', name:(CU&&CU.name)||'', role:(CU&&CU.role)||'' },
+    originalPath: pageId,
+    reason: 'manual delete',
+    version: 'v2'
+  };
+}
+function getPromRestorable(pageId){
+  // Rich entries only — what the (future) Recycle Bin / this phase's test panel can offer to restore.
+  var del = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
+  var out = [];
+  del.forEach(function(entry, idx){ if(entry && typeof entry==='object' && entry.record) out.push({idx:idx, entry:entry}); });
+  return out;
+}
+function restorePromRecord(pageId, delIndex){
+  var del = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
+  var entry = del[delIndex];
+  if(!entry || typeof entry!=='object' || !entry.record){ showSuccessToast('⚠️ '+(isAR()?'هذا السجل غير قابل للاسترجاع (صيغة قديمة)':'Not restorable (legacy format)')); return; }
+  if(!confirm(isAR()?'استرجاع هذا السجل إلى '+pageId+'؟':'Restore this record to '+pageId+'?')) return;
+  // 1) remove the tombstone FIRST so presence-wins in savePromData can't race it
+  del.splice(delIndex, 1);
+  localStorage.setItem('tf4_prom_deleted_'+pageId, JSON.stringify(del));
+  // 2) push the record back into the live dataset
+  var local = promEnsureIds(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
+  var rec = Object.assign({}, entry.record);
+  delete rec._id; // promEnsureIds will assign a fresh local id
+  local.push(rec);
+  savePromData(pageId, promEnsureIds(pageId, local));
+  showSuccessToast('✅ '+(isAR()?'تم الاسترجاع':'Restored'));
+  if(typeof renderPromPage==='function') renderPromPage(pageId);
+}
+
 function savePromData(pageId, extra){
   localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(extra));
   // PRESENCE WINS: any record being saved right now must not remain on the deleted list.
@@ -9286,7 +9335,7 @@ function savePromData(pageId, extra){
     var _fps = {};
     (extra||[]).forEach(function(r){ if(r) _fps[promContentId(r)] = 1; });
     var _del = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
-    var _cleaned = _del.filter(function(id){ return !_fps[id]; });
+    var _cleaned = _del.filter(function(entry){ return !_fps[fpOf(entry)]; });
     if(_cleaned.length !== _del.length){
       console.log('[auto-revive]', pageId, 'removed', (_del.length-_cleaned.length), 'tombstones for re-uploaded records');
       localStorage.setItem('tf4_prom_deleted_'+pageId, JSON.stringify(_cleaned));
@@ -9573,6 +9622,35 @@ function renderPromPage(pageId){
 
   pg.appendChild(wrap);
 
+  // ── PHASE 1 TEST PANEL — rich-tombstone restorable records (prom_test only, ops-only) ──
+  // Purely additive: doesn't touch anything above. Renders nothing for the other 6 pages
+  // or for non-ops users, so it cannot affect their existing workflow in any way.
+  if(RICH_TOMBSTONE_PAGES[pageId] && CU && CU.dept==='ops'){
+    var restorable = getPromRestorable(pageId);
+    var panel = document.createElement('div');
+    panel.style.cssText = 'margin-top:16px;background:#060F1E;border:1px dashed #C9A84C;border-radius:12px;padding:14px';
+    var head = '<div style="color:#C9A84C;font-size:12px;font-weight:800;margin-bottom:8px">🗂️ سجلات قابلة للاسترجاع — Phase 1 تجريبي ('+restorable.length+')</div>';
+    if(!restorable.length){
+      panel.innerHTML = head + '<div style="color:#3A5070;font-size:10px">لا توجد سجلات محذوفة بالصيغة الجديدة القابلة للاسترجاع بعد. احذف سجلاً من الجدول أعلاه لتجربة الآلية.</div>';
+    } else {
+      var rows = restorable.map(function(it){
+        var e = it.entry, r = e.record||{};
+        var name = r['Name']||r['name']||r['Company Name']||'—';
+        return '<tr style="border-top:1px solid rgba(26,46,74,.4)">'
+          +'<td style="padding:7px;color:#F5F7FA;font-size:11px">'+name+'</td>'
+          +'<td style="padding:7px;color:#8BABC9;font-size:10px">'+(e.deletedAt?new Date(e.deletedAt).toLocaleString('ar-SA'):'—')+'</td>'
+          +'<td style="padding:7px;color:#8BABC9;font-size:10px">'+((e.deletedBy&&e.deletedBy.name)||'—')+'</td>'
+          +'<td style="padding:7px;color:#6A85A5;font-size:9px;font-family:monospace">'+e.fingerprint+'</td>'
+          +'<td style="padding:7px"><button onclick="restorePromRecord(\''+pageId+'\','+it.idx+')" style="background:rgba(26,138,90,.15);border:1px solid rgba(26,138,90,.35);border-radius:6px;color:#1A8A5A;padding:5px 12px;cursor:pointer;font-size:10px;font-family:inherit">✅ استرجاع</button></td>'
+          +'</tr>';
+      }).join('');
+      panel.innerHTML = head + '<table style="width:100%;border-collapse:collapse"><thead><tr>'
+        +['الاسم','تاريخ الحذف','حذفه','البصمة','إجراء'].map(function(h){return '<th style="padding:6px;color:#6A85A5;font-size:9px;text-align:right">'+h+'</th>';}).join('')
+        +'</tr></thead><tbody>'+rows+'</tbody></table>';
+    }
+    pg.appendChild(panel);
+  }
+
   // Focus search
   setTimeout(()=>{const sinp=document.getElementById('promSearch_'+pageId);if(sinp&&_promSearch[pageId]){sinp.focus();var L=sinp.value.length;try{sinp.setSelectionRange(L,L);}catch(e){}}},50);
 }
@@ -9599,7 +9677,8 @@ function deletePromRecord(pageId, localIdx){
   if(rec){
     var delIds = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
     var id = promContentId(rec);
-    if(delIds.indexOf(id)<0) delIds.push(id);
+    var already = delIds.some(function(e){ return fpOf(e)===id; });
+    if(!already) delIds.push(promDeletedEntry(pageId, rec)); // rich object for prom_test, plain string for all other pages (unchanged)
     localStorage.setItem('tf4_prom_deleted_'+pageId, JSON.stringify(delIds));
   }
   local.splice(localIdx,1);
