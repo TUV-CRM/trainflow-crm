@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.27</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.28</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -2132,14 +2132,47 @@ async function renderFirebaseAudit(el){
         +'</tr>';
     }).join('');
 
-    tableEl.innerHTML = kpis
+    // ── Bandwidth estimate — built from the ACTUAL sync mechanics in this codebase,
+    //    not a generic guess: auto-sync fires every 2 minutes per open tab (see the
+    //    setInterval in this file), each cycle downloads the full /data.json tree.
+    var SYNC_INTERVAL_MIN = 2;               // real value: setInterval(..., 120000)
+    var REGISTERED_USERS = (typeof USERS!=='undefined' ? USERS.length : 5);
+    var activeSessionsGuess = REGISTERED_USERS; // assume ~1 open tab per registered user during work hours
+    var workHoursPerDay = 9;                  // rough work-day window
+    var cyclesPerUserPerDay = Math.round((workHoursPerDay*60)/SYNC_INTERVAL_MIN);
+    var loginsPerUserPerDay = 1;               // + one full loadFromGist at login
+    var pullsPerDay = activeSessionsGuess * (cyclesPerUserPerDay + loginsPerUserPerDay);
+    var dailyBandwidthBytes = pullsPerDay * totalBytes;
+    var monthlyBandwidthBytes = dailyBandwidthBytes * 30;
+    var freeLimitBytes = 10 * 1024 * 1024 * 1024; // Spark plan: 10 GB/month download
+    var pctOfFreeLimit = (monthlyBandwidthBytes / freeLimitBytes) * 100;
+
+    var bwCard = '<div style="background:#060F1E;border:1px solid '+(pctOfFreeLimit>80?'#C0392B':(pctOfFreeLimit>40?'#B7950B':'#1A2E4A'))+';border-radius:12px;padding:14px;margin-bottom:14px">'
+      +'<div style="color:#C9A84C;font-size:12px;font-weight:800;margin-bottom:8px">📡 تقدير استهلاك Bandwidth الشهري (مبني على آلية المزامنة الفعلية في الكود)</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">'
+      +'<div class="kpi" style="padding:10px;text-align:center"><div style="color:#6A85A5;font-size:8px">مزامنة كل</div><div style="color:#F5F7FA;font-size:14px;font-weight:800">'+SYNC_INTERVAL_MIN+' دقيقة</div></div>'
+      +'<div class="kpi" style="padding:10px;text-align:center"><div style="color:#6A85A5;font-size:8px">المستخدمون المسجَّلون</div><div style="color:#F5F7FA;font-size:14px;font-weight:800">'+REGISTERED_USERS+'</div></div>'
+      +'<div class="kpi" style="padding:10px;text-align:center"><div style="color:#6A85A5;font-size:8px">تقدير سحب كامل/يوم</div><div style="color:#23A0B5;font-size:14px;font-weight:800">'+fmt(pullsPerDay)+'</div></div>'
+      +'<div class="kpi" style="padding:10px;text-align:center"><div style="color:#6A85A5;font-size:8px">من حد Spark المجاني (10GB)</div><div style="color:'+(pctOfFreeLimit>80?'#C0392B':(pctOfFreeLimit>40?'#B7950B':'#1A8A5A'))+';font-size:14px;font-weight:800">'+pctOfFreeLimit.toFixed(2)+'%</div></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:14px;align-items:center;font-size:11px">'
+      +'<span style="color:#8BABC9">تقدير يومي: <b style="color:#F5F7FA;font-family:monospace">'+fmtBytes(dailyBandwidthBytes)+'</b></span>'
+      +'<span style="color:#8BABC9">تقدير شهري: <b style="color:#C9A84C;font-family:monospace">'+fmtBytes(monthlyBandwidthBytes)+'</b></span>'
+      +'<span style="color:#3A5070">/ 10 GB المسموحة مجاناً</span>'
+      +'</div>'
+      +'<div style="background:#0B1E3D;border-radius:6px;height:14px;margin-top:8px;overflow:hidden"><div style="background:'+(pctOfFreeLimit>80?'#C0392B':(pctOfFreeLimit>40?'#B7950B':'#1A8A5A'))+';height:100%;width:'+Math.min(pctOfFreeLimit,100)+'%"></div></div>'
+      +'<div style="color:#3A5070;font-size:9px;margin-top:8px;line-height:1.7">'
+      +'⚠️ <b>هذا تقدير وليس رقماً مقروءاً من Firebase Console</b> — مبني على: (كل مستخدم مسجَّل يفتح النظام) × (مزامنة كل '+SYNC_INTERVAL_MIN+' د لمدة '+workHoursPerDay+' ساعات عمل يومياً) × (حجم البيانات الفعلي الحالي: '+fmtBytes(totalBytes)+'). العدد الحقيقي يعتمد على عدد الأجهزة المفتوحة فعلياً وساعات الاستخدام اليومية — للرقم الدقيق 100%% راجع Firebase Console مباشرة.'
+      +'</div></div>';
+
+    tableEl.innerHTML = kpis + bwCard
       +'<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow-x:auto">'
       +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
       +['المسار (Path)','الحجم الفعلي','عدد العُقد','النسبة من الإجمالي','%'].map(function(h){return '<th style="padding:9px;color:#6A85A5;font-size:10px;text-align:right">'+h+'</th>';}).join('')
       +'</tr></thead><tbody>'+trs+'</tbody></table></div>'
       +'<div style="color:#3A5070;font-size:10px;margin-top:10px;line-height:1.8">'
-      +'💡 هذه الأرقام قراءة حقيقية الآن من Firebase — الحجم الإجمالي هو ما تدفع/تُقاس عليه فعلياً في خطة Firebase.<br>'
-      +'🗑️ المسارات المنتهية بـ <code>_deleted</code> هي قوائم "محذوف نهائياً" (Tombstones) — بيانات لا قيمة عرضية لها ومرشحة للأرشفة الدورية.<br>'
+      +'💡 حجم التخزين (الجدول أعلاه) قراءة حقيقية الآن من Firebase — الحجم الإجمالي هو ما تُقاس عليه فعلياً مقابل حد 1GB للتخزين.<br>'
+      +'🗑️ المسارات المنتهية بـ <code>_deleted</code> هي قوائم "محذوف نهائياً" (Tombstones) — بيانات لا قيمة عرضية لها ومرشحة للأرشفة الدورية، وهي أيضاً تُعاد تحميلها في كل مزامنة وتستهلك Bandwidth.<br>'
       +'⚠️ هذا التدقيق لا يقيس Firebase Storage أو Firestore أو Authentication أو Hosting — المشروع لا يستخدمها (Realtime Database فقط، عبر REST مباشرة).'
       +'</div>';
   } catch(e){
