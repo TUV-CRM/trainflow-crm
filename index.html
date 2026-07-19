@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.25</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.27</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -881,6 +881,7 @@ const NAV = [
     key:'ops', label:'إدارة التشغيل', icon:'⚙️', color:'#C9A84C', badge:null,
     children:[
       {key:'ops-reports',   label:'التقارير',     icon:'📊', page:'ops'},
+      {key:'ops-storage',   label:'تدقيق Firebase', icon:'🗄️', page:'ops'},
       {key:'ops-perf',      label:'أداء الفريق',  icon:'📈', page:'salesperf'},
       {key:'ops-users',     label:'المستخدمون',   icon:'👤', page:'users'},
       {key:'ops-perms',    label:'إدارة الصلاحيات',   icon:'🔐', page:'perms'},
@@ -2045,13 +2046,122 @@ function renderNotif(){
 // ════════════════════════════════════════════
 //  PAGE: إدارة التشغيل — التقارير الشاملة
 // ════════════════════════════════════════════
+
+// ════════════════════════════════════════════
+//  FIREBASE STORAGE AUDIT (ops-only) — reads REAL byte sizes directly from
+//  Realtime Database via the browser's own auth token. No estimates.
+// ════════════════════════════════════════════
+function byteSize(val){
+  try { return new Blob([JSON.stringify(val)]).size; }
+  catch(e){ return encodeURIComponent(JSON.stringify(val)||'').length; }
+}
+function fmtBytes(b){
+  if(b < 1024) return b+' B';
+  if(b < 1048576) return (b/1024).toFixed(1)+' KB';
+  return (b/1048576).toFixed(2)+' MB';
+}
+function countNodes(val){
+  if(val===null || typeof val!=='object') return 1;
+  if(Array.isArray(val)) return val.reduce(function(s,v){return s+countNodes(v);}, 1);
+  return Object.keys(val).reduce(function(s,k){return s+countNodes(val[k]);}, 1);
+}
+async function renderFirebaseAudit(el){
+  el.innerHTML = '<div style="padding:22px">'
+    +'<div style="display:flex;gap:8px;align-items:center;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px;margin-bottom:14px">'
+    +'<span style="color:#C9A84C;font-weight:800;font-size:13px">🗄️ تدقيق حجم Firebase Realtime Database</span>'
+    +'<span style="color:#3A5070;font-size:10px;margin-right:8px">قراءة حقيقية من قاعدة البيانات — وليست تقديراً</span>'
+    +'<button onclick="renderFirebaseAudit(document.getElementById(\'fbAuditBody\'))" style="margin-right:auto;background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">🔄 إعادة الفحص</button>'
+    +'</div>'
+    +'<div id="fbAuditProgress" style="color:#8BABC9;font-size:11px;padding:20px;text-align:center">⏳ جاري القراءة من Firebase... (قد يستغرق حتى 20 ثانية حسب حجم البيانات)</div>'
+    +'<div id="fbAuditTable"></div>'
+    +'</div>';
+
+  var progressEl = document.getElementById('fbAuditProgress');
+  var tableEl = document.getElementById('fbAuditTable');
+
+  try {
+    // Step 1: get top-level key list only (shallow — cheap, doesn't download values)
+    var shResp = await firebaseFetch('/data.json?shallow=true');
+    if(!shResp || !shResp.ok){
+      progressEl.innerHTML = '<div style="color:#C0392B">⚠️ فشل الاتصال بـ Firebase — HTTP '+(shResp?shResp.status:'?')+'</div>';
+      return;
+    }
+    var keys = Object.keys((await shResp.json()) || {});
+    progressEl.innerHTML = '⏳ وجدت '+keys.length+' مساراً رئيسياً — جاري قياس كل مسار...';
+
+    var rows = [];
+    var totalBytes = 0, totalNodes = 0;
+    for(var i=0;i<keys.length;i++){
+      var k = keys[i];
+      progressEl.innerHTML = '⏳ ('+(i+1)+'/'+keys.length+') يقرأ: '+k+'...';
+      try {
+        var r = await firebaseFetch('/data/'+k+'.json');
+        var val = (r && r.ok) ? await r.json() : null;
+        var sz = byteSize(val);
+        var nodes = countNodes(val);
+        totalBytes += sz; totalNodes += nodes;
+        rows.push({key:k, bytes:sz, nodes:nodes, isTombstone: /_deleted$/.test(k), isHidden: /_hidden$/.test(k)});
+      } catch(e){
+        rows.push({key:k, bytes:0, nodes:0, error:e.message});
+      }
+    }
+    rows.sort(function(a,b){ return b.bytes - a.bytes; });
+
+    progressEl.innerHTML = '';
+    var tombstoneBytes = rows.filter(function(r){return r.isTombstone;}).reduce(function(s,r){return s+r.bytes;},0);
+    var tombstoneNodes = rows.filter(function(r){return r.isTombstone;}).reduce(function(s,r){return s+r.nodes;},0);
+
+    var kpis = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">'
+      +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">الحجم الإجمالي الفعلي</div><div style="color:#C9A84C;font-size:18px;font-weight:800;font-family:monospace">'+fmtBytes(totalBytes)+'</div></div>'
+      +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">عدد المسارات الرئيسية</div><div style="color:#23A0B5;font-size:18px;font-weight:800;font-family:monospace">'+keys.length+'</div></div>'
+      +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">إجمالي العُقد (Nodes)</div><div style="color:#F5F7FA;font-size:18px;font-weight:800;font-family:monospace">'+fmt(totalNodes)+'</div></div>'
+      +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">بيانات محذوفة متراكمة (Tombstones)</div><div style="color:'+(tombstoneBytes>totalBytes*0.15?'#C0392B':'#B7950B')+';font-size:18px;font-weight:800;font-family:monospace">'+fmtBytes(tombstoneBytes)+'</div></div>'
+      +'</div>';
+
+    var maxB = rows.length ? rows[0].bytes || 1 : 1;
+    var trs = rows.map(function(r){
+      var pct = totalBytes ? (r.bytes/totalBytes*100) : 0;
+      var barColor = r.isTombstone ? '#C0392B' : (r.isHidden ? '#6A85A5' : '#23A0B5');
+      var tag = r.isTombstone ? ' <span style="color:#C0392B;font-size:8px">🗑️ محذوفات نهائية</span>' : (r.isHidden ? ' <span style="color:#6A85A5;font-size:8px">مخفي</span>' : '');
+      return '<tr style="border-top:1px solid rgba(26,46,74,.4)">'
+        +'<td style="padding:8px;color:#F5F7FA;font-size:11px;font-family:monospace">'+r.key+tag+'</td>'
+        +'<td style="padding:8px;color:'+barColor+';font-size:12px;font-family:monospace;font-weight:700">'+fmtBytes(r.bytes)+'</td>'
+        +'<td style="padding:8px;color:#8BABC9;font-size:10px;text-align:center">'+fmt(r.nodes)+'</td>'
+        +'<td style="padding:8px;min-width:160px"><div style="background:#0B1E3D;border-radius:5px;height:12px;overflow:hidden"><div style="background:'+barColor+';height:100%;width:'+Math.max(r.bytes/maxB*100,1)+'%"></div></div></td>'
+        +'<td style="padding:8px;color:#6A85A5;font-size:10px">'+pct.toFixed(1)+'%</td>'
+        +'</tr>';
+    }).join('');
+
+    tableEl.innerHTML = kpis
+      +'<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow-x:auto">'
+      +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'
+      +['المسار (Path)','الحجم الفعلي','عدد العُقد','النسبة من الإجمالي','%'].map(function(h){return '<th style="padding:9px;color:#6A85A5;font-size:10px;text-align:right">'+h+'</th>';}).join('')
+      +'</tr></thead><tbody>'+trs+'</tbody></table></div>'
+      +'<div style="color:#3A5070;font-size:10px;margin-top:10px;line-height:1.8">'
+      +'💡 هذه الأرقام قراءة حقيقية الآن من Firebase — الحجم الإجمالي هو ما تدفع/تُقاس عليه فعلياً في خطة Firebase.<br>'
+      +'🗑️ المسارات المنتهية بـ <code>_deleted</code> هي قوائم "محذوف نهائياً" (Tombstones) — بيانات لا قيمة عرضية لها ومرشحة للأرشفة الدورية.<br>'
+      +'⚠️ هذا التدقيق لا يقيس Firebase Storage أو Firestore أو Authentication أو Hosting — المشروع لا يستخدمها (Realtime Database فقط، عبر REST مباشرة).'
+      +'</div>';
+  } catch(e){
+    progressEl.innerHTML = '<div style="color:#C0392B">⚠️ خطأ: '+e.message+'</div>';
+  }
+}
+
 function renderOps(){
   const pg = document.getElementById('page-ops');
-  const tab = (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-settings') ? 'settings' : 'reports';
+  const tab = (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-settings') ? 'settings'
+            : (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-storage') ? 'storage'
+            : 'reports';
   if(tab === 'reports'){
     // Route to the real BI Reports suite (10 independent data-driven reports)
     pg.innerHTML = '<div class="reports-body"></div>';
     renderReportsPage();
+    return;
+  }
+  if(tab === 'storage'){
+    if(!CU || CU.dept!=='ops'){ pg.innerHTML = '<div style="text-align:center;padding:40px;color:#6A85A5">🔒 لمدير التشغيل فقط</div>'; return; }
+    pg.innerHTML = '<div id="fbAuditBody"></div>';
+    renderFirebaseAudit(document.getElementById('fbAuditBody'));
     return;
   }
 
