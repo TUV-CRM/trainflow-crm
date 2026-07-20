@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.39</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.40</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -8100,7 +8100,10 @@ function saveSession(){
   const isOnline = type === 'أونلاين';
 
   const obj = {
-    id:        _editingSessionIdx!==null ? DB.sessions[_editingSessionIdx].id : 'ses'+Date.now(),
+    // FIX: _editingSessionIdx actually holds the session's ID (a string, set at line ~7756),
+    // not an array index — DB.sessions[_editingSessionIdx] was indexing an array with a
+    // string key, always undefined, crashing on .id. It's already just the id itself.
+    id:        _editingSessionIdx!==null ? _editingSessionIdx : 'ses'+Date.now(),
     course,
     trainer:   document.getElementById('s-trainer').value,
     type,
