@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.33</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.34</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -9467,7 +9467,12 @@ function openPromEdit(pageId, globalIdx){
   grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px';
 
   const inputs = {};
-  cfg.cols.forEach(col=>{
+  // ROOT-CAUSE FIX: use the UNION of the page's configured columns AND the record's
+  // OWN actual keys — not cfg.cols alone. Records imported from Excel often have
+  // different column names than the built-in schema; editing them with cfg.cols only
+  // showed empty fields and (on save) silently discarded every field not in cfg.cols.
+  const editCols = Array.from(new Set(cfg.cols.concat(Object.keys(row))));
+  editCols.forEach(col=>{
     const fg = document.createElement('div');
     fg.className = 'form-group';
     fg.style.margin = '0';
@@ -9497,8 +9502,11 @@ function openPromEdit(pageId, globalIdx){
   saveBtn.className = 'btn btn-teal';
   saveBtn.textContent = '💾 '+t('حفظ التعديل','Save Changes');
   saveBtn.onclick = ()=>{
-    const updatedRow = {};
-    cfg.cols.forEach(col=>{ updatedRow[col] = inputs[col].value.trim(); });
+    // Start from the ORIGINAL row (preserves any field not shown as an input,
+    // e.g. an Excel column neither in cfg.cols nor otherwise present) and only
+    // overwrite the fields actually edited — merge, not replace.
+    const updatedRow = Object.assign({}, row);
+    editCols.forEach(col=>{ updatedRow[col] = inputs[col].value.trim(); });
 
     if(isBuiltin){
       // Store override in localStorage with special key
@@ -9546,14 +9554,19 @@ function confirmPromDelete(pageId, globalIdx){
     if(!hidden.includes(globalIdx)) hidden.push(globalIdx);
     localStorage.setItem('tf4_prom_hidden_'+pageId, JSON.stringify(hidden));
     save();
+    renderPromPage(pageId);
+    showSuccessToast('✅ '+t('تم الحذف','Record deleted'));
   } else {
+    // ROOT-CAUSE FIX: this branch used to splice the record with ZERO tombstone,
+    // so the very next sync could resurrect it from remote data. Delegate to
+    // deletePromRecord() — the single already-tested, tombstone-aware delete path
+    // (rich object for RICH_TOMBSTONE_PAGES pages, legacy string otherwise) — instead
+    // of duplicating (and diverging from) that logic here.
     const localIdx = globalIdx - (PROM_DATA_BUILTIN[pageId]||[]).length;
-    const local = JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]');
-    local.splice(localIdx, 1);
-    savePromData(pageId, local);
+    deletePromRecord(pageId, localIdx, true); // true = skip its internal confirm(), we already confirmed above
+    renderPromPage(pageId);
+    showSuccessToast('✅ '+t('تم الحذف','Record deleted'));
   }
-  renderPromPage(pageId);
-  showSuccessToast('✅ '+t('تم الحذف','Record deleted'));
 }
 
 function renderPromPage(pageId){
@@ -9756,8 +9769,8 @@ function exportPromCSV(pageId){
 }
 
 // ── Delete local record ──
-function deletePromRecord(pageId, localIdx){
-  if(!confirm(isAR()?'حذف هذا السجل؟':'Delete this record?')) return;
+function deletePromRecord(pageId, localIdx, skipConfirm){
+  if(!skipConfirm && !confirm(isAR()?'حذف هذا السجل؟':'Delete this record?')) return;
   const local = promEnsureIds(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
   var rec = local[localIdx];
   if(rec){
