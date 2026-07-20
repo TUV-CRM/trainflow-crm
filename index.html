@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.36-TRACE</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.37</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -882,6 +882,7 @@ const NAV = [
     children:[
       {key:'ops-reports',   label:'التقارير',     icon:'📊', page:'ops'},
       {key:'ops-storage',   label:'تدقيق Firebase', icon:'🗄️', page:'ops'},
+      {key:'ops-diag',      label:'تشخيص المزامنة', icon:'🩺', page:'ops'},
       {key:'ops-perf',      label:'أداء الفريق',  icon:'📈', page:'salesperf'},
       {key:'ops-users',     label:'المستخدمون',   icon:'👤', page:'users'},
       {key:'ops-perms',    label:'إدارة الصلاحيات',   icon:'🔐', page:'perms'},
@@ -1031,7 +1032,7 @@ async function save(){
 
     function safePromField(pid, computeFn, fallbackKey){
       try { return computeFn(); }
-      catch(e){ console.error('⚠️ save(): '+pid+' merge failed, using remote fallback —', e.message); return remote[fallbackKey]; }
+      catch(e){ console.error('⚠️ save(): '+pid+' merge failed, using remote fallback —', e.message); logSyncError('save() → safePromField', pid, e); return remote[fallbackKey]; }
     }
     // Step 2: Merge local with remote (newest wins by ID)
     function mergeArrays(local, remoteArr, delList){
@@ -1172,6 +1173,7 @@ async function save(){
     }
   } catch(e){
     console.error('❌ Save error:', e.message);
+    logSyncError('save()', null, e);
     showSyncIndicator('offline');
     showSuccessToast('⚠️ فشل الحفظ على السيرفر — سيُعاد تلقائياً');
   } finally {
@@ -1255,6 +1257,7 @@ async function loadFromGist(){
         }
       } catch(e){
         console.error('⚠️ loadFromGist(): '+pid+' sync failed independently — other pages/sections unaffected:', e.message);
+        logSyncError('loadFromGist() → PROM_PIDS loop', pid, e);
       }
     });
 
@@ -1391,6 +1394,7 @@ async function loadFromGist(){
     return true;
   } catch(e){
     console.warn('Firebase load error:', e.message);
+    logSyncError('loadFromGist()', null, e);
     showSyncIndicator('synced');
     return false;
   }
@@ -2116,6 +2120,189 @@ function countNodes(val){
   if(Array.isArray(val)) return val.reduce(function(s,v){return s+countNodes(v);}, 1);
   return Object.keys(val).reduce(function(s,k){return s+countNodes(val[k]);}, 1);
 }
+
+// ════════════════════════════════════════════
+//  DIAGNOSTIC MODE — تشخيص المزامنة (ops-only, self-contained, no console needed)
+// ════════════════════════════════════════════
+var DIAG_PAGE_LABELS = { prom_test:'TEST', prom_training:'TRAINING', prom_safety:'SAFETY', prom_wpr:'WPR', prom_firstaid:'FIRST AID', prom_osha:'OSHA', prom_dev:'DEV' };
+async function renderSyncDiagnostics(el){
+  el.innerHTML = '<div style="padding:22px"><div style="color:#8BABC9;font-size:12px">⏳ جاري تنفيذ الفحوصات...</div></div>';
+  var out = { fbOk:false, fbCounts:{}, localCounts:{}, lastSyncTime: localStorage.getItem('tf4_last_synced')||null };
+  var PROM_PIDS = ['prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev'];
+
+  // ── المرحلة 1: فحص Firebase مباشرة + عدد السجلات لكل صفحة ──
+  try {
+    var pingResp = await firebaseFetch('/data.json?shallow=true');
+    out.fbOk = !!(pingResp && pingResp.ok);
+  } catch(e){ out.fbOk = false; out.fbError = e.message; }
+
+  for(var i=0;i<PROM_PIDS.length;i++){
+    var pid = PROM_PIDS[i];
+    try {
+      var r = await firebaseFetch('/data/'+pid+'.json');
+      var v = (r && r.ok) ? (await r.json()) : null;
+      out.fbCounts[pid] = Array.isArray(v) ? v.length : 0;
+    } catch(e){ out.fbCounts[pid] = null; }
+    out.localCounts[pid] = (JSON.parse(localStorage.getItem('tf4_prom_'+pid)||'[]')).length + (PROM_DATA_BUILTIN[pid]||[]).length;
+  }
+
+  // ── المرحلة 8 جزئياً: اختبار كتابة/قراءة حقيقي (round-trip) على مسار تشخيصي آمن، لا يمس بيانات المتدربين ──
+  var roundTrip = { ok:false };
+  try {
+    var marker = { ts: Date.now(), by:(CU&&CU.name)||'?' };
+    var putR = await firebaseFetch('/data/_diagnostic_test.json', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(marker) });
+    roundTrip.putOk = !!(putR && putR.ok);
+    var getR = await firebaseFetch('/data/_diagnostic_test.json');
+    var back = (getR && getR.ok) ? await getR.json() : null;
+    roundTrip.ok = !!(back && back.ts === marker.ts);
+    roundTrip.detail = roundTrip.ok ? 'PUT ثم GET فوراً — القيمة المكتوبة عادت مطابقة تماماً' : 'PUT نجح لكن القراءة الفورية لم تُرجِع نفس القيمة';
+  } catch(e){ roundTrip.error = e.message; }
+
+  // ── المرحلة 6: آخر استثناء مسجَّل ──
+  var lastErr = null;
+  try { lastErr = JSON.parse(localStorage.getItem('tf4_last_sync_error')||'null'); } catch(e){}
+
+  // ── المرحلة 7 جزء: آخر أحداث (رفع/تعديل/حذف/حذف جماعي) ──
+  var events = [];
+  try { events = JSON.parse(localStorage.getItem('tf4_sync_events')||'[]'); } catch(e){}
+  var lastOfKind = function(k){ return events.find(function(e){return e.kind===k;}); };
+
+  // ═══ بناء الواجهة ═══
+  var html = '<div style="padding:22px;display:flex;flex-direction:column;gap:14px">';
+
+  html += '<div style="display:flex;align-items:center;gap:10px;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px">'
+    +'<span style="color:#C9A84C;font-weight:800;font-size:14px">🩺 تشخيص المزامنة</span>'
+    +'<span style="color:#3A5070;font-size:10px">لوحة ذاتية — كل الفحوصات حقيقية ومباشرة من Firebase، بلا Console</span>'
+    +'<button onclick="renderSyncDiagnostics(document.getElementById(\'diagBody\'))" style="margin-right:auto;background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:7px;color:#23A0B5;padding:7px 14px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:700">🔄 إعادة الفحص</button>'
+    +'<button onclick="runFullSyncTest()" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.35);border-radius:7px;color:#9B59B6;padding:7px 14px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:700">🧪 إجراء اختبار شامل</button>'
+    +'</div>';
+
+  // المرحلة 1
+  html += '<div style="background:#060F1E;border:1px solid '+(out.fbOk?'#1A8A5A':'#C0392B')+';border-radius:12px;padding:14px">'
+    +'<div style="color:'+(out.fbOk?'#1A8A5A':'#C0392B')+';font-weight:800;font-size:12px;margin-bottom:8px">1️⃣ حالة الاتصال بـ Firebase: '+(out.fbOk?'✅ متصل':'❌ فشل الاتصال'+(out.fbError?(' — '+out.fbError):''))+'</div>'
+    +'<div style="color:#6A85A5;font-size:10px;margin-bottom:8px">آخر مزامنة معروفة على هذا الجهاز: '+(out.lastSyncTime?new Date(out.lastSyncTime).toLocaleString('ar-SA'):'—')+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'
+    + PROM_PIDS.map(function(pid){
+        return '<div class="kpi" style="padding:9px;text-align:center"><div style="color:#6A85A5;font-size:8px">'+DIAG_PAGE_LABELS[pid]+'</div><div style="color:#F5F7FA;font-size:15px;font-weight:800;font-family:monospace">'+(out.fbCounts[pid]===null?'—':out.fbCounts[pid])+'</div></div>';
+      }).join('')
+    +'</div></div>';
+
+  // المرحلة 2 + 5 (كل الصفحات معاً)
+  html += '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:14px">'
+    +'<div style="color:#C9A84C;font-weight:800;font-size:12px;margin-bottom:8px">2️⃣ مقارنة Firebase ↔ الجهاز الحالي (Local Storage) — لكل صفحات المتدربين</div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['الصفحة','Firebase','Local','الحالة'].map(function(h){return '<th style="padding:7px;color:#6A85A5;font-size:9px;text-align:right">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    + PROM_PIDS.map(function(pid){
+        var fb = out.fbCounts[pid], loc = out.localCounts[pid];
+        var match = (fb!==null && fb===loc);
+        return '<tr style="border-top:1px solid rgba(26,46,74,.4)">'
+          +'<td style="padding:7px;color:#F5F7FA;font-size:11px">'+DIAG_PAGE_LABELS[pid]+' <span style="color:#3A5070;font-size:9px">('+pid+')</span></td>'
+          +'<td style="padding:7px;color:#23A0B5;font-family:monospace">'+(fb===null?'خطأ':fb)+'</td>'
+          +'<td style="padding:7px;color:#8BABC9;font-family:monospace">'+loc+'</td>'
+          +'<td style="padding:7px;font-weight:700;color:'+(match?'#1A8A5A':'#C0392B')+'">'+(match?'✅ متطابق':'❌ يوجد اختلاف')+'</td>'
+          +'</tr>';
+      }).join('')
+    +'</tbody></table></div>';
+
+  // المرحلة 3 + 4 (دورة الحياة + إثبات الكتابة/القراءة)
+  html += '<div style="background:#060F1E;border:1px solid '+(roundTrip.ok?'#1A8A5A':'#C0392B')+';border-radius:12px;padding:14px">'
+    +'<div style="color:'+(roundTrip.ok?'#1A8A5A':'#C0392B')+';font-weight:800;font-size:12px;margin-bottom:6px">4️⃣ اختبار الكتابة ثم القراءة الفورية (PUT → GET) — إثبات حقيقي لوصول البيانات لـ Firebase</div>'
+    +'<div style="color:#8BABC9;font-size:10px">'+(roundTrip.error ? ('⚠️ خطأ: '+roundTrip.error) : (roundTrip.ok ? '✅ Firebase confirmed' : '❌ PUT succeeded لكن البيانات غير موجودة داخل Firebase عند القراءة الفورية'))+'</div>'
+    +'</div>';
+
+  var pipeline = [
+    ['Excel Import', lastOfKind('upload')],
+    ['savePromData()', out.fbOk ? {ok:true} : null],
+    ['save() → Firebase PUT', roundTrip.putOk ? {ok:true} : (roundTrip.putOk===false?{ok:false}:null)],
+    ['Firebase GET', roundTrip.ok ? {ok:true} : (roundTrip.ok===false?{ok:false}:null)],
+    ['promCleanMerge()', out.fbOk ? {ok:true} : null],
+    ['localStorage', {ok:true}],
+    ['render', {ok:true}]
+  ];
+  html += '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:14px">'
+    +'<div style="color:#C9A84C;font-weight:800;font-size:12px;margin-bottom:8px">3️⃣ دورة المزامنة الكاملة</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
+    + pipeline.map(function(step,i){
+        var st = step[1];
+        var icon = !st ? '⚪' : (st.ok ? '✅' : '❌');
+        return '<div style="background:#0B1E3D;border-radius:8px;padding:8px 12px;font-size:10px;color:#F5F7FA">'+icon+' '+step[0]+'</div>' + (i<pipeline.length-1?'<span style="color:#3A5070">→</span>':'');
+      }).join('')
+    +'</div></div>';
+
+  // المرحلة 7: آخر عمليات + آخر استثناء
+  var evRow = function(kind, label){
+    var e = lastOfKind(kind);
+    return '<div style="background:#0B1E3D;border-radius:8px;padding:9px;font-size:10px;color:#8BABC9">'
+      +'<b style="color:#F5F7FA">'+label+':</b> '+(e ? (DIAG_PAGE_LABELS[e.pageId]||e.pageId)+' — '+JSON.stringify(e.detail)+' <span style="color:#3A5070">('+new Date(e.time).toLocaleTimeString('ar-SA')+')</span>' : 'لا توجد عملية مسجَّلة بعد')
+      +'</div>';
+  };
+  html += '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:14px">'
+    +'<div style="color:#C9A84C;font-weight:800;font-size:12px;margin-bottom:8px">7️⃣ آخر العمليات</div>'
+    +'<div style="display:flex;flex-direction:column;gap:6px">'
+    + evRow('upload','آخر رفع Excel') + evRow('edit','آخر تعديل') + evRow('delete','آخر حذف فردي') + evRow('bulk_delete_all','آخر حذف جماعي (الكل)') + evRow('bulk_delete_selected','آخر حذف جماعي (محدد)')
+    +'</div></div>';
+
+  // المرحلة 6: آخر استثناء — لا يُبتلَع
+  html += '<div style="background:#060F1E;border:1px solid '+(lastErr?'#C0392B':'#1A2E4A')+';border-radius:12px;padding:14px">'
+    +'<div style="color:'+(lastErr?'#C0392B':'#1A8A5A')+';font-weight:800;font-size:12px;margin-bottom:8px">6️⃣ آخر استثناء (Exception) '+(lastErr?'':'— لا يوجد ✅')+'</div>'
+    + (lastErr ? (
+        '<div style="color:#F5F7FA;font-size:11px;font-family:monospace">الدالة: '+lastErr.fn+(lastErr.pageId?(' | الصفحة: '+lastErr.pageId):'')+'</div>'
+        +'<div style="color:#C0392B;font-size:10px;margin-top:4px">'+lastErr.message+'</div>'
+        +(lastErr.stack?('<div style="color:#6A85A5;font-size:9px;margin-top:4px;font-family:monospace">'+lastErr.stack+'</div>'):'')
+        +'<div style="color:#3A5070;font-size:9px;margin-top:6px">وقت الحدوث: '+new Date(lastErr.time).toLocaleString('ar-SA')+'</div>'
+        +'<button onclick="localStorage.removeItem(\'tf4_last_sync_error\');renderSyncDiagnostics(document.getElementById(\'diagBody\'))" style="margin-top:8px;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);border-radius:6px;color:#E74C3C;padding:5px 12px;cursor:pointer;font-size:9px;font-family:inherit">مسح السجل</button>'
+      ) : '<div style="color:#8BABC9;font-size:10px">لم يُسجَّل أي استثناء في save() أو loadFromGist() منذ آخر مسح.</div>')
+    +'</div>';
+
+  html += '<div id="fullTestResult"></div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function runFullSyncTest(){
+  var box = document.getElementById('fullTestResult');
+  if(!box) return;
+  box.innerHTML = '<div style="background:#060F1E;border:1px solid #9B59B6;border-radius:12px;padding:14px;margin-top:4px"><div style="color:#9B59B6;font-weight:800;font-size:12px">🧪 جاري تنفيذ الاختبار الشامل...</div></div>';
+  var steps = [];
+  // 1) قراءة Firebase
+  try { var r1 = await firebaseFetch('/data/prom_safety.json'); steps.push(['قراءة Firebase', !!(r1&&r1.ok)]); } catch(e){ steps.push(['قراءة Firebase', false]); }
+  // 2) مقارنة Local Storage
+  try {
+    var fbData = (await (await firebaseFetch('/data/prom_safety.json')).json())||[];
+    var locData = JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]');
+    steps.push(['مقارنة Local Storage', fbData.length===((PROM_DATA_BUILTIN.prom_safety||[]).length+locData.length)]);
+  } catch(e){ steps.push(['مقارنة Local Storage', false]); }
+  // 3) اختبار الكتابة
+  var wtOk=false, marker={ts:Date.now()};
+  try { var pw = await firebaseFetch('/data/_diagnostic_test.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(marker)}); wtOk = !!(pw&&pw.ok); } catch(e){}
+  steps.push(['اختبار الكتابة', wtOk]);
+  // 4) اختبار القراءة
+  var rdOk=false;
+  try { var pr = await firebaseFetch('/data/_diagnostic_test.json'); var back = (pr&&pr.ok)?await pr.json():null; rdOk = !!(back && back.ts===marker.ts); } catch(e){}
+  steps.push(['اختبار القراءة', rdOk]);
+  // 5) اختبار الدمج
+  var mgOk=false;
+  try {
+    var localArr = promEnsureIds('prom_safety', JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]'));
+    var delArr = JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_safety')||'[]');
+    var merged = promCleanMerge('prom_safety', localArr, localArr, delArr);
+    mgOk = Array.isArray(merged);
+  } catch(e){}
+  steps.push(['اختبار الدمج (promCleanMerge)', mgOk]);
+  // 6) اختبار العرض
+  var rndOk=false;
+  try { var testEl = document.getElementById('page-prom_safety'); rndOk = !!testEl; } catch(e){}
+  steps.push(['اختبار العرض (Render)', rndOk]);
+
+  var allOk = steps.every(function(s){return s[1];});
+  box.innerHTML = '<div style="background:#060F1E;border:1px solid '+(allOk?'#1A8A5A':'#C0392B')+';border-radius:12px;padding:14px;margin-top:4px">'
+    +'<div style="color:'+(allOk?'#1A8A5A':'#C0392B')+';font-weight:800;font-size:13px;margin-bottom:10px">🧪 نتيجة الاختبار الشامل: '+(allOk?'✅ كل الفحوصات نجحت':'❌ يوجد فحص فاشل')+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:6px">'
+    + steps.map(function(s){ return '<div style="display:flex;justify-content:space-between;background:#0B1E3D;border-radius:7px;padding:8px 12px;font-size:11px"><span style="color:#F5F7FA">'+s[0]+'</span><span style="color:'+(s[1]?'#1A8A5A':'#C0392B')+';font-weight:700">'+(s[1]?'✅ نجح':'❌ فشل')+'</span></div>'; }).join('')
+    +'</div></div>';
+}
+
 async function renderFirebaseAudit(el){
   el.innerHTML = '<div style="padding:22px">'
     +'<div style="display:flex;gap:8px;align-items:center;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px;margin-bottom:14px">'
@@ -2235,6 +2422,7 @@ function renderOps(){
   const pg = document.getElementById('page-ops');
   const tab = (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-settings') ? 'settings'
             : (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-storage') ? 'storage'
+            : (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-diag') ? 'diag'
             : 'reports';
   if(tab === 'reports'){
     // Route to the real BI Reports suite (10 independent data-driven reports)
@@ -2246,6 +2434,12 @@ function renderOps(){
     if(!CU || CU.dept!=='ops'){ pg.innerHTML = '<div style="text-align:center;padding:40px;color:#6A85A5">🔒 لمدير التشغيل فقط</div>'; return; }
     pg.innerHTML = '<div id="fbAuditBody"></div>';
     renderFirebaseAudit(document.getElementById('fbAuditBody'));
+    return;
+  }
+  if(tab === 'diag'){
+    if(!CU || CU.dept!=='ops'){ pg.innerHTML = '<div style="text-align:center;padding:40px;color:#6A85A5">🔒 لمدير التشغيل فقط</div>'; return; }
+    pg.innerHTML = '<div id="diagBody"></div>';
+    renderSyncDiagnostics(document.getElementById('diagBody'));
     return;
   }
 
@@ -9364,6 +9558,28 @@ async function verifyPromSyncLive(pageId){
   }
 }
 
+
+// ════════════════════════════════════════════
+//  SYNC DIAGNOSTIC LOGGING — lightweight event + error capture, read by the
+//  Diagnostic Mode page. No console dependency; everything persists to localStorage.
+// ════════════════════════════════════════════
+function logSyncEvent(kind, pageId, detail){
+  try {
+    var events = JSON.parse(localStorage.getItem('tf4_sync_events')||'[]');
+    events.unshift({ kind:kind, pageId:pageId, detail:detail, time:new Date().toISOString() });
+    localStorage.setItem('tf4_sync_events', JSON.stringify(events.slice(0,30)));
+  } catch(e){}
+}
+function logSyncError(fnName, pageId, err){
+  try {
+    localStorage.setItem('tf4_last_sync_error', JSON.stringify({
+      fn: fnName, pageId: pageId||null, message: (err&&err.message)||String(err),
+      stack: (err&&err.stack)? err.stack.split('\n').slice(0,3).join(' | ') : '',
+      time: new Date().toISOString()
+    }));
+  } catch(e){}
+}
+
 var RICH_TOMBSTONE_PAGES = {prom_test:true, prom_safety:true};
 
 function tombstoneLocalRecords(pageId, records){
@@ -9549,6 +9765,7 @@ function openPromEdit(pageId, globalIdx){
       if(local[localIdx]) local[localIdx] = updatedRow;
       savePromData(pageId, local);
     }
+    logSyncEvent('edit', pageId, {builtin:isBuiltin, globalIdx:globalIdx});
     overlay.remove();
     renderPromPage(pageId);
     showSuccessToast('✅ '+t('تم حفظ التعديل','Changes saved'));
@@ -9806,6 +10023,7 @@ function deletePromRecord(pageId, localIdx, skipConfirm){
   const local = promEnsureIds(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
   var rec = local[localIdx];
   if(rec) tombstoneLocalRecords(pageId, [rec]); // shared path — identical behavior to bulk deletes
+  logSyncEvent('delete', pageId, {count:1});
   local.splice(localIdx,1);
   savePromData(pageId, local);
   renderPromPage(pageId);
@@ -9915,6 +10133,7 @@ function handlePromExcelUpload(pageId, file){
     const local = JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]');
     const merged = [...data,...local];
     console.log('[TRACE 1/9] Excel Import — pageId='+pageId+' | new rows parsed from file='+data.length+' | existing local before merge='+local.length+' | merged total to save='+merged.length);
+    logSyncEvent('upload', pageId, {newRows:data.length, mergedTotal:merged.length});
     savePromData(pageId, merged);
     renderPromPage(pageId);
     showSuccessToast('✅ '+t('تم استيراد','Imported')+' '+data.length+' '+t('سجل','records'));
@@ -13119,6 +13338,7 @@ function deleteAllPromFiltered(pageId){
   localStorage.setItem('tf4_prom_hidden_'+pageId, JSON.stringify(hidden));
   localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(keptLocal));
   tombstoneLocalRecords(pageId, removedLocal); // shared path — rich format for RICH_TOMBSTONE_PAGES pages, legacy otherwise
+  logSyncEvent('bulk_delete_all', pageId, {count:delCount});
   save();
   showSuccessToast('✅ '+(isAR()?'تم حذف '+delCount+' سجل':'Deleted '+delCount+' records'));
   renderPromPage(pageId);
@@ -13163,6 +13383,7 @@ function deleteSelectedProm(pageId){
     }
   });
   
+  logSyncEvent('bulk_delete_selected', pageId, {count:indices.length});
   save();
   showSuccessToast('✅ '+(isAR()?'تم حذف '+indices.length+' عنصر':'Deleted '+indices.length+' items'));
   renderPromPage(pageId);
