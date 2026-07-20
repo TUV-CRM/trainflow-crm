@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.37</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.38</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -1234,6 +1234,14 @@ async function loadFromGist(){
     // no per-page code needed here or anywhere else.
     // ════════════════════════════════════════════
     var PROM_PIDS = ['prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev'];
+    // Pending-save guard: if THIS device has local changes not yet confirmed saved to
+    // Firebase (tf4_pending_save==='1' — set by save() at its very start, cleared only
+    // on confirmed PUT success), skip applying remote 'overrides' this cycle. Overrides
+    // are replaced wholesale (Object.assign), not merged record-by-record like live data
+    // or tombstones (which are already safe — see promCleanMerge/dedupeTombstoneList),
+    // so this is the one spot a not-yet-saved local edit could be silently clobbered by
+    // an older remote snapshot arriving mid-retry.
+    var _pendingSave = localStorage.getItem('tf4_pending_save')==='1';
     PROM_PIDS.forEach(function(pid){
       try {
         if(data[pid+'_deleted']){
@@ -1243,17 +1251,23 @@ async function loadFromGist(){
         if(data[pid]){
           var _delIds = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pid)||'[]');
           var _localArr = promEnsureIds(pid, JSON.parse(localStorage.getItem('tf4_prom_'+pid)||'[]'));
+          var _before = _localArr.length;
           if(pid==='prom_safety') console.log('[TRACE 6/9] promCleanMerge() INPUT for prom_safety — local (device'+"'"+"'"+'s existing before merge)='+_localArr.length+' | remote from Firebase='+((data[pid]||[]).length)+' | tombstones being applied='+_delIds.length);
           var _mergedResult = promCleanMerge(pid, _localArr, data[pid]||[], _delIds);
           if(pid==='prom_safety') console.log('[TRACE 7/9] promCleanMerge() OUTPUT for prom_safety — result count='+_mergedResult.length);
           localStorage.setItem('tf4_prom_'+pid, JSON.stringify(_mergedResult));
           if(pid==='prom_safety') console.log('[TRACE 7b/9] Written to localStorage tf4_prom_prom_safety — verified count='+JSON.parse(localStorage.getItem('tf4_prom_prom_safety')).length);
+          console.log('📥 [مزامنة] '+pid+' | المستخدم:', CU?CU.name:'-', '| من Firebase:', (data[pid]||[]).length, '| محلي قبل:', _before, '| بعد الدمج:', _mergedResult.length);
         }
         if(data[pid+'_hidden']){
           localStorage.setItem('tf4_prom_hidden_'+pid, JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pid)||'[]').concat(data[pid+'_hidden'])))));
         }
-        if(data[pid+'_overrides']){
+        if(data[pid+'_overrides'] && !_pendingSave){
+          // Firebase is the final source of truth for overrides (remote wins on conflict)
+          // — but only once any pending local save has confirmed, per the guard above.
           localStorage.setItem('tf4_prom_overrides_'+pid, JSON.stringify(Object.assign({}, JSON.parse(localStorage.getItem('tf4_prom_overrides_'+pid)||'{}'), data[pid+'_overrides'])));
+        } else if(data[pid+'_overrides'] && _pendingSave){
+          console.warn('⏳ loadFromGist(): تخطي دمج overrides لـ'+pid+' — يوجد حفظ محلي معلَّق لم يُؤكَّد بعد');
         }
       } catch(e){
         console.error('⚠️ loadFromGist(): '+pid+' sync failed independently — other pages/sections unaffected:', e.message);
@@ -1340,35 +1354,7 @@ async function loadFromGist(){
         localStorage.setItem(k, JSON.stringify(data.sessionTraining[k]));
       });
     }
-    if(data['prom_test_deleted']){ var _pd_prom_test=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]').concat(data['prom_test_deleted'])); localStorage.setItem('tf4_prom_deleted_prom_test', JSON.stringify(_pd_prom_test)); }
-    if(data['prom_test']){ var _pdel_prom_test=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]'); var _before_pt=JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]').length; var _merged_pt=promCleanMerge('prom_test', JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'), data['prom_test'], _pdel_prom_test); localStorage.setItem('tf4_prom_prom_test', JSON.stringify(_merged_pt)); console.log('📥 [مزامنة] prom_test | المستخدم:', CU?CU.name:'-', '| من Firebase:', (data['prom_test']||[]).length, '| محلي قبل:', _before_pt, '| بعد الدمج:', _merged_pt.length); }
-    if(data['prom_test_overrides']) localStorage.setItem('tf4_prom_overrides_prom_test', JSON.stringify(Object.assign({}, data['prom_test_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_test')||'{}'))));
-    if(data['prom_test_hidden']) localStorage.setItem('tf4_prom_hidden_prom_test', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_test')||'[]').concat(data['prom_test_hidden'])))));
-    if(data['prom_training_deleted']){ var _pd_prom_training=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_training')||'[]').concat(data['prom_training_deleted'])); localStorage.setItem('tf4_prom_deleted_prom_training', JSON.stringify(_pd_prom_training)); }
-    if(data['prom_training']){ var _pdel_prom_training=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_training')||'[]'); localStorage.setItem('tf4_prom_prom_training', JSON.stringify(promCleanMerge('prom_training', promEnsureIds('prom_training', JSON.parse(localStorage.getItem('tf4_prom_prom_training')||'[]')), data['prom_training'], _pdel_prom_training))); }
-    if(data['prom_training_overrides']) localStorage.setItem('tf4_prom_overrides_prom_training', JSON.stringify(Object.assign({}, data['prom_training_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_training')||'{}'))));
-    if(data['prom_training_hidden']) localStorage.setItem('tf4_prom_hidden_prom_training', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_training')||'[]').concat(data['prom_training_hidden'])))));
-    if(data['prom_safety_deleted']){ var _pd_prom_safety=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_safety')||'[]').concat(data['prom_safety_deleted'])); localStorage.setItem('tf4_prom_deleted_prom_safety', JSON.stringify(_pd_prom_safety)); }
-    if(data['prom_safety']){ var _pdel_prom_safety=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_safety')||'[]'); localStorage.setItem('tf4_prom_prom_safety', JSON.stringify(promCleanMerge('prom_safety', promEnsureIds('prom_safety', JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]')), data['prom_safety'], _pdel_prom_safety))); }
-    if(data['prom_safety_overrides']) localStorage.setItem('tf4_prom_overrides_prom_safety', JSON.stringify(Object.assign({}, data['prom_safety_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_safety')||'{}'))));
-    if(data['prom_safety_hidden']) localStorage.setItem('tf4_prom_hidden_prom_safety', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_safety')||'[]').concat(data['prom_safety_hidden'])))));
-    if(data['prom_wpr_deleted']){ var _pd_prom_wpr=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_wpr')||'[]').concat(data['prom_wpr_deleted'])); localStorage.setItem('tf4_prom_deleted_prom_wpr', JSON.stringify(_pd_prom_wpr)); }
-    if(data['prom_wpr']){ var _pdel_prom_wpr=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_wpr')||'[]'); localStorage.setItem('tf4_prom_prom_wpr', JSON.stringify(promCleanMerge('prom_wpr', promEnsureIds('prom_wpr', JSON.parse(localStorage.getItem('tf4_prom_prom_wpr')||'[]')), data['prom_wpr'], _pdel_prom_wpr))); }
-    if(data['prom_wpr_overrides']) localStorage.setItem('tf4_prom_overrides_prom_wpr', JSON.stringify(Object.assign({}, data['prom_wpr_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_wpr')||'{}'))));
-    if(data['prom_wpr_hidden']) localStorage.setItem('tf4_prom_hidden_prom_wpr', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_wpr')||'[]').concat(data['prom_wpr_hidden'])))));
-    if(data['prom_firstaid_deleted']){ var _pd_prom_firstaid=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_firstaid')||'[]').concat(data['prom_firstaid_deleted'])); localStorage.setItem('tf4_prom_deleted_prom_firstaid', JSON.stringify(_pd_prom_firstaid)); }
-    if(data['prom_firstaid']){ var _pdel_prom_firstaid=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_firstaid')||'[]'); localStorage.setItem('tf4_prom_prom_firstaid', JSON.stringify(promCleanMerge('prom_firstaid', promEnsureIds('prom_firstaid', JSON.parse(localStorage.getItem('tf4_prom_prom_firstaid')||'[]')), data['prom_firstaid'], _pdel_prom_firstaid))); }
-    if(data['prom_firstaid_overrides']) localStorage.setItem('tf4_prom_overrides_prom_firstaid', JSON.stringify(Object.assign({}, data['prom_firstaid_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_firstaid')||'{}'))));
-    if(data['prom_firstaid_hidden']) localStorage.setItem('tf4_prom_hidden_prom_firstaid', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_firstaid')||'[]').concat(data['prom_firstaid_hidden'])))));
-    if(data['prom_osha_deleted']){ var _pd_prom_osha=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_osha')||'[]').concat(data['prom_osha_deleted'])); localStorage.setItem('tf4_prom_deleted_prom_osha', JSON.stringify(_pd_prom_osha)); }
-    if(data['prom_osha']){ var _pdel_prom_osha=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_osha')||'[]'); localStorage.setItem('tf4_prom_prom_osha', JSON.stringify(promCleanMerge('prom_osha', promEnsureIds('prom_osha', JSON.parse(localStorage.getItem('tf4_prom_prom_osha')||'[]')), data['prom_osha'], _pdel_prom_osha))); }
-    if(data['prom_osha_overrides']) localStorage.setItem('tf4_prom_overrides_prom_osha', JSON.stringify(Object.assign({}, data['prom_osha_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_osha')||'{}'))));
-    if(data['prom_osha_hidden']) localStorage.setItem('tf4_prom_hidden_prom_osha', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_osha')||'[]').concat(data['prom_osha_hidden'])))));
-    if(data['prom_dev_deleted']){ var _pd_prom_dev=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_dev')||'[]').concat(data['prom_dev_deleted'])); localStorage.setItem('tf4_prom_deleted_prom_dev', JSON.stringify(_pd_prom_dev)); }
-    if(data['prom_dev']){ var _pdel_prom_dev=JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_dev')||'[]'); localStorage.setItem('tf4_prom_prom_dev', JSON.stringify(promCleanMerge('prom_dev', promEnsureIds('prom_dev', JSON.parse(localStorage.getItem('tf4_prom_prom_dev')||'[]')), data['prom_dev'], _pdel_prom_dev))); }
-    if(data['prom_dev_overrides']) localStorage.setItem('tf4_prom_overrides_prom_dev', JSON.stringify(Object.assign({}, data['prom_dev_overrides'], JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_dev')||'{}'))));
-    if(data['prom_dev_hidden']) localStorage.setItem('tf4_prom_hidden_prom_dev', JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_dev')||'[]').concat(data['prom_dev_hidden'])))));
-    if(data.sessionTraining){
+        if(data.sessionTraining){
       Object.keys(data.sessionTraining).forEach(function(k){
         localStorage.setItem(k, JSON.stringify(data.sessionTraining[k]));
       });
