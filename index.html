@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.31</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.32</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -1017,6 +1017,7 @@ let _syncPending = false;
 async function save(){
   if(window._saving) return;
   window._saving = true;
+  localStorage.setItem('tf4_pending_save', '1'); // set FIRST — see note near old flag-set below
   try {
     showSyncIndicator('saving');
     
@@ -1027,6 +1028,11 @@ async function save(){
       if(resp.ok) remote = (await resp.json()) || {};
     } catch(e){}
     
+
+    function safePromField(pid, computeFn, fallbackKey){
+      try { return computeFn(); }
+      catch(e){ console.error('⚠️ save(): '+pid+' merge failed, using remote fallback —', e.message); return remote[fallbackKey]; }
+    }
     // Step 2: Merge local with remote (newest wins by ID)
     function mergeArrays(local, remoteArr, delList){
       var map = {};
@@ -1113,39 +1119,41 @@ async function save(){
       trainers:        mergeArrays(DB.trainers||[], remote.trainers, []),
       traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
       sessionTraining: mergedST,
-      'prom_test_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]').concat(remote['prom_test_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_test', JSON.stringify(merged)); return merged; })(),
-      'prom_test': promCleanMerge('prom_test', JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'), remote['prom_test']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]')),
+      'prom_test_deleted': safePromField('prom_test_deleted', function(){ return (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]').concat(remote['prom_test_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_test', JSON.stringify(merged)); return merged; })(); }, 'prom_test_deleted'),
+      'prom_test': safePromField('prom_test', function(){ return promCleanMerge('prom_test', JSON.parse(localStorage.getItem('tf4_prom_prom_test')||'[]'), remote['prom_test']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_test')||'[]')); }, 'prom_test'),
       'prom_test_hidden': Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_test')||'[]').concat(remote['prom_test_hidden']||[]))),
       'prom_test_overrides': Object.assign({}, remote['prom_test_overrides']||{}, JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_test')||'{}')),
-      'prom_training_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_training')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_training')||'[]').concat(remote['prom_training_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_training', JSON.stringify(merged)); return merged; })(),
-      'prom_training': promCleanMerge('prom_training', JSON.parse(localStorage.getItem('tf4_prom_prom_training')||'[]'), remote['prom_training']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_training')||'[]')),
+      'prom_training_deleted': safePromField('prom_training_deleted', function(){ return (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_training')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_training')||'[]').concat(remote['prom_training_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_training', JSON.stringify(merged)); return merged; })(); }, 'prom_training_deleted'),
+      'prom_training': safePromField('prom_training', function(){ return promCleanMerge('prom_training', JSON.parse(localStorage.getItem('tf4_prom_prom_training')||'[]'), remote['prom_training']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_training')||'[]')); }, 'prom_training'),
       'prom_training_hidden': Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_training')||'[]').concat(remote['prom_training_hidden']||[]))),
       'prom_training_overrides': Object.assign({}, remote['prom_training_overrides']||{}, JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_training')||'{}')),
-      'prom_safety_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_safety')||'[]').concat(remote['prom_safety_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_safety', JSON.stringify(merged)); return merged; })(),
-      'prom_safety': promCleanMerge('prom_safety', JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]'), remote['prom_safety']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_safety')||'[]')),
+      'prom_safety_deleted': safePromField('prom_safety_deleted', function(){ return (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_safety')||'[]').concat(remote['prom_safety_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_safety', JSON.stringify(merged)); return merged; })(); }, 'prom_safety_deleted'),
+      'prom_safety': safePromField('prom_safety', function(){ return promCleanMerge('prom_safety', JSON.parse(localStorage.getItem('tf4_prom_prom_safety')||'[]'), remote['prom_safety']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_safety')||'[]')); }, 'prom_safety'),
       'prom_safety_hidden': Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_safety')||'[]').concat(remote['prom_safety_hidden']||[]))),
       'prom_safety_overrides': Object.assign({}, remote['prom_safety_overrides']||{}, JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_safety')||'{}')),
-      'prom_wpr_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_wpr')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_wpr')||'[]').concat(remote['prom_wpr_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_wpr', JSON.stringify(merged)); return merged; })(),
-      'prom_wpr': promCleanMerge('prom_wpr', JSON.parse(localStorage.getItem('tf4_prom_prom_wpr')||'[]'), remote['prom_wpr']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_wpr')||'[]')),
+      'prom_wpr_deleted': safePromField('prom_wpr_deleted', function(){ return (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_wpr')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_wpr')||'[]').concat(remote['prom_wpr_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_wpr', JSON.stringify(merged)); return merged; })(); }, 'prom_wpr_deleted'),
+      'prom_wpr': safePromField('prom_wpr', function(){ return promCleanMerge('prom_wpr', JSON.parse(localStorage.getItem('tf4_prom_prom_wpr')||'[]'), remote['prom_wpr']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_wpr')||'[]')); }, 'prom_wpr'),
       'prom_wpr_hidden': Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_wpr')||'[]').concat(remote['prom_wpr_hidden']||[]))),
       'prom_wpr_overrides': Object.assign({}, remote['prom_wpr_overrides']||{}, JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_wpr')||'{}')),
-      'prom_firstaid_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_firstaid')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_firstaid')||'[]').concat(remote['prom_firstaid_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_firstaid', JSON.stringify(merged)); return merged; })(),
-      'prom_firstaid': promCleanMerge('prom_firstaid', JSON.parse(localStorage.getItem('tf4_prom_prom_firstaid')||'[]'), remote['prom_firstaid']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_firstaid')||'[]')),
+      'prom_firstaid_deleted': safePromField('prom_firstaid_deleted', function(){ return (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_firstaid')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_firstaid')||'[]').concat(remote['prom_firstaid_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_firstaid', JSON.stringify(merged)); return merged; })(); }, 'prom_firstaid_deleted'),
+      'prom_firstaid': safePromField('prom_firstaid', function(){ return promCleanMerge('prom_firstaid', JSON.parse(localStorage.getItem('tf4_prom_prom_firstaid')||'[]'), remote['prom_firstaid']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_firstaid')||'[]')); }, 'prom_firstaid'),
       'prom_firstaid_hidden': Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_firstaid')||'[]').concat(remote['prom_firstaid_hidden']||[]))),
       'prom_firstaid_overrides': Object.assign({}, remote['prom_firstaid_overrides']||{}, JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_firstaid')||'{}')),
-      'prom_osha_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_osha')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_osha')||'[]').concat(remote['prom_osha_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_osha', JSON.stringify(merged)); return merged; })(),
-      'prom_osha': promCleanMerge('prom_osha', JSON.parse(localStorage.getItem('tf4_prom_prom_osha')||'[]'), remote['prom_osha']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_osha')||'[]')),
+      'prom_osha_deleted': safePromField('prom_osha_deleted', function(){ return (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_osha')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_osha')||'[]').concat(remote['prom_osha_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_osha', JSON.stringify(merged)); return merged; })(); }, 'prom_osha_deleted'),
+      'prom_osha': safePromField('prom_osha', function(){ return promCleanMerge('prom_osha', JSON.parse(localStorage.getItem('tf4_prom_prom_osha')||'[]'), remote['prom_osha']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_osha')||'[]')); }, 'prom_osha'),
       'prom_osha_hidden': Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_osha')||'[]').concat(remote['prom_osha_hidden']||[]))),
       'prom_osha_overrides': Object.assign({}, remote['prom_osha_overrides']||{}, JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_osha')||'{}')),
-      'prom_dev_deleted': (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_dev')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_dev')||'[]').concat(remote['prom_dev_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_dev', JSON.stringify(merged)); return merged; })(),
-      'prom_dev': promCleanMerge('prom_dev', JSON.parse(localStorage.getItem('tf4_prom_prom_dev')||'[]'), remote['prom_dev']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_dev')||'[]')),
+      'prom_dev_deleted': safePromField('prom_dev_deleted', function(){ return (function(){ var loc=JSON.parse(localStorage.getItem('tf4_prom_prom_dev')||'[]'); var fps={}; loc.forEach(function(r){ if(r) fps[promContentId(r)]=1; }); var merged=dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_dev')||'[]').concat(remote['prom_dev_deleted']||[])).filter(function(entry){ return !fps[fpOf(entry)]; }); localStorage.setItem('tf4_prom_deleted_prom_dev', JSON.stringify(merged)); return merged; })(); }, 'prom_dev_deleted'),
+      'prom_dev': safePromField('prom_dev', function(){ return promCleanMerge('prom_dev', JSON.parse(localStorage.getItem('tf4_prom_prom_dev')||'[]'), remote['prom_dev']||[], JSON.parse(localStorage.getItem('tf4_prom_deleted_prom_dev')||'[]')); }, 'prom_dev'),
       'prom_dev_hidden': Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_prom_dev')||'[]').concat(remote['prom_dev_hidden']||[]))),
       'prom_dev_overrides': Object.assign({}, remote['prom_dev_overrides']||{}, JSON.parse(localStorage.getItem('tf4_prom_overrides_prom_dev')||'{}')),
       lastSaved:       new Date().toISOString(),
       savedBy:         CU ? CU.name : 'System'
     };
     
-    localStorage.setItem('tf4_pending_save', '1'); // Cleared only on confirmed success
+    // (flag already set at function start — moved earlier so any exception during
+    // the merge computation below still leaves the flag set, letting loadFromGist()'s
+    // pending-save check retry it automatically on the next sync)
     var putResp = await firebaseFetch('/data.json', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
