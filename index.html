@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.32</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.33</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -1214,7 +1214,42 @@ async function loadFromGist(){
     if(!resp.ok){ showSyncIndicator('synced'); return false; }
     var data = await resp.json();
     if(!data){ showSyncIndicator('synced'); return false; }
-    
+
+    // ════════════════════════════════════════════
+    // GENERIC TRAINEE-PAGE SYNC — runs FIRST and in its OWN try/catch, completely
+    // independent of everything below (invoices/quotes/leads/clients/etc.). Root cause
+    // this fixes: loadFromGist() previously had ONE try/catch around its ENTIRE body,
+    // so an exception in ANY unrelated entity (invoices, quotes...) aborted the whole
+    // function before ever reaching the prom_* merge code further down — meaning newly
+    // uploaded/deleted/edited trainee data could silently never get pulled, on either
+    // side of a sync, for reasons that had nothing to do with the trainee pages at all.
+    // One shared loop drives ALL current AND future trainee pages — add a page to
+    // PROM_PIDS (already used elsewhere in the file) and it's covered automatically,
+    // no per-page code needed here or anywhere else.
+    // ════════════════════════════════════════════
+    var PROM_PIDS = ['prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev'];
+    PROM_PIDS.forEach(function(pid){
+      try {
+        if(data[pid+'_deleted']){
+          var _pd = dedupeTombstoneList(JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pid)||'[]').concat(data[pid+'_deleted']));
+          localStorage.setItem('tf4_prom_deleted_'+pid, JSON.stringify(_pd));
+        }
+        if(data[pid]){
+          var _delIds = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pid)||'[]');
+          var _localArr = promEnsureIds(pid, JSON.parse(localStorage.getItem('tf4_prom_'+pid)||'[]'));
+          localStorage.setItem('tf4_prom_'+pid, JSON.stringify(promCleanMerge(pid, _localArr, data[pid]||[], _delIds)));
+        }
+        if(data[pid+'_hidden']){
+          localStorage.setItem('tf4_prom_hidden_'+pid, JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pid)||'[]').concat(data[pid+'_hidden'])))));
+        }
+        if(data[pid+'_overrides']){
+          localStorage.setItem('tf4_prom_overrides_'+pid, JSON.stringify(Object.assign({}, JSON.parse(localStorage.getItem('tf4_prom_overrides_'+pid)||'{}'), data[pid+'_overrides'])));
+        }
+      } catch(e){
+        console.error('⚠️ loadFromGist(): '+pid+' sync failed independently — other pages/sections unaffected:', e.message);
+      }
+    });
+
     // Firebase is the SOURCE OF TRUTH
     // Load all data from Firebase into local storage
     var delQ = data.deletedQuotes || [];
