@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.35</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.36-TRACE</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -1154,11 +1154,13 @@ async function save(){
     // (flag already set at function start — moved earlier so any exception during
     // the merge computation below still leaves the flag set, letting loadFromGist()'s
     // pending-save check retry it automatically on the next sync)
+    console.log('[TRACE 3/9] save() → about to PUT /data.json | prom_safety records in payload='+((dataToSave.prom_safety||[]).length)+' | prom_safety_deleted in payload='+((dataToSave.prom_safety_deleted||[]).length)+' | full payload size='+JSON.stringify(dataToSave).length+' bytes');
     var putResp = await firebaseFetch('/data.json', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(dataToSave)
     });
+    console.log('[TRACE 4/9] PUT response — URL=/data.json | status='+(putResp?putResp.status:'NO RESPONSE')+' | ok='+(putResp?putResp.ok:false));
     if(putResp && putResp.ok){
       localStorage.removeItem('tf4_pending_save');
       console.log('✅ Firebase save confirmed:', new Date().toLocaleTimeString());
@@ -1215,6 +1217,8 @@ async function loadFromGist(){
     var data = await resp.json();
     if(!data){ showSyncIndicator('synced'); return false; }
 
+    console.log('[TRACE 5/9] loadFromGist() → GET /data.json succeeded | data.prom_safety exists='+(!!data.prom_safety)+' | count in Firebase response='+((data.prom_safety||[]).length)+' | data.prom_safety_deleted count='+((data.prom_safety_deleted||[]).length));
+
     // ════════════════════════════════════════════
     // GENERIC TRAINEE-PAGE SYNC — runs FIRST and in its OWN try/catch, completely
     // independent of everything below (invoices/quotes/leads/clients/etc.). Root cause
@@ -1237,7 +1241,11 @@ async function loadFromGist(){
         if(data[pid]){
           var _delIds = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pid)||'[]');
           var _localArr = promEnsureIds(pid, JSON.parse(localStorage.getItem('tf4_prom_'+pid)||'[]'));
-          localStorage.setItem('tf4_prom_'+pid, JSON.stringify(promCleanMerge(pid, _localArr, data[pid]||[], _delIds)));
+          if(pid==='prom_safety') console.log('[TRACE 6/9] promCleanMerge() INPUT for prom_safety — local (device'+"'"+"'"+'s existing before merge)='+_localArr.length+' | remote from Firebase='+((data[pid]||[]).length)+' | tombstones being applied='+_delIds.length);
+          var _mergedResult = promCleanMerge(pid, _localArr, data[pid]||[], _delIds);
+          if(pid==='prom_safety') console.log('[TRACE 7/9] promCleanMerge() OUTPUT for prom_safety — result count='+_mergedResult.length);
+          localStorage.setItem('tf4_prom_'+pid, JSON.stringify(_mergedResult));
+          if(pid==='prom_safety') console.log('[TRACE 7b/9] Written to localStorage tf4_prom_prom_safety — verified count='+JSON.parse(localStorage.getItem('tf4_prom_prom_safety')).length);
         }
         if(data[pid+'_hidden']){
           localStorage.setItem('tf4_prom_hidden_'+pid, JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pid)||'[]').concat(data[pid+'_hidden'])))));
@@ -9434,6 +9442,7 @@ function restorePromRecord(pageId, delIndex){
 }
 
 function savePromData(pageId, extra){
+  console.log('[TRACE 2/9] savePromData() called — pageId='+pageId+' | records passed in='+((extra||[]).length));
   localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(extra));
   // PRESENCE WINS: any record being saved right now must not remain on the deleted list.
   try {
@@ -9595,6 +9604,7 @@ function renderPromPage(pageId){
   if(!pg) return;
   const cfg  = PROM_CONFIG[pageId];
   const data = getPromData(pageId);
+  if(pageId==='prom_safety') console.log('[TRACE 8/9] renderPromPage(prom_safety) — data.length BEFORE rendering='+data.length+' (this is getPromData(): builtin + localStorage combined)');
   const q    = (_promSearch[pageId]||'').toLowerCase();
   const t    = (ar,en) => isAR() ? ar : en;
 
@@ -9726,6 +9736,7 @@ function renderPromPage(pageId){
       +'</td>';
       tbody.appendChild(tr);
     });
+    if(pageId==='prom_safety') console.log('[TRACE 9/9] renderPromPage(prom_safety) — rows actually appended to <tbody>='+tbody.children.length+' | filtered.length='+filtered.length+' (display cap is 500 — if filtered.length > 500, tbody will show 500 + a summary row)');
     if(filtered.length > 500){
       const moreRow = document.createElement('tr');
       moreRow.innerHTML = '<td colspan="'+(cols.length+1)+'" style="text-align:center;padding:12px;color:#6A85A5;font-size:11px">'
@@ -9903,6 +9914,7 @@ function handlePromExcelUpload(pageId, file){
     });
     const local = JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]');
     const merged = [...data,...local];
+    console.log('[TRACE 1/9] Excel Import — pageId='+pageId+' | new rows parsed from file='+data.length+' | existing local before merge='+local.length+' | merged total to save='+merged.length);
     savePromData(pageId, merged);
     renderPromPage(pageId);
     showSuccessToast('✅ '+t('تم استيراد','Imported')+' '+data.length+' '+t('سجل','records'));
