@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.30</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.31</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -9286,6 +9286,33 @@ function getPromData(pageId){
 //  New entries (prom_test ONLY for now) are objects: {fingerprint, record, deletedAt,
 //  deletedBy, originalPath, reason, version}. Every reader below accepts BOTH shapes.
 // ════════════════════════════════════════════
+
+// ════════════════════════════════════════════
+//  LIVE FIREBASE VERIFICATION — bypasses localStorage entirely, proves sync reached the server.
+// ════════════════════════════════════════════
+async function verifyPromSyncLive(pageId){
+  var box = document.getElementById('fbVerifyResult_'+pageId);
+  if(box) box.innerHTML = '⏳ '+(isAR()?'يقرأ مباشرة من Firebase...':'Reading directly from Firebase...');
+  try {
+    var rLive = await firebaseFetch('/data/'+pageId+'.json');
+    var rDel  = await firebaseFetch('/data/'+pageId+'_deleted.json');
+    var live = (rLive && rLive.ok) ? (await rLive.json()) || [] : [];
+    var del  = (rDel  && rDel.ok)  ? (await rDel.json())  || [] : [];
+    var richCount = del.filter(function(e){ return e && typeof e==='object'; }).length;
+    var legacyCount = del.filter(function(e){ return typeof e==='string'; }).length;
+    var html = '<div style="background:#0B1E3D;border:1px solid #1A7A8A;border-radius:8px;padding:10px;margin-top:8px;font-size:10px;line-height:1.9">'
+      +'<b style="color:#23A0B5">📡 حالة Firebase الحقيقية الآن (وليس من الجهاز المحلي):</b><br>'
+      +'السجلات الحيّة على الخادم: <b style="color:#F5F7FA">'+live.length+'</b><br>'
+      +'شواهد الحذف على الخادم: <b style="color:#F5F7FA">'+del.length+'</b> (منها '+richCount+' قابلة للاسترجاع + '+legacyCount+' قديمة)<br>'
+      +'<span style="color:#3A5070">آخر تحديث: '+new Date().toLocaleTimeString('ar-SA')+'</span>'
+      +'</div>';
+    if(box) box.innerHTML = html;
+    return {live:live.length, deleted:del.length, rich:richCount, legacy:legacyCount};
+  } catch(e){
+    if(box) box.innerHTML = '<div style="color:#C0392B">⚠️ '+e.message+'</div>';
+  }
+}
+
 var RICH_TOMBSTONE_PAGES = {prom_test:true, prom_safety:true}; // ← ONLY line touched to onboard a new page. No other code changes needed anywhere.
 function dedupeTombstoneList(list){
   // Generic, format-agnostic dedupe by fingerprint. Identical result to the old
@@ -9643,7 +9670,9 @@ function renderPromPage(pageId){
     var restorable = getPromRestorable(pageId);
     var panel = document.createElement('div');
     panel.style.cssText = 'margin-top:16px;background:#060F1E;border:1px dashed #C9A84C;border-radius:12px;padding:14px';
-    var head = '<div style="color:#C9A84C;font-size:12px;font-weight:800;margin-bottom:8px">🗂️ سجلات قابلة للاسترجاع — Phase 1 تجريبي ('+restorable.length+')</div>';
+    var head = '<div style="color:#C9A84C;font-size:12px;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:10px">🗂️ سجلات قابلة للاسترجاع — Phase 1 تجريبي ('+restorable.length+')'
+      +'<button onclick="verifyPromSyncLive(\''+pageId+'\')" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:4px 10px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:400">🔎 تحقق من Firebase مباشرة</button></div>'
+      +'<div id="fbVerifyResult_'+pageId+'"></div>';
     if(!restorable.length){
       panel.innerHTML = head + '<div style="color:#3A5070;font-size:10px">لا توجد سجلات محذوفة بالصيغة الجديدة القابلة للاسترجاع بعد. احذف سجلاً من الجدول أعلاه لتجربة الآلية.</div>';
     } else {
