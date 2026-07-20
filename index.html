@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.34</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.35</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -9356,7 +9356,28 @@ async function verifyPromSyncLive(pageId){
   }
 }
 
-var RICH_TOMBSTONE_PAGES = {prom_test:true, prom_safety:true}; // ← ONLY line touched to onboard a new page. No other code changes needed anywhere.
+var RICH_TOMBSTONE_PAGES = {prom_test:true, prom_safety:true};
+
+function tombstoneLocalRecords(pageId, records){
+  // Single shared entry point for "mark these local records as deleted" — respects
+  // RICH_TOMBSTONE_PAGES automatically (rich object for onboarded pages, legacy string
+  // otherwise) via promDeletedEntry(), and de-dupes by fingerprint via fpOf() so it
+  // never double-tombstones a record already protected — whether that existing entry
+  // is old-format or new-format. Used by deletePromRecord, deleteAllPromFiltered, and
+  // deleteSelectedProm, so all three delete paths always behave identically.
+  var delList = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
+  var existing = {};
+  delList.forEach(function(e){ var id=fpOf(e); if(id) existing[id]=1; });
+  (records||[]).forEach(function(rec){
+    if(!rec) return;
+    var id = promContentId(rec);
+    if(existing[id]) return;
+    existing[id] = 1;
+    delList.push(promDeletedEntry(pageId, rec));
+  });
+  localStorage.setItem('tf4_prom_deleted_'+pageId, JSON.stringify(delList));
+}
+ // ← ONLY line touched to onboard a new page. No other code changes needed anywhere.
 function dedupeTombstoneList(list){
   // Generic, format-agnostic dedupe by fingerprint. Identical result to the old
   // Array.from(new Set(...)) for plain-string (legacy) tombstones — safe no-op for
@@ -9773,13 +9794,7 @@ function deletePromRecord(pageId, localIdx, skipConfirm){
   if(!skipConfirm && !confirm(isAR()?'حذف هذا السجل؟':'Delete this record?')) return;
   const local = promEnsureIds(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
   var rec = local[localIdx];
-  if(rec){
-    var delIds = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
-    var id = promContentId(rec);
-    var already = delIds.some(function(e){ return fpOf(e)===id; });
-    if(!already) delIds.push(promDeletedEntry(pageId, rec)); // rich object for prom_test, plain string for all other pages (unchanged)
-    localStorage.setItem('tf4_prom_deleted_'+pageId, JSON.stringify(delIds));
-  }
+  if(rec) tombstoneLocalRecords(pageId, [rec]); // shared path — identical behavior to bulk deletes
   local.splice(localIdx,1);
   savePromData(pageId, local);
   renderPromPage(pageId);
@@ -13091,11 +13106,7 @@ function deleteAllPromFiltered(pageId){
   toHide.forEach(function(i){ hidden.push(i); });
   localStorage.setItem('tf4_prom_hidden_'+pageId, JSON.stringify(hidden));
   localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(keptLocal));
-  // TOMBSTONE by content fingerprint — subtracts this record from ALL future merges,
-  // including any differently-formatted duplicate already sitting in Firebase.
-  var delIds = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
-  removedLocal.forEach(function(r){ var id=promContentId(r); if(delIds.indexOf(id)<0) delIds.push(id); });
-  localStorage.setItem('tf4_prom_deleted_'+pageId, JSON.stringify(delIds));
+  tombstoneLocalRecords(pageId, removedLocal); // shared path — rich format for RICH_TOMBSTONE_PAGES pages, legacy otherwise
   save();
   showSuccessToast('✅ '+(isAR()?'تم حذف '+delCount+' سجل':'Deleted '+delCount+' records'));
   renderPromPage(pageId);
@@ -13125,16 +13136,11 @@ function deleteSelectedProm(pageId){
   
   indices.forEach(idx=>{
     if(idx >= builtinLen){
-      // Local/custom entry — delete from local storage + tombstone by _id
+      // Local/custom entry — delete from local storage + tombstone via the shared path
       const localIdx = idx - builtinLen;
       const localData = promEnsureIds(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
       var _rec = localData[localIdx];
-      if(_rec){
-        var _delIds = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
-        var _id = promContentId(_rec);
-        if(_delIds.indexOf(_id)<0) _delIds.push(_id);
-        localStorage.setItem('tf4_prom_deleted_'+pageId, JSON.stringify(_delIds));
-      }
+      if(_rec) tombstoneLocalRecords(pageId, [_rec]);
       localData.splice(localIdx, 1);
       localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(localData));
     } else {
