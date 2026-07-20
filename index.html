@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.38</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.39</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -9665,6 +9665,29 @@ let _promEditIdx = {};
 
 
 // ── Edit Prom Record ──
+
+function savePromEdit(pageId, globalIdx, updatedRow){
+  // SINGLE unified save point for ALL edit types (Built-in / Excel / Manual).
+  // How the local record is UPDATED may legitimately differ by type (overrides
+  // object for built-in seed rows vs. the live array for everything else — that
+  // distinction is structural, not a bug), but every branch below converges on
+  // exactly one call: savePromData() → save(). No branch may end anywhere else
+  // (no bare localStorage.setItem as a terminal step, no bare save()).
+  const isBuiltin = globalIdx < (PROM_DATA_BUILTIN[pageId]||[]).length;
+  if(isBuiltin){
+    const overrides = JSON.parse(localStorage.getItem('tf4_prom_overrides_'+pageId)||'{}');
+    overrides[globalIdx] = updatedRow;
+    localStorage.setItem('tf4_prom_overrides_'+pageId, JSON.stringify(overrides));
+  } else {
+    const localIdx = globalIdx - (PROM_DATA_BUILTIN[pageId]||[]).length;
+    const local = JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]');
+    if(local[localIdx]) local[localIdx] = updatedRow;
+    localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(local));
+  }
+  // Convergence point — identical for every record type.
+  savePromData(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
+}
+
 function openPromEdit(pageId, globalIdx){
   const cfg      = PROM_CONFIG[pageId];
   const allData  = getPromData(pageId);
@@ -9740,17 +9763,9 @@ function openPromEdit(pageId, globalIdx){
     const updatedRow = Object.assign({}, row);
     editCols.forEach(col=>{ updatedRow[col] = inputs[col].value.trim(); });
 
-    if(isBuiltin){
-      // Store override in localStorage with special key
-      const overrides = JSON.parse(localStorage.getItem('tf4_prom_overrides_'+pageId)||'{}');
-      overrides[globalIdx] = updatedRow;
-      localStorage.setItem('tf4_prom_overrides_'+pageId, JSON.stringify(overrides));
-    } else {
-      const localIdx = globalIdx - (PROM_DATA_BUILTIN[pageId]||[]).length;
-      const local = JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]');
-      if(local[localIdx]) local[localIdx] = updatedRow;
-      savePromData(pageId, local);
-    }
+    // Single unified save point — identical terminal call for Built-in, Excel-imported,
+    // and Manually-added records alike. No per-type branch ends anywhere else.
+    savePromEdit(pageId, globalIdx, updatedRow);
     logSyncEvent('edit', pageId, {builtin:isBuiltin, globalIdx:globalIdx});
     overlay.remove();
     renderPromPage(pageId);
@@ -9782,24 +9797,22 @@ function confirmPromDelete(pageId, globalIdx){
 
   if(!confirm(msg)) return;
 
+  // Both branches update their own local bucket differently (hidden-index list for
+  // built-in seed rows vs. live-array splice + tombstone for everything else — that
+  // distinction is structural, same as savePromEdit()), then converge on exactly
+  // ONE final call: savePromData() → save(). Neither branch may terminate on a bare
+  // save() or a bare localStorage.setItem() by itself.
   if(isBuiltin){
     const hidden = JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pageId)||'[]');
     if(!hidden.includes(globalIdx)) hidden.push(globalIdx);
     localStorage.setItem('tf4_prom_hidden_'+pageId, JSON.stringify(hidden));
-    save();
-    renderPromPage(pageId);
-    showSuccessToast('✅ '+t('تم الحذف','Record deleted'));
+    savePromData(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]')); // unified convergence point
   } else {
-    // ROOT-CAUSE FIX: this branch used to splice the record with ZERO tombstone,
-    // so the very next sync could resurrect it from remote data. Delegate to
-    // deletePromRecord() — the single already-tested, tombstone-aware delete path
-    // (rich object for RICH_TOMBSTONE_PAGES pages, legacy string otherwise) — instead
-    // of duplicating (and diverging from) that logic here.
     const localIdx = globalIdx - (PROM_DATA_BUILTIN[pageId]||[]).length;
-    deletePromRecord(pageId, localIdx, true); // true = skip its internal confirm(), we already confirmed above
-    renderPromPage(pageId);
-    showSuccessToast('✅ '+t('تم الحذف','Record deleted'));
+    deletePromRecord(pageId, localIdx, true); // already ends at savePromData() → save() — same convergence point
   }
+  renderPromPage(pageId);
+  showSuccessToast('✅ '+t('تم الحذف','Record deleted'));
 }
 
 function renderPromPage(pageId){
