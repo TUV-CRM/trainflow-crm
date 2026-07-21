@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.41</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.42</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -8676,7 +8676,14 @@ function exportSchedulePDF(selectedDays){
   const today  = new Date();
   const monday = new Date(today);
   monday.setDate(today.getDate() - ((today.getDay()+6)%7) + (window._weekOffset||0)*7);
+  monday.setHours(0,0,0,0); // ROOT FIX: normalize to midnight — without this, `monday` carries
+  // the CURRENT time-of-day (e.g. 14:22:15), so any session dated exactly "Monday" (parsed as
+  // Monday 00:00:00) fails the `sd >= monday` check below and gets silently dropped from the
+  // export — the entire first day of the week vanishes from every export run after midnight,
+  // which is effectively always. This is isolated to the export function's own date filter,
+  // not the on-screen schedule rendering logic.
   const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  sunday.setHours(23,59,59,999); // same fix for the end boundary
 
   const MONTHS_AR_W=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
   const MONTHS_EN_W=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -8705,9 +8712,13 @@ function exportSchedulePDF(selectedDays){
     const dayIdx  = dt.getDay();
     const dayName = isAR() ? DAYS_AR[dayIdx] : DAYS_EN[dayIdx];
     const isToday = dt.toDateString() === today.toDateString();
+    var _dayColWidth = (86 / COLS.length).toFixed(2)+'%'; // ROOT FIX: percentage width, not a fixed px min-width —
+    // guarantees ALL selected days fit within whatever paper size the browser actually
+    // prints to (A3/A4/Letter), instead of a fixed 115px/column that silently clips
+    // the rightmost columns (and every session in them) off the page.
     return '<th style="padding:11px 8px;color:'+(isToday?'#C9A84C':'rgba(255,255,255,.85)')+';font-size:11px;font-weight:700;'
       +'background:'+(isToday?'rgba(201,168,76,.15)':'transparent')+';'
-      +'border-'+(isAR()?'left':'right')+':1px solid rgba(255,255,255,.15);min-width:115px">'
+      +'border-'+(isAR()?'left':'right')+':1px solid rgba(255,255,255,.15);width:'+_dayColWidth+'">'
       +dayName+'<br/>'
       +'<span style="font-size:9px;font-weight:400;color:rgba(255,255,255,.5)">'+fmtDate(dt)+'</span>'
       +(isToday?'<div style="width:6px;height:6px;border-radius:50%;background:#C9A84C;margin:4px auto 0"></div>':'')
@@ -8736,7 +8747,7 @@ function exportSchedulePDF(selectedDays){
           return matchDay && s.start===time;
         });
         row += '<td style="padding:6px;vertical-align:top;border-bottom:1px solid #E8F0F8;border-'+(isAR()?'left':'right')+':1px solid #E8F0F8;'
-          +'background:'+(isToday?'#FFF9EC':'white')+';min-width:115px">';
+          +'background:'+(isToday?'#FFF9EC':'white')+';width:'+(86/COLS.length).toFixed(2)+'%;page-break-inside:avoid">';
         cells.forEach(s=>{
           const compsList = (s.companies||[]).length
             ? (s.companies||[])
@@ -8744,7 +8755,7 @@ function exportSchedulePDF(selectedDays){
           const totalAtten = compsList.reduce((a,c)=>a+(c.attendees||0),0);
 
           row += '<div style="background:white;border:1px solid '+s.color+'44;border-left:4px solid '+s.color+';'
-            +'border-radius:8px;padding:9px 11px;margin-bottom:5px;'
+            +'border-radius:8px;padding:9px 11px;margin-bottom:5px;page-break-inside:avoid;'
             +'box-shadow:0 1px 4px rgba(0,0,0,.06)">';
 
           // Course
@@ -8809,7 +8820,9 @@ function exportSchedulePDF(selectedDays){
       .no-print { display:none !important; }
       @page { size:A3 landscape; margin:8mm; }
     }
-    table { border-collapse:collapse; width:100%; }
+    table { border-collapse:collapse; width:100%; table-layout:fixed; } /* fixed layout so the % widths above are honored exactly, not overridden by content */
+    tr { page-break-inside:avoid; }
+    thead { display:table-header-group; } /* repeat the day/time header row on every printed page */
     a { color:#1A6FA8; text-decoration:underline; }
     a:hover { color:#23A0B5; }
   </style>
