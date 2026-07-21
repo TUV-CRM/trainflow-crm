@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.43-DIAG</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.45</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -1155,13 +1155,11 @@ async function save(){
     // (flag already set at function start — moved earlier so any exception during
     // the merge computation below still leaves the flag set, letting loadFromGist()'s
     // pending-save check retry it automatically on the next sync)
-    console.log('[TRACE 3/9] save() → about to PUT /data.json | prom_safety records in payload='+((dataToSave.prom_safety||[]).length)+' | prom_safety_deleted in payload='+((dataToSave.prom_safety_deleted||[]).length)+' | full payload size='+JSON.stringify(dataToSave).length+' bytes');
     var putResp = await firebaseFetch('/data.json', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(dataToSave)
     });
-    console.log('[TRACE 4/9] PUT response — URL=/data.json | status='+(putResp?putResp.status:'NO RESPONSE')+' | ok='+(putResp?putResp.ok:false));
     if(putResp && putResp.ok){
       localStorage.removeItem('tf4_pending_save');
       console.log('✅ Firebase save confirmed:', new Date().toLocaleTimeString());
@@ -1219,7 +1217,6 @@ async function loadFromGist(){
     var data = await resp.json();
     if(!data){ showSyncIndicator('synced'); return false; }
 
-    console.log('[TRACE 5/9] loadFromGist() → GET /data.json succeeded | data.prom_safety exists='+(!!data.prom_safety)+' | count in Firebase response='+((data.prom_safety||[]).length)+' | data.prom_safety_deleted count='+((data.prom_safety_deleted||[]).length));
 
     // ════════════════════════════════════════════
     // GENERIC TRAINEE-PAGE SYNC — runs FIRST and in its OWN try/catch, completely
@@ -1252,12 +1249,9 @@ async function loadFromGist(){
           var _delIds = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pid)||'[]');
           var _localArr = promEnsureIds(pid, JSON.parse(localStorage.getItem('tf4_prom_'+pid)||'[]'));
           var _before = _localArr.length;
-          if(pid==='prom_safety') console.log('[TRACE 6/9] promCleanMerge() INPUT for prom_safety — local (device'+"'"+"'"+'s existing before merge)='+_localArr.length+' | remote from Firebase='+((data[pid]||[]).length)+' | tombstones being applied='+_delIds.length);
-          var _mergedResult = promCleanMerge(pid, _localArr, data[pid]||[], _delIds);
-          if(pid==='prom_safety') console.log('[TRACE 7/9] promCleanMerge() OUTPUT for prom_safety — result count='+_mergedResult.length);
-          localStorage.setItem('tf4_prom_'+pid, JSON.stringify(_mergedResult));
-          if(pid==='prom_safety') console.log('[TRACE 7b/9] Written to localStorage tf4_prom_prom_safety — verified count='+JSON.parse(localStorage.getItem('tf4_prom_prom_safety')).length);
-          console.log('📥 [مزامنة] '+pid+' | المستخدم:', CU?CU.name:'-', '| من Firebase:', (data[pid]||[]).length, '| محلي قبل:', _before, '| بعد الدمج:', _mergedResult.length);
+          if(pid==='prom_safety')          var _mergedResult = promCleanMerge(pid, _localArr, data[pid]||[], _delIds);
+          if(pid==='prom_safety')          localStorage.setItem('tf4_prom_'+pid, JSON.stringify(_mergedResult));
+          if(pid==='prom_safety')          console.log('📥 [مزامنة] '+pid+' | المستخدم:', CU?CU.name:'-', '| من Firebase:', (data[pid]||[]).length, '| محلي قبل:', _before, '| بعد الدمج:', _mergedResult.length);
         }
         if(data[pid+'_hidden']){
           localStorage.setItem('tf4_prom_hidden_'+pid, JSON.stringify(Array.from(new Set(JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pid)||'[]').concat(data[pid+'_hidden'])))));
@@ -8701,26 +8695,6 @@ function exportSchedulePDF(selectedDays){
   const COLS = (selectedDays||[0,1,2,3,4,5,6]).map(d=>{ const dt=new Date(monday); dt.setDate(monday.getDate()+d); return dt; });
   const allTimes = [...new Set(weekSessions.map(s=>s.start))].sort();
 
-  // ═══ DIAGNOSTIC TRACE (temporary — logging only, no behavior change) ═══
-  console.log('%c🩺 [PDF Export Diagnostic]', 'color:#C9A84C;font-weight:bold;font-size:13px');
-  console.log('selectedDays =', JSON.stringify(selectedDays));
-  console.log('COLS.length =', COLS.length, '| COLS dates =', COLS.map(d=>d.toDateString()));
-  console.log('DB.sessions.length =', DB.sessions.length);
-  console.log('weekSessions.length =', weekSessions.length);
-  const _colDateStrings = COLS.map(d=>d.toDateString());
-  const _renderTrace = weekSessions.map(function(s){
-    const willRender = s.startDate
-      ? _colDateStrings.includes(new Date(s.startDate).toDateString())
-      : true; // no startDate → matched by s.day text instead, can't pre-check here
-    return { id: s.id||'(no id)', course: s.course, startDate: s.startDate||'(none)', day: s.day||'(n/a)', willRenderAsCard: willRender };
-  });
-  console.log('Session ID + Date + Rendered:');
-  console.table(_renderTrace);
-  const _willRenderCount = _renderTrace.filter(function(r){return r.willRenderAsCard;}).length;
-  console.log('renderedCards.length (متوقَّع بناءً على مطابقة COLS) =', _willRenderCount);
-  console.log('الفرق بين weekSessions والبطاقات المتوقَّعة =', weekSessions.length - _willRenderCount);
-  console.log('%c(نهاية التتبيع)', 'color:#6A85A5');
-  // ═══ END DIAGNOSTIC TRACE ═══
 
   // Build PDF HTML
   const dir   = isAR() ? 'rtl' : 'ltr';
@@ -9662,7 +9636,7 @@ function getPromRestorable(pageId){
   del.forEach(function(entry, idx){ if(entry && typeof entry==='object' && entry.record) out.push({idx:idx, entry:entry}); });
   return out;
 }
-function restorePromRecord(pageId, delIndex){
+async function restorePromRecord(pageId, delIndex){
   var del = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
   var entry = del[delIndex];
   if(!entry || typeof entry!=='object' || !entry.record){ showSuccessToast('⚠️ '+(isAR()?'هذا السجل غير قابل للاسترجاع (صيغة قديمة)':'Not restorable (legacy format)')); return; }
@@ -9675,13 +9649,12 @@ function restorePromRecord(pageId, delIndex){
   var rec = Object.assign({}, entry.record);
   delete rec._id; // promEnsureIds will assign a fresh local id
   local.push(rec);
-  savePromData(pageId, promEnsureIds(pageId, local));
+  await savePromData(pageId, promEnsureIds(pageId, local));
   showSuccessToast('✅ '+(isAR()?'تم الاسترجاع':'Restored'));
   if(typeof renderPromPage==='function') renderPromPage(pageId);
 }
 
-function savePromData(pageId, extra){
-  console.log('[TRACE 2/9] savePromData() called — pageId='+pageId+' | records passed in='+((extra||[]).length));
+async function savePromData(pageId, extra){
   localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(extra));
   // PRESENCE WINS: any record being saved right now must not remain on the deleted list.
   try {
@@ -9690,11 +9663,37 @@ function savePromData(pageId, extra){
     var _del = JSON.parse(localStorage.getItem('tf4_prom_deleted_'+pageId)||'[]');
     var _cleaned = _del.filter(function(entry){ return !_fps[fpOf(entry)]; });
     if(_cleaned.length !== _del.length){
-      console.log('[auto-revive]', pageId, 'removed', (_del.length-_cleaned.length), 'tombstones for re-uploaded records');
       localStorage.setItem('tf4_prom_deleted_'+pageId, JSON.stringify(_cleaned));
     }
   } catch(e){ console.warn('un-tombstone skip:', e.message); }
-  save();
+  // ROOT-CAUSE FIX: previously fire-and-forget ("save();" with no await/return). save()'s
+  // own re-entrancy guard (window._saving) silently no-ops a concurrent call that arrives
+  // while an earlier save is still in flight — so a caller invoking save() again right
+  // after this, expecting to force/confirm a write, got a no-op instead, with the ORIGINAL
+  // save actually completing later, asynchronously, with no signal back to the caller. This
+  // is a genuine race condition: whether the write is visible depends on unrelated timing.
+  // savePromData now returns the actual save() promise, so any caller that needs certainty
+  // can await it; every existing caller that doesn't await it is unaffected — it still
+  // fires and runs to completion exactly as before.
+  return await saveOrQueue();
+}
+
+// Ensures a caller's save REQUEST is never silently dropped by save()'s re-entrancy guard:
+// if a save is already in flight, wait for it, then run one more save so this caller's
+// current local state (which may have changed after the in-flight save's snapshot) is
+// guaranteed to be picked up — instead of assuming the in-flight save already covers it.
+async function saveOrQueue(){
+  if(window._saving){
+    if(!window._saveQueuedPromise){
+      window._saveQueuedPromise = (async function(){
+        while(window._saving){ await new Promise(function(r){ setTimeout(r, 50); }); }
+        window._saveQueuedPromise = null;
+        return save();
+      })();
+    }
+    return window._saveQueuedPromise;
+  }
+  return save();
 }
 
 let _promSearch = {};
@@ -9703,7 +9702,7 @@ let _promEditIdx = {};
 
 // ── Edit Prom Record ──
 
-function savePromEdit(pageId, globalIdx, updatedRow){
+async function savePromEdit(pageId, globalIdx, updatedRow){
   // SINGLE unified save point for ALL edit types (Built-in / Excel / Manual).
   // How the local record is UPDATED may legitimately differ by type (overrides
   // object for built-in seed rows vs. the live array for everything else — that
@@ -9722,7 +9721,7 @@ function savePromEdit(pageId, globalIdx, updatedRow){
     localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(local));
   }
   // Convergence point — identical for every record type.
-  savePromData(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
+  await savePromData(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
 }
 
 function openPromEdit(pageId, globalIdx){
@@ -9816,7 +9815,7 @@ function openPromEdit(pageId, globalIdx){
 }
 
 // ── Delete with confirmation ──
-function confirmPromDelete(pageId, globalIdx){
+async function confirmPromDelete(pageId, globalIdx){
   const cfg      = PROM_CONFIG[pageId];
   const allData  = getPromData(pageId);
   const row      = allData[globalIdx];
@@ -9843,10 +9842,10 @@ function confirmPromDelete(pageId, globalIdx){
     const hidden = JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pageId)||'[]');
     if(!hidden.includes(globalIdx)) hidden.push(globalIdx);
     localStorage.setItem('tf4_prom_hidden_'+pageId, JSON.stringify(hidden));
-    savePromData(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]')); // unified convergence point
+    await savePromData(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]')); // unified convergence point
   } else {
     const localIdx = globalIdx - (PROM_DATA_BUILTIN[pageId]||[]).length;
-    deletePromRecord(pageId, localIdx, true); // already ends at savePromData() → save() — same convergence point
+    await deletePromRecord(pageId, localIdx, true); // already ends at savePromData() → save() — same convergence point
   }
   renderPromPage(pageId);
   showSuccessToast('✅ '+t('تم الحذف','Record deleted'));
@@ -9857,7 +9856,6 @@ function renderPromPage(pageId){
   if(!pg) return;
   const cfg  = PROM_CONFIG[pageId];
   const data = getPromData(pageId);
-  if(pageId==='prom_safety') console.log('[TRACE 8/9] renderPromPage(prom_safety) — data.length BEFORE rendering='+data.length+' (this is getPromData(): builtin + localStorage combined)');
   const q    = (_promSearch[pageId]||'').toLowerCase();
   const t    = (ar,en) => isAR() ? ar : en;
 
@@ -9989,8 +9987,7 @@ function renderPromPage(pageId){
       +'</td>';
       tbody.appendChild(tr);
     });
-    if(pageId==='prom_safety') console.log('[TRACE 9/9] renderPromPage(prom_safety) — rows actually appended to <tbody>='+tbody.children.length+' | filtered.length='+filtered.length+' (display cap is 500 — if filtered.length > 500, tbody will show 500 + a summary row)');
-    if(filtered.length > 500){
+    if(pageId==='prom_safety')    if(filtered.length > 500){
       const moreRow = document.createElement('tr');
       moreRow.innerHTML = '<td colspan="'+(cols.length+1)+'" style="text-align:center;padding:12px;color:#6A85A5;font-size:11px">'
         +(filtered.length-500)+' '+t('سجل إضافي — استخدم البحث للتصفية','more records — use search to filter')+'</td>';
@@ -10054,14 +10051,14 @@ function exportPromCSV(pageId){
 }
 
 // ── Delete local record ──
-function deletePromRecord(pageId, localIdx, skipConfirm){
+async function deletePromRecord(pageId, localIdx, skipConfirm){
   if(!skipConfirm && !confirm(isAR()?'حذف هذا السجل؟':'Delete this record?')) return;
   const local = promEnsureIds(pageId, JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
   var rec = local[localIdx];
   if(rec) tombstoneLocalRecords(pageId, [rec]); // shared path — identical behavior to bulk deletes
   logSyncEvent('delete', pageId, {count:1});
   local.splice(localIdx,1);
-  savePromData(pageId, local);
+  await savePromData(pageId, local);
   renderPromPage(pageId);
 }
 
@@ -10168,7 +10165,6 @@ function handlePromExcelUpload(pageId, file){
     });
     const local = JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]');
     const merged = [...data,...local];
-    console.log('[TRACE 1/9] Excel Import — pageId='+pageId+' | new rows parsed from file='+data.length+' | existing local before merge='+local.length+' | merged total to save='+merged.length);
     logSyncEvent('upload', pageId, {newRows:data.length, mergedTotal:merged.length});
     savePromData(pageId, merged);
     renderPromPage(pageId);
@@ -13352,7 +13348,7 @@ function updatePromBulkBar(pageId){
   }
 }
 
-function deleteAllPromFiltered(pageId){
+async function deleteAllPromFiltered(pageId){
   var q = (_promSearch[pageId]||'').toLowerCase();
   var builtin = PROM_DATA_BUILTIN[pageId]||[];
   var overrides = JSON.parse(localStorage.getItem('tf4_prom_overrides_'+pageId)||'{}');
@@ -13372,15 +13368,14 @@ function deleteAllPromFiltered(pageId){
   if(!confirm(msg)) return;
   toHide.forEach(function(i){ hidden.push(i); });
   localStorage.setItem('tf4_prom_hidden_'+pageId, JSON.stringify(hidden));
-  localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(keptLocal));
   tombstoneLocalRecords(pageId, removedLocal); // shared path — rich format for RICH_TOMBSTONE_PAGES pages, legacy otherwise
   logSyncEvent('bulk_delete_all', pageId, {count:delCount});
-  save();
+  await savePromData(pageId, keptLocal); // SINGLE unified save entry point — same as every other prom_* write path
   showSuccessToast('✅ '+(isAR()?'تم حذف '+delCount+' سجل':'Deleted '+delCount+' records'));
   renderPromPage(pageId);
 }
 
-function deleteSelectedProm(pageId){
+async function deleteSelectedProm(pageId){
   const checked = document.querySelectorAll('.prom-row-cb:checked');
   if(!checked.length) return;
   // If user selected all visible rows but MORE records exist beyond the 500-row display cap
@@ -13402,6 +13397,7 @@ function deleteSelectedProm(pageId){
   const data = getPromData(pageId);
   const builtinLen = (PROM_DATA_BUILTIN[pageId]||[]).length;
   
+  var _finalLocal = null;
   indices.forEach(idx=>{
     if(idx >= builtinLen){
       // Local/custom entry — delete from local storage + tombstone via the shared path
@@ -13411,6 +13407,7 @@ function deleteSelectedProm(pageId){
       if(_rec) tombstoneLocalRecords(pageId, [_rec]);
       localData.splice(localIdx, 1);
       localStorage.setItem('tf4_prom_'+pageId, JSON.stringify(localData));
+      _finalLocal = localData;
     } else {
       // Builtin entry — mark as hidden
       const hidden = JSON.parse(localStorage.getItem('tf4_prom_hidden_'+pageId)||'[]');
@@ -13418,9 +13415,10 @@ function deleteSelectedProm(pageId){
       localStorage.setItem('tf4_prom_hidden_'+pageId, JSON.stringify(hidden));
     }
   });
-  
+
   logSyncEvent('bulk_delete_selected', pageId, {count:indices.length});
-  save();
+  // SINGLE unified save entry point — same as every other prom_* write path
+  await savePromData(pageId, _finalLocal !== null ? _finalLocal : JSON.parse(localStorage.getItem('tf4_prom_'+pageId)||'[]'));
   showSuccessToast('✅ '+(isAR()?'تم حذف '+indices.length+' عنصر':'Deleted '+indices.length+' items'));
   renderPromPage(pageId);
 }
