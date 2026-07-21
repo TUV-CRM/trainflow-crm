@@ -99,7 +99,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.42</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.43-DIAG</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -8700,6 +8700,27 @@ function exportSchedulePDF(selectedDays){
   // Group sessions by day
   const COLS = (selectedDays||[0,1,2,3,4,5,6]).map(d=>{ const dt=new Date(monday); dt.setDate(monday.getDate()+d); return dt; });
   const allTimes = [...new Set(weekSessions.map(s=>s.start))].sort();
+
+  // ═══ DIAGNOSTIC TRACE (temporary — logging only, no behavior change) ═══
+  console.log('%c🩺 [PDF Export Diagnostic]', 'color:#C9A84C;font-weight:bold;font-size:13px');
+  console.log('selectedDays =', JSON.stringify(selectedDays));
+  console.log('COLS.length =', COLS.length, '| COLS dates =', COLS.map(d=>d.toDateString()));
+  console.log('DB.sessions.length =', DB.sessions.length);
+  console.log('weekSessions.length =', weekSessions.length);
+  const _colDateStrings = COLS.map(d=>d.toDateString());
+  const _renderTrace = weekSessions.map(function(s){
+    const willRender = s.startDate
+      ? _colDateStrings.includes(new Date(s.startDate).toDateString())
+      : true; // no startDate → matched by s.day text instead, can't pre-check here
+    return { id: s.id||'(no id)', course: s.course, startDate: s.startDate||'(none)', day: s.day||'(n/a)', willRenderAsCard: willRender };
+  });
+  console.log('Session ID + Date + Rendered:');
+  console.table(_renderTrace);
+  const _willRenderCount = _renderTrace.filter(function(r){return r.willRenderAsCard;}).length;
+  console.log('renderedCards.length (متوقَّع بناءً على مطابقة COLS) =', _willRenderCount);
+  console.log('الفرق بين weekSessions والبطاقات المتوقَّعة =', weekSessions.length - _willRenderCount);
+  console.log('%c(نهاية التتبيع)', 'color:#6A85A5');
+  // ═══ END DIAGNOSTIC TRACE ═══
 
   // Build PDF HTML
   const dir   = isAR() ? 'rtl' : 'ltr';
