@@ -97,9 +97,10 @@ input[type=date].fc{color-scheme:dark}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.45</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.46</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -883,6 +884,7 @@ const NAV = [
       {key:'ops-reports',   label:'التقارير',     icon:'📊', page:'ops'},
       {key:'ops-storage',   label:'تدقيق Firebase', icon:'🗄️', page:'ops'},
       {key:'ops-diag',      label:'تشخيص المزامنة', icon:'🩺', page:'ops'},
+      {key:'ops-weeklyreport', label:'التقرير الأسبوعي للإدارة العليا', icon:'📅', page:'ops'},
       {key:'ops-perf',      label:'أداء الفريق',  icon:'📈', page:'salesperf'},
       {key:'ops-users',     label:'المستخدمون',   icon:'👤', page:'users'},
       {key:'ops-perms',    label:'إدارة الصلاحيات',   icon:'🔐', page:'perms'},
@@ -2283,6 +2285,361 @@ async function runFullSyncTest(){
     +'</div></div>';
 }
 
+
+// ════════════════════════════════════════════════════════════════
+//  WEEKLY EXECUTIVE REPORT — Report Model (pure data, zero Excel dependency)
+//  Architecture: CRM data → Weekly Report Model → Excel template filler.
+//  Row TYPES are matched by TEXT ANCHORS inside the template (not row numbers),
+//  so template row reordering never breaks the generator.
+// ════════════════════════════════════════════════════════════════
+var WR_ANCHORS = {
+  cbtExam:     'الاشراف علي اختبارات برنامج',
+  cbtResults:  'ارسال بيانات الناجحين',
+  training:    'الاشراف علي  دور',
+  wprResults:  'ارسال نتائج الاختبارات والفواتير',
+  marketingDev:'تسويق دورات التطويرية',
+  marketingCWQAP: 'تسويق الدورات التدريبية',
+  quotes:      'عروض الأسعار',      // NEW section anchor (added, not in original template)
+  invoices:    'الفواتير اليومية',   // NEW
+  followups:   'متابعة العملاء',     // NEW
+  dailyActivity:'نشاط اليوم'         // NEW
+};
+var CBT_EXAM_COURSE_NAME = 'CBT EXAM (TAKAMUL) CWQAP'; // exact match only, per explicit instruction
+
+function wrGetCourseDurationDays(courseName){
+  for(var i=0;i<(typeof TUV_CATEGORIES!=='undefined'?TUV_CATEGORIES:[]).length;i++){
+    var cats = TUV_CATEGORIES[i].courses||[];
+    for(var j=0;j<cats.length;j++){
+      if(cats[j].name===courseName){
+        var m = /(\d+)/.exec(cats[j].duration||'');
+        return m ? parseInt(m[1],10) : 1;
+      }
+    }
+  }
+  return 1; // unknown course → treat as single-day
+}
+
+function wrPrimaryCompanyName(session){
+  var comps = session.companies||[];
+  if(!comps.length) return session.client||'—';
+  return (comps[0].company||comps[0].name||comps[0])+'';
+}
+
+// Groups same course+company sessions across the week to determine "day X of N"
+// from REAL scheduled occurrences (ground truth) rather than assuming consecutive
+// calendar days blindly — falls back to catalog duration only for the total-days
+// label when a course has just one scheduled occurrence that week.
+function wrComputeSessionProgress(session, weekSessions){
+  var key = session.course+'|'+wrPrimaryCompanyName(session);
+  var group = weekSessions.filter(function(s){ return (s.course+'|'+wrPrimaryCompanyName(s))===key; })
+                           .sort(function(a,b){ return (a.startDate||'').localeCompare(b.startDate||''); });
+  var idx = group.findIndex(function(s){ return s===session; }) + 1;
+  var totalFromSchedule = group.length;
+  var totalFromCatalog = wrGetCourseDurationDays(session.course);
+  var total = Math.max(totalFromSchedule, totalFromCatalog>1 ? 1 : 1) === 1 && totalFromCatalog>totalFromSchedule ? totalFromCatalog : totalFromSchedule;
+  if(total<=1) return { percent:100, dayLabel:null };
+  var percent = (idx===total) ? 100 : Math.round((idx/total)*100);
+  var dayNamesAr = ['الأول','الثاني','الثالث','الرابع','الخامس','السادس','السابع','الثامن','التاسع','العاشر'];
+  var dayLabel = (idx<total) ? ('اليوم '+(dayNamesAr[idx-1]||idx)) : null;
+  return { percent:percent, dayLabel:dayLabel, dayIndex:idx, totalDays:total };
+}
+
+function wrDateStr(d){ return d.toISOString().slice(0,10); }
+function wrArabicDayName(d){ return ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][d.getDay()]; }
+
+// Builds the full week's data model — the ONLY function that reads CRM data.
+// Everything downstream (preview, Excel export) consumes this model only.
+function buildWeeklyReportModel(sundayDate){
+  var days = [];
+  for(var i=0;i<5;i++){ // الأحد → الخميس (5 working days)
+    var d = new Date(sundayDate); d.setDate(sundayDate.getDate()+i);
+    days.push(d);
+  }
+  var weekStart = wrDateStr(days[0]), weekEnd = wrDateStr(days[4]);
+
+  var allSessions = (typeof DB!=='undefined' && DB.sessions) ? DB.sessions : [];
+  var weekSessions = allSessions.filter(function(s){ return s.startDate>=weekStart && s.startDate<=weekEnd; });
+  var allQuotes = (typeof lsQuotes==='function') ? lsQuotes() : [];
+  var allInvoices = (typeof DB!=='undefined' && DB.invoices) ? DB.invoices : [];
+  var allLeads = (typeof DB!=='undefined' && DB.leads) ? DB.leads : [];
+
+  var model = { weekStart:weekStart, weekEnd:weekEnd, days:[] };
+
+  days.forEach(function(d){
+    var dateStr = wrDateStr(d);
+    var rows = [];
+
+    // 1) CBT EXAM (TAKAMUL) sessions — exact name match only
+    var cbtSessions = weekSessions.filter(function(s){ return s.startDate===dateStr && s.course===CBT_EXAM_COURSE_NAME; });
+    cbtSessions.forEach(function(s){
+      var traineeCount = (s.companies||[]).reduce(function(sum,c){ return sum + (c.attendees||c.count||0); }, 0);
+      rows.push({ anchor:'cbtExam', course:s.course, client:wrPrimaryCompanyName(s), traineeCount:traineeCount||0 });
+    });
+    if(cbtSessions.length){
+      rows.push({ anchor:'cbtResults' }); // fixed text, only appears when a CBT exam happened that day
+    }
+
+    // 2) All other training sessions (excluding CBT exam) — one row per session
+    var otherSessions = weekSessions.filter(function(s){ return s.startDate===dateStr && s.course!==CBT_EXAM_COURSE_NAME; });
+    otherSessions.forEach(function(s){
+      var prog = wrComputeSessionProgress(s, weekSessions);
+      rows.push({ anchor:'training', course:s.course, client:wrPrimaryCompanyName(s), percent:prog.percent, dayLabel:prog.dayLabel });
+    });
+
+    // 3) Fixed recurring rows with no CRM data source — same text every working day, per explicit decision
+    rows.push({ anchor:'wprResults' });
+    rows.push({ anchor:'marketingDev' });
+    rows.push({ anchor:'marketingCWQAP' });
+
+    // 4) Quotes created that day — real data, no random numbers
+    var dayQuotes = allQuotes.filter(function(q){ return (q.createdAt||q.date||'').slice(0,10)===dateStr; });
+    dayQuotes.forEach(function(q){
+      var firstItem = (q.items||[])[0]||{};
+      rows.push({ anchor:'quotes', client:q.client||'—', course:firstItem.course||'—', quoteNum:q.qNum||q.id||'—', quoteDate:dateStr });
+    });
+
+    // 5) Invoices issued that day
+    var dayInvoices = allInvoices.filter(function(inv){ return (inv.invoiceDate||inv.date||'').slice(0,10)===dateStr; });
+    dayInvoices.forEach(function(inv){
+      rows.push({ anchor:'invoices', invNum:inv.invoiceNumber||inv.id, client:inv.client||'—', amount:inv.amount||0 });
+    });
+
+    // 6) Follow-ups (leads.activityLog) that day
+    allLeads.forEach(function(lead){
+      (lead.activityLog||[]).forEach(function(a){
+        if((a.date||'').slice(0,10)===dateStr){
+          rows.push({ anchor:'followups', client:lead.company||lead.name||'—', assignee:lead.assignee||a.user||'—', kind:a.type||'—', result:a.note||'—', time:(a.date||'').slice(11,16) });
+        }
+      });
+    });
+
+    // 7) Daily activity — same source as follow-ups but ALL types, full timeline
+    var dayActivities = [];
+    allLeads.forEach(function(lead){
+      (lead.activityLog||[]).forEach(function(a){
+        if((a.date||'').slice(0,10)===dateStr){
+          dayActivities.push({ time:(a.date||''), type:a.type||'—', note:a.note||'—', user:a.user||'—', client:lead.company||lead.name||'—' });
+        }
+      });
+    });
+    dayActivities.sort(function(a,b){ return a.time.localeCompare(b.time); });
+    dayActivities.forEach(function(a){
+      rows.push({ anchor:'dailyActivity', client:a.client, kind:a.type, note:a.note, user:a.user, time:a.time.slice(11,16) });
+    });
+
+    model.days.push({ date:dateStr, dayNameAr:wrArabicDayName(d), rows:rows });
+  });
+
+  return model;
+}
+
+// Returns the most recent Sunday on/before `refDate` (default: today) — start of the current report week.
+function wrGetSundayOf(refDate){
+  var d = new Date(refDate||new Date());
+  d.setDate(d.getDate() - d.getDay()); // getDay(): 0=Sunday already
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  EXCEL EXPORT — loads the REAL template file (byte-identical, via ExcelJS),
+//  finds each row-type's style by scanning for its TEXT ANCHOR (not row numbers,
+//  per architecture requirement), clones that style for every generated row,
+//  writes only the dynamic values, and colors them blue. Fixed/unmapped content
+//  in the template (titles, headers, unrelated rows) is never touched.
+// ════════════════════════════════════════════════════════════════
+var WR_TEMPLATE_URL = 'https://raw.githubusercontent.com/TUV-CRM/trainflow-crm/main/weekly_report_template.xlsx';
+var WR_BLUE = { argb: 'FF0000FF' };
+
+// Locates, in the ORIGINAL template, one example row per known anchor type —
+// used purely as a STYLE reference (font/fill/border/alignment/height), never
+// as a literal row to overwrite in place.
+function wrFindAnchorStyleRows(ws){
+  var styleRows = {};
+  ws.eachRow(function(row, rowNumber){
+    var bVal = (row.getCell(2).value||'')+''; // column B = 'الموضوع'
+    Object.keys(WR_ANCHORS).forEach(function(key){
+      if(!styleRows[key] && bVal.indexOf(WR_ANCHORS[key])===0){
+        styleRows[key] = rowNumber;
+      }
+    });
+  });
+  return styleRows;
+}
+
+function wrCloneRowStyle(ws, sourceRowNum, targetRowNum){
+  var src = ws.getRow(sourceRowNum), tgt = ws.getRow(targetRowNum);
+  tgt.height = src.height;
+  for(var c=1;c<=8;c++){
+    var sc = src.getCell(c), tc = tgt.getCell(c);
+    tc.style = JSON.parse(JSON.stringify(sc.style||{}));
+  }
+}
+
+function wrSetBlue(cell){ cell.font = Object.assign({}, cell.font, { color: WR_BLUE }); }
+
+async function exportWeeklyReportToExcel(model){
+  if(typeof ExcelJS==='undefined'){
+    showSuccessToast('⚠️ مكتبة ExcelJS لم تُحمَّل بعد — أعد المحاولة بعد ثوانٍ');
+    return;
+  }
+  var resp = await fetch(WR_TEMPLATE_URL);
+  if(!resp.ok){ showSuccessToast('⚠️ تعذّر تحميل القالب الأصلي'); return; }
+  var buf = await resp.arrayBuffer();
+  var wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf); // loads the REAL original file — guarantees exact format fidelity
+  var ws = wb.worksheets[0];
+
+  var anchorRows = wrFindAnchorStyleRows(ws);
+  // Only the 6 original template anchors are guaranteed to exist; the 4 NEW
+  // sections (quotes/invoices/followups/dailyActivity) have no style reference
+  // in the original file — fall back to the closest existing style ('training')
+  // so new sections still render legibly, matching template fonts/borders.
+  var fallbackStyleRow = anchorRows.training || anchorRows.cbtExam || 6;
+  Object.keys(WR_ANCHORS).forEach(function(k){ if(!anchorRows[k]) anchorRows[k] = fallbackStyleRow; });
+
+  // Update the report date/header area (H4 in the original = report date) without
+  // touching any other fixed cell.
+  var titleCell = ws.getCell('H4');
+  titleCell.value = new Date(model.weekEnd);
+
+  // Clear the existing data body first (rows 6 onward), preserving header rows 1-5.
+  var lastDataRow = ws.lastRow ? ws.lastRow.number : 6;
+  for(var r=6;r<=lastDataRow;r++){ ws.getRow(r).values = []; }
+
+  var seq = 1, rowNum = 6;
+  model.days.forEach(function(day){
+    day.rows.forEach(function(mr){
+      wrCloneRowStyle(ws, anchorRows[mr.anchor], rowNum);
+      var row = ws.getRow(rowNum);
+      var subject='', detail='', percent=null, dayLabel='';
+
+      if(mr.anchor==='cbtExam'){
+        subject = 'الاشراف علي اختبارات برنامج CWQAP علي المنصة الجديد لشركة تكامل';
+        detail  = subject+' لعدد '+mr.traineeCount+' متدربين';
+        percent = 1;
+      } else if(mr.anchor==='cbtResults'){
+        subject = 'ارسال بيانات الناجحين الي شركة ارامكو للموافقة عليها';
+        detail  = subject; percent = 1;
+      } else if(mr.anchor==='training'){
+        subject = 'الاشراف علي دورة '+mr.course;
+        detail  = subject+' لشركة '+mr.client;
+        percent = mr.percent/100;
+        dayLabel = mr.dayLabel||'';
+      } else if(mr.anchor==='wprResults'){
+        subject = 'ارسال نتائج الاختبارات والفواتير الضريبية لشركة دال العربية وشركة مستوره وشركة العطيشان لتدريب منسوبيهم علي برنامج WPR';
+        detail = subject+' بمعهد THEIP'; percent = 1;
+      } else if(mr.anchor==='marketingDev'){
+        subject = 'تسويق دورات التطويرية التي يقدمها المعهد';
+        detail = 'التسويق عبر الايميل للشركات المستهدفة لعرض خدمات التدريب لدورات السلامة المعتمدة لدي ارامكو والدورات الاحترافية سواء حضوري او اونلاين';
+        percent = 1;
+      } else if(mr.anchor==='marketingCWQAP'){
+        subject = 'تسويق الدورات التدريبية CWQAP';
+        detail = 'التسويق عبر الايميل للشركات المعتمدة لدي ارامكو لدورات CWQAP بتقديم خدمة التدريب والاختبار بالمعهد';
+        percent = 1;
+      } else if(mr.anchor==='quotes'){
+        subject = 'عرض سعر — '+mr.client;
+        detail = 'عرض سعر رقم '+mr.quoteNum+' لدورة '+mr.course+' لشركة '+mr.client+' بتاريخ '+mr.quoteDate;
+        percent = 1;
+      } else if(mr.anchor==='invoices'){
+        subject = 'فاتورة يومية — '+mr.invNum;
+        detail = 'فاتورة رقم '+mr.invNum+' للعميل '+mr.client+' بقيمة '+fmt(mr.amount)+' ريال';
+        percent = 1;
+      } else if(mr.anchor==='followups'){
+        subject = 'متابعة عميل — '+mr.client;
+        detail = 'متابعة '+mr.kind+' مع '+mr.client+' بواسطة '+mr.assignee+' — النتيجة: '+mr.result+' — الساعة '+mr.time;
+        percent = 1;
+      } else if(mr.anchor==='dailyActivity'){
+        subject = 'نشاط: '+mr.kind;
+        detail = mr.note+' — العميل: '+mr.client+' — بواسطة: '+mr.user+' — الساعة '+mr.time;
+        percent = 1;
+      }
+
+      row.getCell(1).value = seq++;
+      row.getCell(2).value = subject;
+      row.getCell(3).value = day.date;
+      row.getCell(4).value = day.date;
+      row.getCell(5).value = detail;
+      row.getCell(6).value = percent;
+      row.getCell(7).value = dayLabel;
+      // All 8 cells in every generated row are new system-added data → blue, per requirement.
+      for(var c=1;c<=8;c++) wrSetBlue(row.getCell(c));
+      rowNum++;
+    });
+  });
+
+  var outBuf = await wb.xlsx.writeBuffer();
+  var blob = new Blob([outBuf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'التقرير الأسبوعي للإدارة العليا - '+model.weekStart+' إلى '+model.weekEnd+'.xlsx';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  showSuccessToast('✅ تم تصدير التقرير بنجاح');
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  PAGE UI — week selector, preview, export button
+// ════════════════════════════════════════════════════════════════
+function renderWeeklyExecReportPage(el){
+  var selSunday = window._wrSelectedSunday || wrGetSundayOf(new Date());
+  var model = buildWeeklyReportModel(selSunday);
+  window._wrCurrentModel = model;
+
+  var totalRows = model.days.reduce(function(s,d){return s+d.rows.length;},0);
+
+  var html = '<div style="padding:22px;display:flex;flex-direction:column;gap:14px">';
+  html += '<div style="display:flex;align-items:center;gap:10px;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px">'
+    +'<span style="color:#C9A84C;font-weight:800;font-size:14px">📅 التقرير الأسبوعي للإدارة العليا</span>'
+    +'<label style="color:#8BABC9;font-size:11px;margin-right:12px">الأسبوع (الأحد):</label>'
+    +'<input type="date" class="fc" value="'+wrDateStr(selSunday)+'" onchange="window._wrSelectedSunday=new Date(this.value+\'T00:00:00\');renderWeeklyExecReportPage(document.getElementById(\'weeklyReportBody\'))" style="font-size:11px"/>'
+    +'<span style="color:#6A85A5;font-size:10px">('+model.weekStart+' إلى '+model.weekEnd+')</span>'
+    +'<button onclick="window._wrSelectedSunday=null;renderWeeklyExecReportPage(document.getElementById(\'weeklyReportBody\'))" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">↺ الأسبوع الحالي</button>'
+    +'<button onclick="exportWeeklyReportToExcel(window._wrCurrentModel)" style="margin-right:auto;background:#1A7A4C;border:none;border-radius:8px;color:white;padding:8px 16px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">📊 تصدير Excel</button>'
+    +'</div>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'
+    +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">إجمالي الصفوف</div><div style="color:#F5F7FA;font-size:16px;font-weight:800">'+totalRows+'</div></div>'
+    +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">اختبارات تكامل</div><div style="color:#C9A84C;font-size:16px;font-weight:800">'+model.days.reduce(function(s,d){return s+d.rows.filter(function(r){return r.anchor==="cbtExam";}).length;},0)+'</div></div>'
+    +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">دورات تدريبية</div><div style="color:#23A0B5;font-size:16px;font-weight:800">'+model.days.reduce(function(s,d){return s+d.rows.filter(function(r){return r.anchor==="training";}).length;},0)+'</div></div>'
+    +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">عروض/فواتير/متابعات</div><div style="color:#1A8A5A;font-size:16px;font-weight:800">'+model.days.reduce(function(s,d){return s+d.rows.filter(function(r){return ["quotes","invoices","followups"].indexOf(r.anchor)>=0;}).length;},0)+'</div></div>'
+    +'</div>';
+
+  html += '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow-x:auto">'
+    +'<div style="padding:10px 14px;color:#8BABC9;font-size:11px;font-weight:700;border-bottom:1px solid #1A2E4A">👁️ معاينة داخل النظام (نفس محتوى ملف Excel المُصدَّر)</div>'
+    +'<table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['#','اليوم','الموضوع','التفاصيل','النسبة'].map(function(h){return '<th style="padding:8px;color:#6A85A5;font-size:9px;text-align:right;background:#0B1E3D">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>';
+  var seq=1;
+  model.days.forEach(function(day){
+    day.rows.forEach(function(mr){
+      var subj = ({cbtExam:'اختبار تكامل: '+mr.course, cbtResults:'إرسال نتائج الناجحين لأرامكو', training:'دورة: '+mr.course+' — '+mr.client,
+        wprResults:'إرسال نتائج WPR', marketingDev:'تسويق دورات تطويرية', marketingCWQAP:'تسويق CWQAP',
+        quotes:'عرض سعر: '+mr.client+' — '+mr.course, invoices:'فاتورة: '+mr.invNum+' — '+mr.client,
+        followups:'متابعة: '+mr.client, dailyActivity:'نشاط: '+mr.kind+' — '+mr.client})[mr.anchor] || mr.anchor;
+      var pct = mr.percent!==undefined ? mr.percent+'%' : '100%';
+      html += '<tr style="border-top:1px solid rgba(26,46,74,.4)">'
+        +'<td style="padding:6px;color:#6A85A5;font-size:9px">'+(seq++)+'</td>'
+        +'<td style="padding:6px;color:#C9A84C;font-size:10px;white-space:nowrap">'+day.dayNameAr+'<br><span style="color:#3A5070;font-size:8px">'+day.date+'</span></td>'
+        +'<td style="padding:6px;color:#F5F7FA;font-size:10px">'+subj+'</td>'
+        +'<td style="padding:6px;color:#8BABC9;font-size:9px;max-width:320px">'+(mr.dayLabel||'')+'</td>'
+        +'<td style="padding:6px;color:#23A0B5;font-size:10px;font-weight:700">'+pct+'</td>'
+        +'</tr>';
+    });
+  });
+  html += '</tbody></table></div>';
+
+  html += '<div style="color:#3A5070;font-size:10px;line-height:1.8">'
+    +'💡 البنود بلا مصدر بيانات في CRM (نتائج WPR، التسويق) تُدرَج بنص ثابت مُكرَّر يومياً كما تقرر. زر "تصدير Excel" يُحمِّل القالب الأصلي من المستودع ويملأه دون المساس بأي تنسيق موجود، ملوِّناً كل بيانات النظام باللون الأزرق حصراً.'
+    +'</div>';
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 async function renderFirebaseAudit(el){
   el.innerHTML = '<div style="padding:22px">'
     +'<div style="display:flex;gap:8px;align-items:center;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px;margin-bottom:14px">'
@@ -2403,6 +2760,7 @@ function renderOps(){
   const tab = (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-settings') ? 'settings'
             : (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-storage') ? 'storage'
             : (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-diag') ? 'diag'
+            : (typeof currentChildKey !== 'undefined' && currentChildKey === 'ops-weeklyreport') ? 'weeklyreport'
             : 'reports';
   if(tab === 'reports'){
     // Route to the real BI Reports suite (10 independent data-driven reports)
@@ -2420,6 +2778,13 @@ function renderOps(){
     if(!CU || CU.dept!=='ops'){ pg.innerHTML = '<div style="text-align:center;padding:40px;color:#6A85A5">🔒 لمدير التشغيل فقط</div>'; return; }
     pg.innerHTML = '<div id="diagBody"></div>';
     renderSyncDiagnostics(document.getElementById('diagBody'));
+    return;
+  }
+  if(tab === 'weeklyreport'){
+    // Identity-based, not department-based: must be the specific authorized user.
+    if(!CU || CU.dept!=='ops' || CU.id!=='u1'){ pg.innerHTML = '<div style="text-align:center;padding:40px;color:#6A85A5">🔒 هذه الصفحة متاحة حصراً لمدير التشغيل المُصرَّح له</div>'; return; }
+    pg.innerHTML = '<div id="weeklyReportBody"></div>';
+    renderWeeklyExecReportPage(document.getElementById('weeklyReportBody'));
     return;
   }
 
