@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.46</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.47</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -2302,7 +2302,8 @@ var WR_ANCHORS = {
   quotes:      'عروض الأسعار',      // NEW section anchor (added, not in original template)
   invoices:    'الفواتير اليومية',   // NEW
   followups:   'متابعة العملاء',     // NEW
-  dailyActivity:'نشاط اليوم'         // NEW
+  dailyActivity:'نشاط اليوم',        // NEW
+  salesActivity:'نشاط فريق المبيعات' // NEW (v7.47)
 };
 var CBT_EXAM_COURSE_NAME = 'CBT EXAM (TAKAMUL) CWQAP'; // exact match only, per explicit instruction
 
@@ -2347,15 +2348,16 @@ function wrComputeSessionProgress(session, weekSessions){
 function wrDateStr(d){ return d.toISOString().slice(0,10); }
 function wrArabicDayName(d){ return ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][d.getDay()]; }
 
-// Builds the full week's data model — the ONLY function that reads CRM data.
-// Everything downstream (preview, Excel export) consumes this model only.
-function buildWeeklyReportModel(sundayDate){
+// Builds the report data model for ANY date range — the ONLY function that reads
+// CRM data. Everything downstream (preview, Excel export) consumes this model only.
+// (v7.47: generalized from a fixed Sunday→Thursday week to an arbitrary range,
+// per requirement — old callers passing a single Sunday date still work via the
+// wrapper below, so nothing outside this page is affected.)
+function buildReportModelRange(fromDate, toDate){
   var days = [];
-  for(var i=0;i<5;i++){ // الأحد → الخميس (5 working days)
-    var d = new Date(sundayDate); d.setDate(sundayDate.getDate()+i);
-    days.push(d);
-  }
-  var weekStart = wrDateStr(days[0]), weekEnd = wrDateStr(days[4]);
+  var cursor = new Date(fromDate);
+  while(cursor <= toDate){ days.push(new Date(cursor)); cursor.setDate(cursor.getDate()+1); }
+  var weekStart = wrDateStr(days[0]), weekEnd = wrDateStr(days[days.length-1]);
 
   var allSessions = (typeof DB!=='undefined' && DB.sessions) ? DB.sessions : [];
   var weekSessions = allSessions.filter(function(s){ return s.startDate>=weekStart && s.startDate<=weekEnd; });
@@ -2413,7 +2415,7 @@ function buildWeeklyReportModel(sundayDate){
       });
     });
 
-    // 7) Daily activity — same source as follow-ups but ALL types, full timeline
+    // 7) Daily activity — leads.activityLog (lead-stage events), full timeline
     var dayActivities = [];
     allLeads.forEach(function(lead){
       (lead.activityLog||[]).forEach(function(a){
@@ -2425,6 +2427,29 @@ function buildWeeklyReportModel(sundayDate){
     dayActivities.sort(function(a,b){ return a.time.localeCompare(b.time); });
     dayActivities.forEach(function(a){
       rows.push({ anchor:'dailyActivity', client:a.client, kind:a.type, note:a.note, user:a.user, time:a.time.slice(11,16) });
+    });
+
+    // 8) NEW (v7.47): نشاط فريق المبيعات — REAL source is getDailyReports(), the
+    // exact data behind "إدارة المبيعات → نشاط اليوم". Each submitted daily report
+    // contains a list of client visits/calls (clientVisits[]) — one row per visit.
+    // NOTE: this source has NO per-visit timestamp (only one report per user per
+    // day), so 'time' is intentionally left blank rather than fabricated — rows
+    // are ordered exactly as entered (clientVisits[] array order), per requirement
+    // "بنفس ترتيب حدوثها" applied to the only real ordering that exists.
+    var dailyReports = (typeof getDailyReports==='function') ? getDailyReports() : [];
+    var dayReports = dailyReports.filter(function(r){ return r.date===dateStr; });
+    dayReports.forEach(function(rep){
+      (rep.clientVisits||[]).forEach(function(v){
+        rows.push({
+          anchor:'salesActivity',
+          employee: rep.user||'—',
+          client: v.client||'—',
+          kind: v.type||'—',
+          description: (v.notes||'')+(v.result?(' — النتيجة: '+v.result):''),
+          company: v.client||'—',   // this data source does not track company separately from client name
+          course: null              // not tracked per-visit in this source — left out honestly, not fabricated
+        });
+      });
     });
 
     model.days.push({ date:dateStr, dayNameAr:wrArabicDayName(d), rows:rows });
@@ -2554,6 +2579,10 @@ async function exportWeeklyReportToExcel(model){
         subject = 'نشاط: '+mr.kind;
         detail = mr.note+' — العميل: '+mr.client+' — بواسطة: '+mr.user+' — الساعة '+mr.time;
         percent = 1;
+      } else if(mr.anchor==='salesActivity'){
+        subject = 'نشاط مبيعات — '+mr.employee;
+        detail = mr.kind+' مع '+mr.client+(mr.description?(' — '+mr.description):'');
+        percent = 1;
       }
 
       row.getCell(1).value = seq++;
@@ -2562,6 +2591,7 @@ async function exportWeeklyReportToExcel(model){
       row.getCell(4).value = day.date;
       row.getCell(5).value = detail;
       row.getCell(6).value = percent;
+      row.getCell(6).numFmt = '0%'; // real Excel percentage type — 1 shows as 100%, 0.67 as 67%, etc.
       row.getCell(7).value = dayLabel;
       // All 8 cells in every generated row are new system-added data → blue, per requirement.
       for(var c=1;c<=8;c++) wrSetBlue(row.getCell(c));
@@ -2585,19 +2615,25 @@ async function exportWeeklyReportToExcel(model){
 //  PAGE UI — week selector, preview, export button
 // ════════════════════════════════════════════════════════════════
 function renderWeeklyExecReportPage(el){
-  var selSunday = window._wrSelectedSunday || wrGetSundayOf(new Date());
-  var model = buildWeeklyReportModel(selSunday);
+  // v7.47: free date-range selection instead of a fixed Sunday→Thursday week.
+  var defaultFrom = wrGetSundayOf(new Date());
+  var defaultTo = new Date(defaultFrom); defaultTo.setDate(defaultFrom.getDate()+4);
+  var fromDate = window._wrFromDate || defaultFrom;
+  var toDate = window._wrToDate || defaultTo;
+  var model = buildReportModelRange(fromDate, toDate);
   window._wrCurrentModel = model;
 
   var totalRows = model.days.reduce(function(s,d){return s+d.rows.length;},0);
 
   var html = '<div style="padding:22px;display:flex;flex-direction:column;gap:14px">';
-  html += '<div style="display:flex;align-items:center;gap:10px;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px">'
+  html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px">'
     +'<span style="color:#C9A84C;font-weight:800;font-size:14px">📅 التقرير الأسبوعي للإدارة العليا</span>'
-    +'<label style="color:#8BABC9;font-size:11px;margin-right:12px">الأسبوع (الأحد):</label>'
-    +'<input type="date" class="fc" value="'+wrDateStr(selSunday)+'" onchange="window._wrSelectedSunday=new Date(this.value+\'T00:00:00\');renderWeeklyExecReportPage(document.getElementById(\'weeklyReportBody\'))" style="font-size:11px"/>'
-    +'<span style="color:#6A85A5;font-size:10px">('+model.weekStart+' إلى '+model.weekEnd+')</span>'
-    +'<button onclick="window._wrSelectedSunday=null;renderWeeklyExecReportPage(document.getElementById(\'weeklyReportBody\'))" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">↺ الأسبوع الحالي</button>'
+    +'<label style="color:#8BABC9;font-size:11px;margin-right:12px">من:</label>'
+    +'<input type="date" class="fc" value="'+wrDateStr(fromDate)+'" onchange="window._wrFromDate=new Date(this.value+\'T00:00:00\');renderWeeklyExecReportPage(document.getElementById(\'weeklyReportBody\'))" style="font-size:11px"/>'
+    +'<label style="color:#8BABC9;font-size:11px">إلى:</label>'
+    +'<input type="date" class="fc" value="'+wrDateStr(toDate)+'" onchange="window._wrToDate=new Date(this.value+\'T00:00:00\');renderWeeklyExecReportPage(document.getElementById(\'weeklyReportBody\'))" style="font-size:11px"/>'
+    +'<span style="color:#6A85A5;font-size:10px">('+model.days.length+' يوم)</span>'
+    +'<button onclick="window._wrFromDate=null;window._wrToDate=null;renderWeeklyExecReportPage(document.getElementById(\'weeklyReportBody\'))" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:6px;color:#23A0B5;padding:6px 12px;cursor:pointer;font-size:10px;font-family:inherit">↺ الأسبوع الحالي</button>'
     +'<button onclick="exportWeeklyReportToExcel(window._wrCurrentModel)" style="margin-right:auto;background:#1A7A4C;border:none;border-radius:8px;color:white;padding:8px 16px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">📊 تصدير Excel</button>'
     +'</div>';
 
@@ -2606,6 +2642,7 @@ function renderWeeklyExecReportPage(el){
     +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">اختبارات تكامل</div><div style="color:#C9A84C;font-size:16px;font-weight:800">'+model.days.reduce(function(s,d){return s+d.rows.filter(function(r){return r.anchor==="cbtExam";}).length;},0)+'</div></div>'
     +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">دورات تدريبية</div><div style="color:#23A0B5;font-size:16px;font-weight:800">'+model.days.reduce(function(s,d){return s+d.rows.filter(function(r){return r.anchor==="training";}).length;},0)+'</div></div>'
     +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">عروض/فواتير/متابعات</div><div style="color:#1A8A5A;font-size:16px;font-weight:800">'+model.days.reduce(function(s,d){return s+d.rows.filter(function(r){return ["quotes","invoices","followups"].indexOf(r.anchor)>=0;}).length;},0)+'</div></div>'
+    +'<div class="kpi" style="padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">نشاط فريق المبيعات</div><div style="color:#9B59B6;font-size:16px;font-weight:800">'+model.days.reduce(function(s,d){return s+d.rows.filter(function(r){return r.anchor==="salesActivity";}).length;},0)+'</div></div>'
     +'</div>';
 
   html += '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;overflow-x:auto">'
@@ -2619,7 +2656,8 @@ function renderWeeklyExecReportPage(el){
       var subj = ({cbtExam:'اختبار تكامل: '+mr.course, cbtResults:'إرسال نتائج الناجحين لأرامكو', training:'دورة: '+mr.course+' — '+mr.client,
         wprResults:'إرسال نتائج WPR', marketingDev:'تسويق دورات تطويرية', marketingCWQAP:'تسويق CWQAP',
         quotes:'عرض سعر: '+mr.client+' — '+mr.course, invoices:'فاتورة: '+mr.invNum+' — '+mr.client,
-        followups:'متابعة: '+mr.client, dailyActivity:'نشاط: '+mr.kind+' — '+mr.client})[mr.anchor] || mr.anchor;
+        followups:'متابعة: '+mr.client, dailyActivity:'نشاط: '+mr.kind+' — '+mr.client,
+        salesActivity:'مبيعات: '+mr.employee+' ← '+mr.client})[mr.anchor] || mr.anchor;
       var pct = mr.percent!==undefined ? mr.percent+'%' : '100%';
       html += '<tr style="border-top:1px solid rgba(26,46,74,.4)">'
         +'<td style="padding:6px;color:#6A85A5;font-size:9px">'+(seq++)+'</td>'
