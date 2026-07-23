@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.47</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.48</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -2354,6 +2354,12 @@ function wrArabicDayName(d){ return ['الأحد','الاثنين','الثلاث
 // per requirement — old callers passing a single Sunday date still work via the
 // wrapper below, so nothing outside this page is affected.)
 function buildReportModelRange(fromDate, toDate){
+  // FIX: if the user picks a "to" date earlier than "from" (e.g. changes "to" before
+  // adjusting "from"), the day-generation loop below ran zero times, leaving days[0]
+  // undefined — wrDateStr(undefined) then crashed on .toISOString(). Guard by swapping
+  // the two dates whenever the range is inverted, so a valid (if reversed-intent) range
+  // is always produced instead of an empty one.
+  if(toDate < fromDate){ var _tmp = fromDate; fromDate = toDate; toDate = _tmp; }
   var days = [];
   var cursor = new Date(fromDate);
   while(cursor <= toDate){ days.push(new Date(cursor)); cursor.setDate(cursor.getDate()+1); }
