@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.49</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.50</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -9084,13 +9084,16 @@ function openScheduleExportDialog(){
 function exportSchedulePDF(selectedDays){
   const today  = new Date();
   const monday = new Date(today);
-  monday.setDate(today.getDate() - ((today.getDay()+6)%7) + (window._weekOffset||0)*7);
-  monday.setHours(0,0,0,0); // ROOT FIX: normalize to midnight — without this, `monday` carries
-  // the CURRENT time-of-day (e.g. 14:22:15), so any session dated exactly "Monday" (parsed as
-  // Monday 00:00:00) fails the `sd >= monday` check below and gets silently dropped from the
-  // export — the entire first day of the week vanishes from every export run after midnight,
-  // which is effectively always. This is isolated to the export function's own date filter,
-  // not the on-screen schedule rendering logic.
+  // ROOT FIX (v7.50): the business week used everywhere else in this system starts on
+  // SUNDAY (confirmed repeatedly — Weekly Executive Report, training schedule convention),
+  // but this function computed a MONDAY-based boundary (today.getDay()+6)%7, which is a
+  // full day OFF from the real week — Sunday's own sessions were excluded, and Monday
+  // through Wednesday of the PREVIOUS week were included instead ("missing sessions" +
+  // "sessions from another week", exactly as reported). getDay()==0 for Sunday already,
+  // so no offset formula is needed — just subtract getDay() directly.
+  monday.setDate(today.getDate() - today.getDay() + (window._weekOffset||0)*7);
+  monday.setHours(0,0,0,0); // normalize to midnight — without this, any session dated
+  // exactly on the week's first day fails the `sd >= monday` check below (time-of-day bug).
   const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
   sunday.setHours(23,59,59,999); // same fix for the end boundary
 
