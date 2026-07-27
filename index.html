@@ -301,7 +301,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:var(--text-faint);font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.53</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:var(--text-faint);font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.54</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -4958,15 +4958,15 @@ function openNewQuoteForm(existingQuote){
           <table style="width:100%;border-collapse:collapse" id="quoteTable">
             <thead>
               <tr style="background:var(--color-rgba-013)">
-                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:right;border-bottom:1px solid var(--border-primary);font-weight:700">#</th>
-                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:right;border-bottom:1px solid var(--border-primary);font-weight:700">${T().quotePage.courseName}</th>
-                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:right;border-bottom:1px solid var(--border-primary);font-weight:700">${T().quotePage.validity}</th>
-                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border-bottom:1px solid var(--border-primary);font-weight:700">${isAR()?'المدة':'Duration'}</th>
-                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border-bottom:1px solid var(--border-primary);font-weight:700">${T().quotePage.qty}</th>
-                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border-bottom:1px solid var(--border-primary);font-weight:700">${T().quotePage.unitPrice}</th>
-                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border-bottom:1px solid var(--border-primary);font-weight:700">${isAR()?'خصم (ريال)':'Discount (SAR)'}</th>
-                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border-bottom:1px solid var(--border-primary);font-weight:700">${T().quotePage.total}</th>
-                <th style="padding:9px 12px;border-bottom:1px solid var(--border-primary)"></th>
+                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:right;border:1px solid var(--border-primary);font-weight:700">#</th>
+                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:right;border:1px solid var(--border-primary);font-weight:700">${T().quotePage.courseName}</th>
+                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:right;border:1px solid var(--border-primary);font-weight:700">${T().quotePage.validity}</th>
+                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border:1px solid var(--border-primary);font-weight:700">${isAR()?'المدة':'Duration'}</th>
+                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border:1px solid var(--border-primary);font-weight:700">${T().quotePage.qty}</th>
+                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border:1px solid var(--border-primary);font-weight:700">${T().quotePage.unitPrice}</th>
+                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border:1px solid var(--border-primary);font-weight:700">${isAR()?'خصم (ريال)':'Discount (SAR)'}</th>
+                <th style="padding:9px 10px;color:var(--text-muted);font-size:10px;text-transform:uppercase;text-align:center;border:1px solid var(--border-primary);font-weight:700">${T().quotePage.total}</th>
+                <th style="padding:9px 12px;border:1px solid var(--border-primary)"></th>
               </tr>
             </thead>
             <tbody id="quoteRows"></tbody>
@@ -5126,7 +5126,7 @@ function addQuoteRowAt(idx){
   if(!tbody) return;
   const tr = document.createElement('tr');
   tr.id='qrow-'+idx;
-  tr.style.cssText='border-bottom:1px solid var(--color-rgba-013)';
+  tr.style.cssText='';
   tr.innerHTML=buildQuoteRowHTML(idx);
   tbody.appendChild(tr);
 }
@@ -5146,8 +5146,8 @@ function addQuoteRow(){
 }
 
 function buildQuoteRowHTML(idx){
-  return '<td style="padding:8px 10px;color:var(--text-muted);font-size:12px;text-align:right">'+(idx+1)+'</td>'
-  +'<td style="padding:5px 6px;position:relative">'
+  return '<td style="padding:8px 10px;color:var(--text-muted);font-size:12px;text-align:right;border:1px solid var(--border-primary)">'+(idx+1)+'</td>'
+  +'<td style="padding:5px 6px;position:relative;border:1px solid var(--border-primary)">'
     +'<input id="qc-inp-'+idx+'" class="fc" autocomplete="off" '
     +'placeholder="'+(isAR()?'ابحث عن الدورة...':'Search for course...')+'" '
     +'style="width:100%;min-width:160px;font-size:11px;padding:6px 8px" '
@@ -5157,31 +5157,31 @@ function buildQuoteRowHTML(idx){
     +'<div id="qc-drop-'+idx+'" style="display:none;position:fixed;z-index:9999;background:var(--bg-deep);border:1px solid var(--border-primary);border-radius:9px;max-height:220px;overflow-y:auto;box-shadow:0 10px 36px var(--color-rgba-010);min-width:260px"></div>'
     +'<input type="hidden" id="qc-'+idx+'" value=""/>'
   +'</td>'
-  +'<td style="padding:5px 6px">'
+  +'<td style="padding:5px 6px;border:1px solid var(--border-primary)">'
     +'<input id="qv-'+idx+'" class="fc" style="padding:6px;font-size:11px;text-align:center;width:78px" value="" placeholder="—" readonly/>'
   +'</td>'
-  +'<td style="padding:5px 6px">'
+  +'<td style="padding:5px 6px;border:1px solid var(--border-primary)">'
     +'<input id="qdur-'+idx+'" class="fc" style="padding:6px;font-size:11px;text-align:center;width:68px;color:var(--accent-teal)" value="" placeholder="—" readonly/>'
   +'</td>'
-  +'<td style="padding:5px 6px">'
+  +'<td style="padding:5px 6px;border:1px solid var(--border-primary)">'
     +'<input id="qq-'+idx+'" type="number" min="1" value="1" '
     +'style="background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:7px;color:var(--text-primary);padding:6px;font-size:12px;font-family:inherit;width:52px;text-align:center" '
     +'oninput="onQuoteRowQty('+idx+')"/>'
   +'</td>'
-  +'<td style="padding:5px 6px">'
+  +'<td style="padding:5px 6px;border:1px solid var(--border-primary)">'
     +'<input id="qp-'+idx+'" type="number" min="0" value="0" '
     +'style="background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:7px;color:var(--text-primary);padding:6px;font-size:12px;font-family:inherit;width:72px;text-align:center" '
     +'oninput="onQuoteRowPrice('+idx+')"/>'
   +'</td>'
-  +'<td style="padding:5px 6px">'
+  +'<td style="padding:5px 6px;border:1px solid var(--border-primary)">'
     +'<input id="qdisc-'+idx+'" type="number" min="0" value="0" '
     +'style="background:var(--bg-primary);border:1px solid var(--color-rgba-042);border-radius:7px;color:var(--accent-gold);padding:6px;font-size:12px;font-family:inherit;width:70px;text-align:center" '
     +'placeholder="0" oninput="onQuoteRowDisc('+idx+')"/>'
   +'</td>'
-  +'<td style="padding:8px 10px;text-align:center">'
+  +'<td style="padding:8px 10px;text-align:center;border:1px solid var(--border-primary)">'
     +'<span id="qt-'+idx+'" style="color:var(--accent-gold);font-size:12px;font-weight:700;font-family:monospace">0</span>'
   +'</td>'
-  +'<td style="padding:5px 6px;text-align:center">'
+  +'<td style="padding:5px 6px;text-align:center;border:1px solid var(--border-primary)">'
     +'<button onclick="removeQuoteRow('+idx+')" '
     +'style="width:24px;height:24px;border-radius:6px;background:var(--color-rgba-002);border:1px solid var(--color-rgba-030);color:var(--color-danger-alt);cursor:pointer;font-size:12px">✕</button>'
   +'</td>';
