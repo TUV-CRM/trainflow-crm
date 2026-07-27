@@ -295,40 +295,13 @@ input[type=date].fc{color-scheme:dark}
 .tab.active{background:linear-gradient(135deg,var(--accent-teal-dark),var(--accent-teal));color:#fff}
 
 @keyframes slideDown { from { transform: translateX(-50%) translateY(-100px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
-
-    body.theme-light {
-      --bg-primary: #F4F6FA;
-      --bg-surface: #FFFFFF;
-      --bg-surface-alt: #EDF1F7;
-      --bg-deep: #E6EBF2;
-      --border-primary: #D7DEE8;
-      --text-primary: #1A2333;
-      --text-secondary: #3D4A5C;
-      --text-muted: #6B7688;
-      --text-faint: #8A93A3;
-      --text-onlight: #1A2333;
-      --accent-gold: #B7860B;
-      --accent-teal: #147A8C;
-      --accent-teal-dark: #0F5F6E;
-      --accent-purple: #7A4A94;
-      --accent-blue: #14588A;
-      --accent-blue-alt: #1E3A8A;
-      --color-success: #157A4D;
-      --color-danger: #B0301F;
-      --color-danger-alt: #C0392B;
-      --color-warning: #C46A10;
-    }
-    /* Smooth transition between themes for every themed surface (per requirement, ~250ms) */
-    body, body * {
-      transition: background-color .25s ease, border-color .25s ease, color .25s ease, box-shadow .25s ease;
-    }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:var(--text-faint);font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.52</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:var(--text-faint);font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.53</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -369,9 +342,6 @@ input[type=date].fc{color-scheme:dark}
       <button id="langToggleBtn" onclick="toggleLang()"
         style="background:var(--bg-deep);border:1px solid var(--border-primary);border-radius:7px;color:var(--accent-gold);padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">
         🇬🇧 English
-      </button>
-      <button id="themeToggleBtn" onclick="toggleTheme()" title="Dark Mode / Light Mode"
-        style="background:var(--bg-deep);border:1px solid var(--border-primary);border-radius:7px;color:var(--accent-gold);padding:5px 10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1">
       </button>
       <button onclick="handleSyncBtn()" oncontextmenu="event.preventDefault();openSyncSetup()" title="مزامنة البيانات (Shift+Click للإعداد)" id="syncBtn"
         style="background:var(--bg-deep);border:1px solid var(--border-primary);border-radius:7px;color:var(--text-muted);width:32px;height:32px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">🔄</button>
@@ -880,22 +850,6 @@ input[type=date].fc{color-scheme:dark}
 
 <script>
 // ── Language must be initialized first ──
-
-// ── Theme (Dark/Light) — must be initialized before first paint, same pattern as SYS_LANG ──
-let SYS_THEME = localStorage.getItem('tf4_theme') || 'dark';
-if(typeof document!=='undefined' && document.body) document.body.classList.toggle('theme-light', SYS_THEME==='light'); // avoid flash on login screen too
-function applyTheme(){
-  document.body.classList.toggle('theme-light', SYS_THEME === 'light');
-  var btn = document.getElementById('themeToggleBtn');
-  if(btn) btn.innerHTML = SYS_THEME === 'light' ? '🌙' : '☀️';
-  if(btn) btn.title = SYS_THEME === 'light' ? 'Dark Mode' : 'Light Mode';
-}
-function toggleTheme(){
-  SYS_THEME = SYS_THEME === 'dark' ? 'light' : 'dark';
-  localStorage.setItem('tf4_theme', SYS_THEME);
-  applyTheme();
-}
-
 let SYS_LANG = localStorage.getItem('tf4_lang') || 'ar';
 function isAR(){ return SYS_LANG === 'ar'; }
 function t(ar,en){ return isAR() ? ar : en; }
@@ -2060,7 +2014,6 @@ function launchApp(){
 
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').style.display='flex';
-  applyTheme();
   // Apply saved language
   document.documentElement.lang = SYS_LANG;
   document.documentElement.dir  = isAR() ? 'rtl' : 'ltr';
