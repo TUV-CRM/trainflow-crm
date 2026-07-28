@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.57</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.58</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -7377,7 +7377,7 @@ var BI_REPORTS = {
         ['t2',t('🔻 الأقل نشاطاً','🔻 Least Active'),[t('المدرب','Trainer'),t('جلسات','Sessions')], arr.slice().reverse().slice(0,10).map(function(t2){return [t2.name,t2.sessions];})]]}; } }
 };
 function biBuild(key){
-  var sig = key+'|'+(window._repP[key]||'month')+'|'+(DB.invoices||[]).length+'|'+(DB.sessions||[]).length;
+  var sig = key+'|'+SYS_LANG+'|'+(window._repP[key]||'month')+'|'+(DB.invoices||[]).length+'|'+(DB.sessions||[]).length;
   var c2 = window._repCache[key];
   if(c2 && c2.sig===sig) return c2.data; // lazy + cached: computed only when ITS page is open and inputs unchanged
   var data = BI_REPORTS[key].build();
@@ -7459,7 +7459,7 @@ function execCourseCat(courseName){
 function buildExecData(){
   var r = execRange();
   var fTrainer = window._exTrainer||'all', fClient = window._exClient||'all', fCat = window._exCat||'all', fStatus = window._exStatus||'all';
-  var key = JSON.stringify([r, fTrainer, fClient, fCat, fStatus, (DB.sessions||[]).length, (DB.invoices||[]).length]);
+  var key = JSON.stringify([r, SYS_LANG, fTrainer, fClient, fCat, fStatus, (DB.sessions||[]).length, (DB.invoices||[]).length]);
   if(window._execCache && window._execCache.key===key) return window._execCache.data; // CACHE: aggregate once per filter change
 
   var today = new Date().toISOString().slice(0,10);
