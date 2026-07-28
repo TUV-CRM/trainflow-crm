@@ -7219,34 +7219,34 @@ function repMonthlySum(list, yr){ var out=[]; for(var m2=1;m2<=12;m2++){ var mk=
 function repBal(i2){ return (i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0)); }
 
 var BI_REPORTS = {
-  revenue: { label:'💰 الإيرادات', build: function(){
+  revenue: { label:t('💰 الإيرادات','💰 Revenue'), build: function(){
     var key='revenue', r=repRange(key), fd=repFinData();
     var all=fd.income||[], inR=all.filter(function(x){return repIn(x.date,r);});
     var today=new Date().toISOString().slice(0,10), yr=new Date().getFullYear();
     var sum=function(l){return l.reduce(function(s2,x){return s2+(x.amount||0);},0);};
     var w=new Date(); w.setDate(w.getDate()-6); var ws=w.toISOString().slice(0,10);
     var byCat={}, byMonth=repMonthlySum(all, yr);
-    inR.forEach(function(x){ byCat[x.category||'أخرى']=(byCat[x.category||'أخرى']||0)+(x.amount||0); });
+    inR.forEach(function(x){ byCat[x.category||t('أخرى','Other')]=(byCat[x.category||t('أخرى','Other')]||0)+(x.amount||0); });
     var amounts=inR.map(function(x){return x.amount||0;});
     var D={key:key, range:r,
-      kpis:[['إجمالي الفترة','SAR '+fmt(sum(inR)),'#23A0B5'],['اليوم','SAR '+fmt(sum(all.filter(function(x){return (x.date||'')===today;})))],['هذا الأسبوع','SAR '+fmt(sum(all.filter(function(x){return (x.date||'')>=ws;})))],['هذا الشهر','SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,7)===today.slice(0,7);})))],['هذه السنة','SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,4)===String(yr);})))],['عدد العمليات',inR.length],['متوسط العملية','SAR '+fmt(inR.length?Math.round(sum(inR)/inR.length):0)],['أكبر عملية','SAR '+fmt(amounts.length?Math.max.apply(null,amounts):0),'#1A8A5A'],['أصغر عملية','SAR '+fmt(amounts.length?Math.min.apply(null,amounts):0)]],
-      charts:[['📊 الإيرادات الشهرية '+yr, execBars(byMonth,'#23A0B5',100)],['🧩 حسب الفئة', Object.keys(byCat).length?execDonut(byCat,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5']):'<div style="color:#3A5070;font-size:10px">—</div>'],['📈 الاتجاه', execLine(byMonth,'#23A0B5',90)],['↗️ النمو الشهري %', execLine(repMoM(byMonth),'#C9A84C',90)]],
-      tables:[['t1','🕐 آخر الإيرادات',['التاريخ','الفئة','البيان','المبلغ'], inR.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})],
-        ['t2','🔝 أعلى الإيرادات',['التاريخ','الفئة','البيان','المبلغ'], inR.slice().sort(function(a,b){return (b.amount||0)-(a.amount||0);}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})]]};
+      kpis:[[t('إجمالي الفترة','Period Total'),'SAR '+fmt(sum(inR)),'#23A0B5'],[t('اليوم','Today'),'SAR '+fmt(sum(all.filter(function(x){return (x.date||'')===today;})))],[t('هذا الأسبوع','This Week'),'SAR '+fmt(sum(all.filter(function(x){return (x.date||'')>=ws;})))],[t('هذا الشهر','This Month'),'SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,7)===today.slice(0,7);})))],[t('هذه السنة','This Year'),'SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,4)===String(yr);})))],[t('عدد العمليات','Transactions'),inR.length],[t('متوسط العملية','Avg. Transaction'),'SAR '+fmt(inR.length?Math.round(sum(inR)/inR.length):0)],[t('أكبر عملية','Largest'),'SAR '+fmt(amounts.length?Math.max.apply(null,amounts):0),'#1A8A5A'],[t('أصغر عملية','Smallest'),'SAR '+fmt(amounts.length?Math.min.apply(null,amounts):0)]],
+      charts:[[t('📊 الإيرادات الشهرية ','📊 Monthly Revenue ')+yr, execBars(byMonth,'#23A0B5',100)],[t('🧩 حسب الفئة','🧩 By Category'), Object.keys(byCat).length?execDonut(byCat,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5']):'<div style="color:#3A5070;font-size:10px">—</div>'],[t('📈 الاتجاه','📈 Trend'), execLine(byMonth,'#23A0B5',90)],[t('↗️ النمو الشهري %','↗️ Monthly Growth %'), execLine(repMoM(byMonth),'#C9A84C',90)]],
+      tables:[['t1',t('🕐 آخر الإيرادات','🕐 Recent Revenue'),[t('التاريخ','Date'),t('الفئة','Category'),t('البيان','Description'),t('المبلغ','Amount')], inR.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})],
+        ['t2',t('🔝 أعلى الإيرادات','🔝 Top Revenue'),[t('التاريخ','Date'),t('الفئة','Category'),t('البيان','Description'),t('المبلغ','Amount')], inR.slice().sort(function(a,b){return (b.amount||0)-(a.amount||0);}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})]]};
     return D; } },
-  expenses: { label:'💸 المصروفات', build: function(){
+  expenses: { label:t('💸 المصروفات','💸 Expenses'), build: function(){
     var key='expenses', r=repRange(key), fd=repFinData();
     var all=fd.expenses||[], inR=all.filter(function(x){return repIn(x.date,r);});
     var today=new Date().toISOString().slice(0,10), yr=new Date().getFullYear();
     var sum=function(l){return l.reduce(function(s2,x){return s2+(x.amount||0);},0);};
     var byCat={}, byEmp={}, byMonth=repMonthlySum(all, yr);
-    inR.forEach(function(x){ byCat[x.category||'أخرى']=(byCat[x.category||'أخرى']||0)+(x.amount||0); if(x.createdBy) byEmp[x.createdBy]=(byEmp[x.createdBy]||0)+(x.amount||0); });
+    inR.forEach(function(x){ byCat[x.category||t('أخرى','Other')]=(byCat[x.category||t('أخرى','Other')]||0)+(x.amount||0); if(x.createdBy) byEmp[x.createdBy]=(byEmp[x.createdBy]||0)+(x.amount||0); });
     return {key:key, range:r,
-      kpis:[['إجمالي الفترة','SAR '+fmt(sum(inR)),'#C0392B'],['اليوم','SAR '+fmt(sum(all.filter(function(x){return (x.date||'')===today;})))],['هذا الشهر','SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,7)===today.slice(0,7);})))],['هذه السنة','SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,4)===String(yr);})))],['عدد العمليات',inR.length]],
-      charts:[['📊 المصروفات الشهرية '+yr, execBars(byMonth,'#C0392B',100)],['🧩 حسب التصنيف', Object.keys(byCat).length?execDonut(byCat,['#C0392B','#C9A84C','#9B59B6','#23A0B5','#6A85A5']):'<div style="color:#3A5070;font-size:10px">—</div>'],['👤 حسب الموظف المُسجِّل', Object.keys(byEmp).length?execDonut(byEmp,['#9B59B6','#23A0B5','#C9A84C','#1A8A5A']):'<div style="color:#3A5070;font-size:10px">—</div>']],
-      tables:[['t1','🕐 آخر المصروفات',['التاريخ','التصنيف','البيان','المبلغ'], inR.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})],
-        ['t2','🔝 أكبر المصروفات',['التاريخ','التصنيف','البيان','المبلغ'], inR.slice().sort(function(a,b){return (b.amount||0)-(a.amount||0);}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})]]}; } },
-  profit: { label:'📈 الأرباح', build: function(){
+      kpis:[[t('إجمالي الفترة','Period Total'),'SAR '+fmt(sum(inR)),'#C0392B'],[t('اليوم','Today'),'SAR '+fmt(sum(all.filter(function(x){return (x.date||'')===today;})))],[t('هذا الشهر','This Month'),'SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,7)===today.slice(0,7);})))],[t('هذه السنة','This Year'),'SAR '+fmt(sum(all.filter(function(x){return (x.date||'').slice(0,4)===String(yr);})))],[t('عدد العمليات','Transactions'),inR.length]],
+      charts:[[t('📊 المصروفات الشهرية ','📊 Monthly Expenses ')+yr, execBars(byMonth,'#C0392B',100)],[t('🧩 حسب التصنيف','🧩 By Category'), Object.keys(byCat).length?execDonut(byCat,['#C0392B','#C9A84C','#9B59B6','#23A0B5','#6A85A5']):'<div style="color:#3A5070;font-size:10px">—</div>'],[t('👤 حسب الموظف المُسجِّل','👤 By Recorded Employee'), Object.keys(byEmp).length?execDonut(byEmp,['#9B59B6','#23A0B5','#C9A84C','#1A8A5A']):'<div style="color:#3A5070;font-size:10px">—</div>']],
+      tables:[['t1',t('🕐 آخر المصروفات','🕐 Recent Expenses'),[t('التاريخ','Date'),t('التصنيف','Category'),t('البيان','Description'),t('المبلغ','Amount')], inR.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})],
+        ['t2',t('🔝 أكبر المصروفات','🔝 Largest Expenses'),[t('التاريخ','Date'),t('التصنيف','Category'),t('البيان','Description'),t('المبلغ','Amount')], inR.slice().sort(function(a,b){return (b.amount||0)-(a.amount||0);}).map(function(x){return [x.date||'',x.category||'',x.description||'','SAR '+fmt(x.amount||0)];})]]}; } },
+  profit: { label:t('📈 الأرباح','📈 Profit'), build: function(){
     var key='profit', r=repRange(key), fd=repFinData(), yr=new Date().getFullYear();
     var inc=(fd.income||[]).filter(function(x){return repIn(x.date,r);}).reduce(function(s2,x){return s2+(x.amount||0);},0);
     var exp=(fd.expenses||[]).filter(function(x){return repIn(x.date,r);}).reduce(function(s2,x){return s2+(x.amount||0);},0);
@@ -7260,11 +7260,11 @@ var BI_REPORTS = {
       return '<div style="flex:1;display:flex;gap:1px;align-items:flex-end;height:100%"><div title="إيراد '+fmt(v)+'" style="flex:1;background:#23A0B5;border-radius:2px 2px 0 0;height:'+Math.max(v/mx*100,1)+'%"></div><div title="مصروف '+fmt(mExp[i])+'" style="flex:1;background:#C0392B;border-radius:2px 2px 0 0;height:'+Math.max(mExp[i]/mx*100,1)+'%"></div></div>';
     }).join('')+'</div><div style="display:flex;gap:12px;margin-top:5px;font-size:8px"><span style="color:#23A0B5">■ إيرادات</span><span style="color:#C0392B">■ مصروفات</span></div>';
     return {key:key, range:r,
-      kpis:[['ربح الفترة','SAR '+fmt(inc-exp),(inc-exp)>=0?'#1A8A5A':'#C0392B'],['ربح هذا الشهر','SAR '+fmt(mNet[thisM]),mNet[thisM]>=0?'#1A8A5A':'#C0392B'],['ربح السنة','SAR '+fmt(mNet.reduce(function(a,b){return a+b;},0))],['هامش الربح',(inc?Math.round((inc-exp)/inc*100):0)+'%','#C9A84C'],['الإيرادات','SAR '+fmt(inc),'#23A0B5'],['المصروفات','SAR '+fmt(exp),'#C0392B']],
-      charts:[['⚖️ الإيرادات مقابل المصروفات '+yr, dual],['📈 اتجاه صافي الربح', execLine(mNet,'#1A8A5A',95)],['📉 هامش الربح الشهري %', execLine(mRev.map(function(v,i){return v?Math.round((v-mExp[i])/v*100):0;}),'#C9A84C',95)]],
-      tables:[['t1','🏆 أفضل الأشهر',['الشهر','صافي الربح'], monthsRanked.slice(0,6).map(function(x){return [x[0],'SAR '+fmt(x[1])];})],
-        ['t2','⚠️ أضعف الأشهر',['الشهر','صافي الربح'], monthsRanked.slice().reverse().slice(0,6).map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
-  collection: { label:'💳 التحصيل', build: function(){
+      kpis:[[t('ربح الفترة','Period Profit'),'SAR '+fmt(inc-exp),(inc-exp)>=0?'#1A8A5A':'#C0392B'],[t('ربح هذا الشهر','This Month\'s Profit'),'SAR '+fmt(mNet[thisM]),mNet[thisM]>=0?'#1A8A5A':'#C0392B'],[t('ربح السنة','Year\'s Profit'),'SAR '+fmt(mNet.reduce(function(a,b){return a+b;},0))],[t('هامش الربح','Profit Margin'),(inc?Math.round((inc-exp)/inc*100):0)+'%','#C9A84C'],[t('الإيرادات','Revenue'),'SAR '+fmt(inc),'#23A0B5'],[t('المصروفات','Expenses'),'SAR '+fmt(exp),'#C0392B']],
+      charts:[[t('⚖️ الإيرادات مقابل المصروفات ','⚖️ Revenue vs Expenses ')+yr, dual],[t('📈 اتجاه صافي الربح','📈 Net Profit Trend'), execLine(mNet,'#1A8A5A',95)],[t('📉 هامش الربح الشهري %','📉 Monthly Profit Margin %'), execLine(mRev.map(function(v,i){return v?Math.round((v-mExp[i])/v*100):0;}),'#C9A84C',95)]],
+      tables:[['t1',t('🏆 أفضل الأشهر','🏆 Best Months'),[t('الشهر','Month'),t('صافي الربح','Net Profit')], monthsRanked.slice(0,6).map(function(x){return [x[0],'SAR '+fmt(x[1])];})],
+        ['t2',t('⚠️ أضعف الأشهر','⚠️ Weakest Months'),[t('الشهر','Month'),t('صافي الربح','Net Profit')], monthsRanked.slice().reverse().slice(0,6).map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
+  collection: { label:t('💳 التحصيل','💳 Collection'), build: function(){
     var key='collection', r=repRange(key), today=new Date().toISOString().slice(0,10);
     var inR=(DB.invoices||[]).filter(function(i2){return repIn(i2.invoiceDate||i2.date,r);});
     var tot=inR.reduce(function(s2,i2){return s2+(i2.amount||0);},0);
@@ -7283,13 +7283,13 @@ var BI_REPORTS = {
     var mColl=[]; for(var m2=1;m2<=12;m2++){ var mk=yr+'-'+String(m2).padStart(2,'0'); mColl.push((DB.invoices||[]).filter(function(i2){return (i2.invoiceDate||i2.date||'').slice(0,7)===mk;}).reduce(function(s2,i2){return s2+((i2.amount||0)-repBal(i2));},0)); }
     var payers={}; inR.forEach(function(i2){ if(repBal(i2)<=0 && (i2.amount||0)>0) payers[i2.client||'—']=(payers[i2.client||'—']||0)+(i2.amount||0); });
     return {key:key, range:r,
-      kpis:[['إجمالي الفواتير','SAR '+fmt(tot)],['المحصّل','SAR '+fmt(coll),'#1A8A5A'],['غير المحصّل','SAR '+fmt(out),'#C9A84C'],['المتأخر','SAR '+fmt(overAmt),'#C0392B'],['نسبة التحصيل',(tot?Math.round(coll/tot*100):0)+'%','#1A8A5A'],['DSO (متوسط أيام التحصيل)',dso+' يوم','#9B59B6']],
-      charts:[['🧩 حالة التحصيل', execDonut({'محصّل':coll||0.001,'غير محصّل':Math.max(out-overAmt,0),'متأخر':overAmt},['#1A8A5A','#C9A84C','#C0392B'])],['⏳ أعمار الديون (Aging)', execDonut(aging,['#1A8A5A','#C9A84C','#E67E22','#C0392B'])],['📊 التحصيل الشهري '+yr, execBars(mColl,'#1A8A5A',95)]],
-      tables:[['t1','⏰ الفواتير المتأخرة',['رقم','العميل','الاستحقاق','المتبقي'], over.map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.dueDate||'','SAR '+fmt(repBal(i2))];})],
-        ['t2','📋 فواتير مستحقة (غير متأخرة)',['رقم','العميل','الاستحقاق','المتبقي'], outInv.filter(function(i2){return !(i2.dueDate&&i2.dueDate<today);}).map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.dueDate||'—','SAR '+fmt(repBal(i2))];})],
-        ['t3','🏅 أفضل العملاء سداداً',['العميل','المسدد بالكامل'], Object.keys(payers).map(function(k){return [k,'SAR '+fmt(payers[k])];}).sort(function(a,b){return parseFloat(b[1].replace(/[^\d.]/g,''))-parseFloat(a[1].replace(/[^\d.]/g,''));})],
-        ['t4','🔻 أكبر المدينين',['العميل','إجمالي الدين'], topDebt.map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
-  clients: { label:'👥 العملاء', build: function(){
+      kpis:[[t('إجمالي الفواتير','Total Invoices'),'SAR '+fmt(tot)],[t('المحصّل','Collected'),'SAR '+fmt(coll),'#1A8A5A'],[t('غير المحصّل','Uncollected'),'SAR '+fmt(out),'#C9A84C'],[t('المتأخر','Overdue'),'SAR '+fmt(overAmt),'#C0392B'],[t('نسبة التحصيل','Collection Rate'),(tot?Math.round(coll/tot*100):0)+'%','#1A8A5A'],[t('DSO (متوسط أيام التحصيل)','DSO (Avg. Collection Days)'),dso+t(' يوم',' days'),'#9B59B6']],
+      charts:[[t('🧩 حالة التحصيل','🧩 Collection Status'), execDonut({[t('محصّل','Collected')]:coll||0.001,[t('غير محصّل','Uncollected')]:Math.max(out-overAmt,0),[t('متأخر','Overdue')]:overAmt},['#1A8A5A','#C9A84C','#C0392B'])],[t('⏳ أعمار الديون (Aging)','⏳ Aging Report'), execDonut(aging,['#1A8A5A','#C9A84C','#E67E22','#C0392B'])],[t('📊 التحصيل الشهري ','📊 Monthly Collection ')+yr, execBars(mColl,'#1A8A5A',95)]],
+      tables:[['t1',t('⏰ الفواتير المتأخرة','⏰ Overdue Invoices'),[t('رقم','No.'),t('العميل','Client'),t('الاستحقاق','Due Date'),t('المتبقي','Remaining')], over.map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.dueDate||'','SAR '+fmt(repBal(i2))];})],
+        ['t2',t('📋 فواتير مستحقة (غير متأخرة)','📋 Due Invoices (Not Overdue)'),[t('رقم','No.'),t('العميل','Client'),t('الاستحقاق','Due Date'),t('المتبقي','Remaining')], outInv.filter(function(i2){return !(i2.dueDate&&i2.dueDate<today);}).map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.dueDate||'—','SAR '+fmt(repBal(i2))];})],
+        ['t3',t('🏅 أفضل العملاء سداداً','🏅 Best-Paying Clients'),[t('العميل','Client'),t('المسدد بالكامل','Fully Paid')], Object.keys(payers).map(function(k){return [k,'SAR '+fmt(payers[k])];}).sort(function(a,b){return parseFloat(b[1].replace(/[^\d.]/g,''))-parseFloat(a[1].replace(/[^\d.]/g,''));})],
+        ['t4',t('🔻 أكبر المدينين','🔻 Top Debtors'),[t('العميل','Client'),t('إجمالي الدين','Total Debt')], topDebt.map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
+  clients: { label:t('👥 العملاء','👥 Clients'), build: function(){
     var key='clients', r=repRange(key), today=new Date();
     var all=DB.clients||[];
     var d90=new Date(today); d90.setDate(d90.getDate()-90); var d90s=d90.toISOString().slice(0,10);
@@ -7302,14 +7302,14 @@ var BI_REPORTS = {
     var topSales=Object.keys(salesBy).map(function(k){return [k,salesBy[k]];}).sort(function(a,b){return b[1]-a[1];});
     var byCity={}; all.forEach(function(c2){ if(c2.city) byCity[c2.city]=(byCity[c2.city]||0)+1; });
     return {key:key, range:r,
-      kpis:[['إجمالي العملاء',all.length],['جدد بالفترة',all.filter(function(c2){return repIn(c2.createdAt,r);}).length,'#1A8A5A'],['نشطون (90 يوم)',active.length,'#23A0B5'],['غير نشطين',all.length-active.length,'#C0392B']],
-      charts:[['📈 نمو العملاء '+yr, execBars(growth,'#23A0B5',95)],['🏙️ حسب المدينة', Object.keys(byCity).length?execDonut(byCity,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6']):'<div style="color:#3A5070;font-size:10px">حقل المدينة غير مسجل في بيانات العملاء الحالية</div>'],['💎 أعلى العملاء مبيعاتٍ', topSales.slice(0,8).map(function(x){ var mx=topSales[0][1]||1; return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:120px;color:#F5F7FA;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:4px;height:11px"><div style="background:#C9A84C;height:100%;border-radius:4px;width:'+(x[1]/mx*100)+'%"></div></div><div style="color:#C9A84C;font-size:9px;font-family:monospace">'+fmt(x[1])+'</div></div>';}).join('')||'—']],
-      tables:[['t1','🆕 آخر العملاء',['الاسم','تاريخ الإضافة','المبيعات'], all.slice().sort(function(a,b){return (b.createdAt||'').localeCompare(a.createdAt||'');}).map(function(c2){return [c2.name||'',(c2.createdAt||'').slice(0,10),'SAR '+fmt(salesBy[c2.name]||0)];})],
-        ['t2','💤 العملاء غير النشطين',['الاسم','إجمالي مبيعاته السابقة'], all.filter(function(c2){return !activeNames[c2.name];}).map(function(c2){return [c2.name||'','SAR '+fmt(salesBy[c2.name]||0)];})]]}; } },
-  sales: { label:'💼 المبيعات', build: function(){
+      kpis:[[t('إجمالي العملاء','Total Clients'),all.length],[t('جدد بالفترة','New This Period'),all.filter(function(c2){return repIn(c2.createdAt,r);}).length,'#1A8A5A'],[t('نشطون (90 يوم)','Active (90d)'),active.length,'#23A0B5'],[t('غير نشطين','Inactive'),all.length-active.length,'#C0392B']],
+      charts:[[t('📈 نمو العملاء ','📈 Client Growth ')+yr, execBars(growth,'#23A0B5',95)],[t('🏙️ حسب المدينة','🏙️ By City'), Object.keys(byCity).length?execDonut(byCity,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6']):'<div style="color:#3A5070;font-size:10px">حقل المدينة غير مسجل في بيانات العملاء الحالية</div>'],[t('💎 أعلى العملاء مبيعاتٍ','💎 Top Clients by Sales'), topSales.slice(0,8).map(function(x){ var mx=topSales[0][1]||1; return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:120px;color:#F5F7FA;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:4px;height:11px"><div style="background:#C9A84C;height:100%;border-radius:4px;width:'+(x[1]/mx*100)+'%"></div></div><div style="color:#C9A84C;font-size:9px;font-family:monospace">'+fmt(x[1])+'</div></div>';}).join('')||'—']],
+      tables:[['t1',t('🆕 آخر العملاء','🆕 Recent Clients'),[t('الاسم','Name'),t('تاريخ الإضافة','Date Added'),t('المبيعات','Sales')], all.slice().sort(function(a,b){return (b.createdAt||'').localeCompare(a.createdAt||'');}).map(function(c2){return [c2.name||'',(c2.createdAt||'').slice(0,10),'SAR '+fmt(salesBy[c2.name]||0)];})],
+        ['t2',t('💤 العملاء غير النشطين','💤 Inactive Clients'),[t('الاسم','Name'),t('إجمالي مبيعاته السابقة','Total Past Sales')], all.filter(function(c2){return !activeNames[c2.name];}).map(function(c2){return [c2.name||'','SAR '+fmt(salesBy[c2.name]||0)];})]]}; } },
+  sales: { label:t('💼 المبيعات','💼 Sales'), build: function(){
     var key='sales', r=repRange(key);
     var qAll=lsQuotes(), qIn=qAll.filter(function(q){return repIn(q.createdAt||q.date,r);});
-    var acc=qIn.filter(function(q){return q.status==='مقبول'||q.status==='accepted';});
+    var acc=qIn.filter(function(q){return q.status===t('مقبول','Accepted')||q.status==='accepted';});
     var invIn=(DB.invoices||[]).filter(function(i2){return repIn(i2.invoiceDate||i2.date,r);});
     var val=invIn.reduce(function(s2,i2){return s2+(i2.amount||0);},0);
     var byEmp={}, byComp={}, byCourse={};
@@ -7317,14 +7317,14 @@ var BI_REPORTS = {
     var top1=function(o){var e2=Object.keys(o).sort(function(a,b){return o[b]-o[a];})[0]; return e2?e2:'—';};
     var yr=new Date().getFullYear(), mSales=[];
     for(var m2=1;m2<=12;m2++){ var mk=yr+'-'+String(m2).padStart(2,'0'); mSales.push((DB.invoices||[]).filter(function(i2){return (i2.invoiceDate||i2.date||'').slice(0,7)===mk;}).reduce(function(s2,i2){return s2+(i2.amount||0);},0)); }
-    var funnel='<div style="display:flex;flex-direction:column;gap:5px">'+[['عروض الأسعار',qIn.length,'#23A0B5',100],['المقبول',acc.length,'#C9A84C',qIn.length?acc.length/qIn.length*100:0],['فواتير صادرة',invIn.length,'#1A8A5A',qIn.length?invIn.length/qIn.length*100:0]].map(function(x){return '<div style="display:flex;align-items:center;gap:8px"><div style="width:85px;color:#8BABC9;font-size:9px">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:5px;height:16px"><div style="background:'+x[2]+';height:100%;border-radius:5px;width:'+Math.max(Math.min(x[3],100),3)+'%;display:flex;align-items:center;justify-content:center;color:#04101F;font-size:9px;font-weight:800">'+x[1]+'</div></div></div>';}).join('')+'</div>';
+    var funnel='<div style="display:flex;flex-direction:column;gap:5px">'+[[t('عروض الأسعار','Quotations'),qIn.length,'#23A0B5',100],[t('المقبول','Accepted'),acc.length,'#C9A84C',qIn.length?acc.length/qIn.length*100:0],[t('فواتير صادرة','Invoices Issued'),invIn.length,'#1A8A5A',qIn.length?invIn.length/qIn.length*100:0]].map(function(x){return '<div style="display:flex;align-items:center;gap:8px"><div style="width:85px;color:#8BABC9;font-size:9px">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:5px;height:16px"><div style="background:'+x[2]+';height:100%;border-radius:5px;width:'+Math.max(Math.min(x[3],100),3)+'%;display:flex;align-items:center;justify-content:center;color:#04101F;font-size:9px;font-weight:800">'+x[1]+'</div></div></div>';}).join('')+'</div>';
     return {key:key, range:r,
-      kpis:[['قيمة المبيعات','SAR '+fmt(val),'#23A0B5'],['عمليات البيع',invIn.length],['عروض الأسعار',qIn.length],['المقبول',acc.length,'#1A8A5A'],['معدل التحويل',(qIn.length?Math.round(acc.length/qIn.length*100):0)+'%','#C9A84C'],['أفضل موظف',top1(byEmp),'#C9A84C'],['أفضل شركة',top1(byComp)],['أفضل دورة',top1(byCourse)]],
-      charts:[['📊 اتجاه المبيعات '+yr, execBars(mSales,'#23A0B5',100)],['🔻 قمع المبيعات (Funnel)', funnel],['👤 حسب الموظف', Object.keys(byEmp).length?execDonut(byEmp,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B']):'—']],
-      tables:[['t1','🕐 آخر عمليات البيع',['رقم','العميل','الموظف','التاريخ','المبلغ'], invIn.slice().sort(function(a,b){return ((b.invoiceDate||b.date)||'').localeCompare((a.invoiceDate||a.date)||'');}).map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.salesPerson||i2.createdBy||'',(i2.invoiceDate||i2.date||'').slice(0,10),'SAR '+fmt(i2.amount||0)];})],
-        ['t2','🏆 أفضل الموظفين',['الموظف','المبيعات'], Object.keys(byEmp).map(function(k){return [k,byEmp[k]];}).sort(function(a,b){return b[1]-a[1];}).map(function(x){return [x[0],'SAR '+fmt(x[1])];})],
-        ['t3','🏢 أفضل الشركات',['الشركة','المبيعات'], Object.keys(byComp).map(function(k){return [k,byComp[k]];}).sort(function(a,b){return b[1]-a[1];}).map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
-  training: { label:'🗓️ التدريب', build: function(){
+      kpis:[[t('قيمة المبيعات','Sales Value'),'SAR '+fmt(val),'#23A0B5'],[t('عمليات البيع','Sales'),invIn.length],[t('عروض الأسعار','Quotations'),qIn.length],[t('المقبول','Accepted'),acc.length,'#1A8A5A'],[t('معدل التحويل','Conversion Rate'),(qIn.length?Math.round(acc.length/qIn.length*100):0)+'%','#C9A84C'],[t('أفضل موظف','Top Employee'),top1(byEmp),'#C9A84C'],[t('أفضل شركة','Top Company'),top1(byComp)],[t('أفضل دورة','Top Course'),top1(byCourse)]],
+      charts:[[t('📊 اتجاه المبيعات ','📊 Sales Trend ')+yr, execBars(mSales,'#23A0B5',100)],[t('🔻 قمع المبيعات (Funnel)','🔻 Sales Funnel'), funnel],[t('👤 حسب الموظف','👤 By Employee'), Object.keys(byEmp).length?execDonut(byEmp,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B']):'—']],
+      tables:[['t1',t('🕐 آخر عمليات البيع','🕐 Recent Sales'),[t('رقم','No.'),t('العميل','Client'),t('الموظف','Employee'),t('التاريخ','Date'),t('المبلغ','Amount')], invIn.slice().sort(function(a,b){return ((b.invoiceDate||b.date)||'').localeCompare((a.invoiceDate||a.date)||'');}).map(function(i2){return [i2.invoiceNumber||i2.id,i2.client||'',i2.salesPerson||i2.createdBy||'',(i2.invoiceDate||i2.date||'').slice(0,10),'SAR '+fmt(i2.amount||0)];})],
+        ['t2',t('🏆 أفضل الموظفين','🏆 Top Employees'),[t('الموظف','Employee'),t('المبيعات','Sales')], Object.keys(byEmp).map(function(k){return [k,byEmp[k]];}).sort(function(a,b){return b[1]-a[1];}).map(function(x){return [x[0],'SAR '+fmt(x[1])];})],
+        ['t3',t('🏢 أفضل الشركات','🏢 Top Companies'),[t('الشركة','Company'),t('المبيعات','Sales')], Object.keys(byComp).map(function(k){return [k,byComp[k]];}).sort(function(a,b){return b[1]-a[1];}).map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
+  training: { label:t('🗓️ التدريب','🗓️ Training'), build: function(){
     var key='training', r=repRange(key), today=new Date().toISOString().slice(0,10);
     var inR=(DB.sessions||[]).filter(function(s2){return repIn(s2.startDate,r);});
     var courses={}; inR.forEach(function(s2){ if(s2.course)courses[s2.course]=(courses[s2.course]||0)+1; });
@@ -7335,11 +7335,11 @@ var BI_REPORTS = {
     var topTr=Object.keys(trainers).map(function(k){return [k,trainers[k]];}).sort(function(a,b){return b[1]-a[1];});
     var topCo=Object.keys(courses).map(function(k){return [k,courses[k]];}).sort(function(a,b){return b[1]-a[1];});
     return {key:key, range:r,
-      kpis:[['عدد الجلسات',inR.length],['عدد الدورات المختلفة',Object.keys(courses).length],['المدربون',Object.keys(trainers).length],['الساعات التدريبية',Math.round(hours)+' ساعة','#C9A84C'],['قادمة',inR.filter(function(s2){return s2.startDate>today;}).length,'#23A0B5'],['منتهية',inR.filter(function(s2){return s2.startDate<today;}).length,'#1A8A5A']],
-      charts:[['📊 الجلسات الشهرية '+yr, execBars(mSess,'#9B59B6',100)],['👨‍🏫 حسب المدرب', Object.keys(trainers).length?execDonut(trainers,['#9B59B6','#23A0B5','#C9A84C','#1A8A5A']):'—'],['📚 أكثر الدورات', topCo.slice(0,8).map(function(x){var mx=topCo[0][1]||1;return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:150px;color:#F5F7FA;font-size:9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:4px;height:11px"><div style="background:#9B59B6;height:100%;border-radius:4px;width:'+(x[1]/mx*100)+'%"></div></div><div style="color:#9B59B6;font-size:9px">'+x[1]+'</div></div>';}).join('')||'—']],
-      tables:[['t1','🔜 الجلسات القادمة',['التاريخ','الدورة','المدرب','النوع'], (DB.sessions||[]).filter(function(s2){return s2.startDate>today;}).sort(function(a,b){return (a.startDate||'').localeCompare(b.startDate||'');}).map(function(s2){return [s2.startDate,s2.course||'',s2.trainer||'',s2.type||''];})],
-        ['t2','✅ الجلسات المنتهية',['التاريخ','الدورة','المدرب'], inR.filter(function(s2){return s2.startDate<today;}).sort(function(a,b){return (b.startDate||'').localeCompare(a.startDate||'');}).map(function(s2){return [s2.startDate,s2.course||'',s2.trainer||''];})]]}; } },
-  trainees: { label:'🎓 المتدربون', build: function(){
+      kpis:[[t('عدد الجلسات','Sessions'),inR.length],[t('عدد الدورات المختلفة','Distinct Courses'),Object.keys(courses).length],[t('المدربون','Trainers'),Object.keys(trainers).length],[t('الساعات التدريبية','Training Hours'),Math.round(hours)+t(' ساعة',' hrs'),'#C9A84C'],[t('قادمة','Upcoming'),inR.filter(function(s2){return s2.startDate>today;}).length,'#23A0B5'],[t('منتهية','Completed'),inR.filter(function(s2){return s2.startDate<today;}).length,'#1A8A5A']],
+      charts:[[t('📊 الجلسات الشهرية ','📊 Monthly Sessions ')+yr, execBars(mSess,'#9B59B6',100)],[t('👨‍🏫 حسب المدرب','👨‍🏫 By Trainer'), Object.keys(trainers).length?execDonut(trainers,['#9B59B6','#23A0B5','#C9A84C','#1A8A5A']):'—'],[t('📚 أكثر الدورات','📚 Top Courses'), topCo.slice(0,8).map(function(x){var mx=topCo[0][1]||1;return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:150px;color:#F5F7FA;font-size:9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:4px;height:11px"><div style="background:#9B59B6;height:100%;border-radius:4px;width:'+(x[1]/mx*100)+'%"></div></div><div style="color:#9B59B6;font-size:9px">'+x[1]+'</div></div>';}).join('')||'—']],
+      tables:[['t1',t('🔜 الجلسات القادمة','🔜 Upcoming Sessions'),[t('التاريخ','Date'),t('الدورة','Course'),t('المدرب','Trainer'),t('النوع','Type')], (DB.sessions||[]).filter(function(s2){return s2.startDate>today;}).sort(function(a,b){return (a.startDate||'').localeCompare(b.startDate||'');}).map(function(s2){return [s2.startDate,s2.course||'',s2.trainer||'',s2.type||''];})],
+        ['t2',t('✅ الجلسات المنتهية','✅ Completed Sessions'),[t('التاريخ','Date'),t('الدورة','Course'),t('المدرب','Trainer')], inR.filter(function(s2){return s2.startDate<today;}).sort(function(a,b){return (b.startDate||'').localeCompare(a.startDate||'');}).map(function(s2){return [s2.startDate,s2.course||'',s2.trainer||''];})]]}; } },
+  trainees: { label:t('🎓 المتدربون','🎓 Trainees'), build: function(){
     var key='trainees', r=repRange(key);
     var PIDS=['prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev'];
     var all=[]; PIDS.forEach(function(pid){ getPromData(pid).forEach(function(rec){ all.push(rec); }); });
@@ -7347,7 +7347,7 @@ var BI_REPORTS = {
     var pass=0,fail=0,byNat={},byComp={},byCourse={},byMonth={};
     all.forEach(function(rec){
       var res=g(rec,'Result').toLowerCase();
-      if(res.indexOf('pass')>=0||res.indexOf('ناجح')>=0)pass++; else if(res.indexOf('fail')>=0||res.indexOf('راسب')>=0)fail++;
+      if(res.indexOf('pass')>=0||res.indexOf(t('ناجح','Pass'))>=0)pass++; else if(res.indexOf('fail')>=0||res.indexOf(t('راسب','Fail'))>=0)fail++;
       var n=g(rec,'Nationality').trim(); if(n)byNat[n]=(byNat[n]||0)+1;
       var c2=g(rec,'Company Name').trim()||g(rec,'Company').trim(); if(c2)byComp[c2]=(byComp[c2]||0)+1;
       var cr=g(rec,'Training course').trim()||g(rec,'Course').trim(); if(cr)byCourse[cr]=(byCourse[cr]||0)+1;
@@ -7357,11 +7357,11 @@ var BI_REPORTS = {
     for(var m2=1;m2<=12;m2++) trend.push(byMonth[yr+'-'+String(m2).padStart(2,'0')]||0);
     var scored=all.filter(function(rec){ return !isNaN(parseFloat(g(rec,'Score'))); }).sort(function(a,b){ return parseFloat(g(b,'Score'))-parseFloat(g(a,'Score')); });
     return {key:key, range:r,
-      kpis:[['إجمالي المتدربين',fmt(all.length)],['الناجحون',fmt(pass),'#1A8A5A'],['الراسبون',fail,'#C0392B'],['معدل النجاح',((pass+fail)?Math.round(pass/(pass+fail)*100):0)+'%','#1A8A5A'],['الشركات',Object.keys(byComp).length],['الجنسيات',Object.keys(byNat).length]],
-      charts:[['📈 التسجيل الشهري '+yr, execBars(trend,'#C9A84C',100)],['🌍 حسب الجنسية', Object.keys(byNat).length?execDonut(byNat,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5']):'<div style="color:#3A5070;font-size:10px">حقل الجنسية غير متوفر</div>'],['🏢 حسب الشركة', Object.keys(byComp).length?execDonut(byComp,['#1A8A5A','#23A0B5','#C9A84C','#9B59B6']):'—'],['📚 حسب الدورة', Object.keys(byCourse).length?execDonut(byCourse,['#9B59B6','#C9A84C','#23A0B5','#1A8A5A']):'—']],
-      tables:[['t1','🏅 الأعلى درجات',['الاسم','الشركة','الدرجة'], scored.slice(0,50).map(function(rec){return [g(rec,'Name'),g(rec,'Company Name'),g(rec,'Score')];})],
-        ['t2','❌ الراسبون',['الاسم','الشركة','النتيجة'], all.filter(function(rec){var res=g(rec,'Result').toLowerCase();return res.indexOf('fail')>=0||res.indexOf('راسب')>=0;}).map(function(rec){return [g(rec,'Name'),g(rec,'Company Name'),g(rec,'Result')];})]]}; } },
-  trainersPerf: { label:'👨‍🏫 أداء المدربين', build: function(){
+      kpis:[[t('إجمالي المتدربين','Total Trainees'),fmt(all.length)],[t('الناجحون','Passed'),fmt(pass),'#1A8A5A'],[t('الراسبون','Failed'),fail,'#C0392B'],[t('معدل النجاح','Pass Rate'),((pass+fail)?Math.round(pass/(pass+fail)*100):0)+'%','#1A8A5A'],[t('الشركات','Companies'),Object.keys(byComp).length],[t('الجنسيات','Nationalities'),Object.keys(byNat).length]],
+      charts:[[t('📈 التسجيل الشهري ','📈 Monthly Registrations ')+yr, execBars(trend,'#C9A84C',100)],[t('🌍 حسب الجنسية','🌍 By Nationality'), Object.keys(byNat).length?execDonut(byNat,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5']):'<div style="color:#3A5070;font-size:10px">حقل الجنسية غير متوفر</div>'],[t('🏢 حسب الشركة','🏢 By Company'), Object.keys(byComp).length?execDonut(byComp,['#1A8A5A','#23A0B5','#C9A84C','#9B59B6']):'—'],[t('📚 حسب الدورة','📚 By Course'), Object.keys(byCourse).length?execDonut(byCourse,['#9B59B6','#C9A84C','#23A0B5','#1A8A5A']):'—']],
+      tables:[['t1',t('🏅 الأعلى درجات','🏅 Top Scores'),[t('الاسم','Name'),t('الشركة','Company'),t('الدرجة','Score')], scored.slice(0,50).map(function(rec){return [g(rec,'Name'),g(rec,'Company Name'),g(rec,'Score')];})],
+        ['t2',t('❌ الراسبون','❌ Failed'),[t('الاسم','Name'),t('الشركة','Company'),t('النتيجة','Result')], all.filter(function(rec){var res=g(rec,'Result').toLowerCase();return res.indexOf('fail')>=0||res.indexOf(t('راسب','Fail'))>=0;}).map(function(rec){return [g(rec,'Name'),g(rec,'Company Name'),g(rec,'Result')];})]]}; } },
+  trainersPerf: { label:t('👨‍🏫 أداء المدربين','👨‍🏫 Trainer Performance'), build: function(){
     var key='trainersPerf', r=repRange(key);
     var stats={};
     (DB.sessions||[]).forEach(function(s2){ if(!s2.trainer)return; if(!stats[s2.trainer])stats[s2.trainer]={sessions:0,hours:0}; stats[s2.trainer].sessions++; try{var a=s2.start.split(':'),b=s2.end.split(':');stats[s2.trainer].hours+=Math.max((+b[0]+ +b[1]/60)-(+a[0]+ +a[1]/60),0);}catch(e){} });
@@ -7371,10 +7371,10 @@ var BI_REPORTS = {
     var mx=arr.length?arr[0].sessions||1:1;
     var ranking=arr.slice(0,10).map(function(t2){return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:120px;color:#F5F7FA;font-size:10px;font-weight:700;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">'+t2.name+'</div><div style="flex:1;background:#0B1E3D;border-radius:5px;height:13px"><div style="background:#C9A84C;height:100%;border-radius:5px;width:'+(t2.sessions/mx*100)+'%"></div></div><div style="color:#C9A84C;font-size:10px;width:26px">'+t2.sessions+'</div><div style="color:#23A0B5;font-size:9px;width:44px">'+t2.hours+' س</div><div style="color:#C9A84C;font-size:10px;width:36px">'+(t2.rating?t2.rating+'⭐':'—')+'</div></div>';}).join('');
     return {key:key, range:r,
-      kpis:[['عدد المدربين',arr.length],['إجمالي الجلسات',arr.reduce(function(s2,t2){return s2+t2.sessions;},0)],['إجمالي الساعات',arr.reduce(function(s2,t2){return s2+t2.hours;},0)+' ساعة','#23A0B5'],['متوسط التقييم',(rated.length?(rated.reduce(function(s2,t2){return s2+t2.rating;},0)/rated.length).toFixed(1):'—')+' ⭐','#C9A84C'],['الأفضل',arr[0]?arr[0].name:'—','#C9A84C']],
-      charts:[['🏆 ترتيب المدربين (جلسات | ساعات | تقييم)', ranking||'—']],
-      tables:[['t1','🔝 أفضل المدربين',['المدرب','جلسات','ساعات','تقييم'], arr.map(function(t2){return [t2.name,t2.sessions,t2.hours,(t2.rating?t2.rating+'⭐':'—')];})],
-        ['t2','🔻 الأقل نشاطاً',['المدرب','جلسات'], arr.slice().reverse().slice(0,10).map(function(t2){return [t2.name,t2.sessions];})]]}; } }
+      kpis:[[t('عدد المدربين','Trainers'),arr.length],[t('إجمالي الجلسات','Total Sessions'),arr.reduce(function(s2,t2){return s2+t2.sessions;},0)],[t('إجمالي الساعات','Total Hours'),arr.reduce(function(s2,t2){return s2+t2.hours;},0)+t(' ساعة',' hrs'),'#23A0B5'],[t('متوسط التقييم','Avg. Rating'),(rated.length?(rated.reduce(function(s2,t2){return s2+t2.rating;},0)/rated.length).toFixed(1):'—')+' ⭐','#C9A84C'],[t('الأفضل','Top'),arr[0]?arr[0].name:'—','#C9A84C']],
+      charts:[[t('🏆 ترتيب المدربين (جلسات | ساعات | تقييم)','🏆 Trainer Ranking (Sessions | Hours | Rating)'), ranking||'—']],
+      tables:[['t1',t('🔝 أفضل المدربين','🔝 Top Trainers'),[t('المدرب','Trainer'),t('جلسات','Sessions'),t('ساعات','Hours'),t('تقييم','Rating')], arr.map(function(t2){return [t2.name,t2.sessions,t2.hours,(t2.rating?t2.rating+'⭐':'—')];})],
+        ['t2',t('🔻 الأقل نشاطاً','🔻 Least Active'),[t('المدرب','Trainer'),t('جلسات','Sessions')], arr.slice().reverse().slice(0,10).map(function(t2){return [t2.name,t2.sessions];})]]}; } }
 };
 function biBuild(key){
   var sig = key+'|'+(window._repP[key]||'month')+'|'+(DB.invoices||[]).length+'|'+(DB.sessions||[]).length;
@@ -7406,16 +7406,16 @@ function repPDF(key){
   var tblHtml = D.tables.map(function(tb){
     return '<h3 style="font-size:11px;color:#0B1E3D;margin:14px 0 4px">'+tb[1]+'</h3><table style="width:100%;border-collapse:collapse"><thead><tr>'+tb[2].map(function(h){return '<th style="background:#0B1E3D;color:#fff;font-size:9px;padding:5px">'+h+'</th>';}).join('')+'</tr></thead><tbody>'
       +tb[3].slice(0,25).map(function(rw){return '<tr>'+rw.map(function(cell){return '<td style="border:1px solid #ddd;font-size:9px;padding:4px;text-align:right">'+cell+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'
-      +(tb[3].length>25?'<div style="font-size:8px;color:#999;margin-top:2px">عرض أول 25 من '+tb[3].length+' — الجدول الكامل في ملف Excel</div>':'');
+      +(tb[3].length>25?'<div style="font-size:8px;color:#999;margin-top:2px">عرض أول 25 من '+tb[3].length+t(' — الجدول الكامل في ملف Excel</div>',' — full table in Excel file</div>'):'');
   }).join('');
-  var summ = 'يعرض هذا التقرير ('+BI_REPORTS[key].label.replace(/^\S+\s/,'')+') عن '+D.range.label+' — أبرز المؤشرات: '+D.kpis.slice(0,4).map(function(k2){return k2[0]+': '+k2[1];}).join('، ')+'.';
+  var summ = t('يعرض هذا التقرير (','This report shows (')+BI_REPORTS[key].label.replace(/^\S+\s/,'')+t(') عن ',') for ')+D.range.label+t(' — أبرز المؤشرات: ',' — key metrics: ')+D.kpis.slice(0,4).map(function(k2){return k2[0]+': '+k2[1];}).join('، ')+'.';
   var w = window.open('','_blank');
   w.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>'+repNo+'</title><style>body{font-family:Tahoma;color:#111;padding:30px 38px}h1{font-size:18px;color:#0B1E3D;margin:0}h2{font-size:13px;color:#0B1E3D;border-bottom:2px solid #C9A84C;padding-bottom:4px}.foot{margin-top:26px;border-top:1px solid #eee;padding-top:6px;display:flex;justify-content:space-between;font-size:8px;color:#999}</style></head><body>'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0B1E3D;padding-bottom:10px;margin-bottom:12px"><div><h1>'+BI_REPORTS[key].label.replace(/^\S+\s/,'')+' — تقرير تنفيذي</h1><div style="font-size:10px;color:#666">معهد TUV التدريبي | الفترة: '+D.range.label+' ('+(D.range.from||'البداية')+' → '+D.range.to+')</div><div style="font-size:10px;color:#666">أُصدر: '+issued+' | بواسطة: '+(CU?CU.name:'')+' | رقم: '+repNo+'</div></div><div style="font-weight:900;font-size:24px;color:#0B1E3D;border:2px solid #C9A84C;border-radius:9px;padding:5px 14px">TUV</div></div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0B1E3D;padding-bottom:10px;margin-bottom:12px"><div><h1>'+BI_REPORTS[key].label.replace(/^\S+\s/,'')+' — تقرير تنفيذي</h1><div style="font-size:10px;color:#666">معهد TUV التدريبي | الفترة: '+D.range.label+' ('+(D.range.from||t('البداية','Start'))+' → '+D.range.to+')</div><div style="font-size:10px;color:#666">أُصدر: '+issued+t(' | بواسطة: ',' | By: ')+(CU?CU.name:'')+t(' | رقم: ',' | No.: ')+repNo+'</div></div><div style="font-weight:900;font-size:24px;color:#0B1E3D;border:2px solid #C9A84C;border-radius:9px;padding:5px 14px">TUV</div></div>'
     +'<h2>الملخص التنفيذي</h2><div style="background:#F7F9FC;border:1px solid #dde;border-radius:8px;padding:10px;font-size:10px;line-height:2">'+summ+'</div>'
     +'<h2 style="margin-top:14px">المؤشرات</h2>'+kpiHtml
-    +'<h2>الجداول</h2>'+tblHtml
-    +'<div class="foot"><span>'+repNo+'</span><span>TrainFlow CRM — تقرير مُولَّد آلياً</span><span>'+issued+'</span></div>'
+    +t('<h2>الجداول</h2>','<h2>Tables</h2>')+tblHtml
+    +'<div class="foot"><span>'+repNo+t('</span><span>TrainFlow CRM — تقرير مُولَّد آلياً</span><span>','</span><span>TrainFlow CRM — Auto-generated report</span><span>')+issued+'</span></div>'
     +'</body></html>');
   w.document.close();
   setTimeout(function(){ w.print(); }, 400);
@@ -7423,7 +7423,7 @@ function repPDF(key){
 function repExcel(key){
   var D = biBuild(key);
   var wb = XLSX.utils.book_new();
-  var kAoa = [[BI_REPORTS[key].label+' — '+D.range.label],[''],['المؤشر','القيمة']];
+  var kAoa = [[BI_REPORTS[key].label+' — '+D.range.label],[''],[t('المؤشر','Metric'),t('القيمة','Value')]];
   D.kpis.forEach(function(it){ kAoa.push([it[0], it[1]]); });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kAoa), 'KPIs');
   D.tables.forEach(function(tb,ix){
@@ -7431,7 +7431,7 @@ function repExcel(key){
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'T'+(ix+1));
   });
   XLSX.writeFile(wb, 'Report_'+key+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
-  showSuccessToast('📊 تم التصدير');
+  showSuccessToast(t('📊 تم التصدير','📊 Exported'));
 }
 
 function execRange(){
@@ -7449,12 +7449,12 @@ function execRange(){
 }
 function execIn(d, r){ if(!d) return false; d=(d+'').slice(0,10); return (!r.from || d>=r.from) && d<=r.to; }
 function execCourseCat(courseName){
-  if(typeof TUV_CATEGORIES==='undefined') return 'أخرى';
+  if(typeof TUV_CATEGORIES==='undefined') return t('أخرى','Other');
   for(var i=0;i<TUV_CATEGORIES.length;i++){
     var cat = TUV_CATEGORIES[i];
     if((cat.courses||[]).some(function(cr){ return cr.name===courseName; })) return cat.nameAr||cat.nameEn;
   }
-  return 'أخرى';
+  return t('أخرى','Other');
 }
 function buildExecData(){
   var r = execRange();
@@ -7490,8 +7490,8 @@ function buildExecData(){
   var passN=0, failN=0, tMonth=0;
   allT.forEach(function(rec){
     var res = ((rec['Result']||rec['result']||'')+'').toLowerCase();
-    if(res.indexOf('pass')>=0||res.indexOf('ناجح')>=0) passN++;
-    else if(res.indexOf('fail')>=0||res.indexOf('راسب')>=0) failN++;
+    if(res.indexOf('pass')>=0||res.indexOf(t('ناجح','Pass'))>=0) passN++;
+    else if(res.indexOf('fail')>=0||res.indexOf(t('راسب','Fail'))>=0) failN++;
     var dt = (rec['Date']||rec['date']||'')+'';
     var mm = dt.slice(0,7);
     if(/^\d{4}-\d{2}/.test(mm)){ monthCounts[mm]=(monthCounts[mm]||0)+1; if(mm===thisMonth) tMonth++; }
@@ -7523,7 +7523,7 @@ function buildExecData(){
   // ── Sales ──
   var quotes = lsQuotes();
   var qIn = quotes.filter(function(q){ return execIn(q.createdAt||q.date, r); });
-  var accepted = qIn.filter(function(q){ return q.status==='مقبول'||q.status==='accepted'; }).length;
+  var accepted = qIn.filter(function(q){ return q.status===t('مقبول','Accepted')||q.status==='accepted'; }).length;
   var newClients = (DB.clients||[]).filter(function(c2){ return execIn(c2.createdAt, r); }).length;
   D.sales = { clients:(DB.clients||[]).length, newClients:newClients, quotes:qIn.length, accepted:accepted,
     conversion: qIn.length? Math.round(accepted/qIn.length*100) : 0 };
@@ -7581,7 +7581,7 @@ function buildExecData(){
 }
 function execBars(arr, color, h){
   var mx = Math.max.apply(null, arr.concat([1]));
-  var mN=['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
+  var mN=[t('ينا','Jan'),t('فبر','Feb'),t('مار','Mar'),t('أبر','Apr'),t('ماي','May'),t('يون','Jun'),t('يول','Jul'),t('أغس','Aug'),t('سبت','Sep'),t('أكت','Oct'),t('نوف','Nov'),t('ديس','Dec')];
   return '<div style="display:flex;align-items:flex-end;gap:4px;height:'+h+'px">'+arr.map(function(v,i){
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;justify-content:flex-end">'
       +'<div style="color:#8BABC9;font-size:7px;font-family:monospace">'+(v?fmt(Math.round(v/1000))+'k':'')+'</div>'
@@ -7630,7 +7630,7 @@ function _renderReportsInner(el){
   // ═ BI tab bar — each report is fully independent (own dataset, lazy-loaded on open) ═
   var rtab = window._repTab || 'exec';
   var tabsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;padding:14px 22px 0 22px">'
-    + [['exec','⭐ التنفيذي']].concat(Object.keys(BI_REPORTS).map(function(k){return [k, BI_REPORTS[k].label];})).map(function(tb){
+    + [['exec',t('⭐ التنفيذي','⭐ Executive')]].concat(Object.keys(BI_REPORTS).map(function(k){return [k, BI_REPORTS[k].label];})).map(function(tb){
       var on = rtab===tb[0];
       return '<button onclick="window._repTab=\''+tb[0]+'\';renderReportsPage()" style="padding:7px 12px;border-radius:8px 8px 0 0;border:1px solid '+(on?'#C9A84C':'#1A2E4A')+';border-bottom:none;background:'+(on?'rgba(201,168,76,.12)':'#060F1E')+';color:'+(on?'#C9A84C':'#6A85A5')+';cursor:pointer;font-size:10px;font-family:inherit;font-weight:'+(on?'800':'400')+'">'+tb[1]+'</button>';
     }).join('') + '</div>';
@@ -7655,12 +7655,12 @@ function _renderReportsInner(el){
   // ═ Filters ═
   html += '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
     +'<span style="color:#C9A84C;font-weight:800;font-size:13px">📊 لوحة القيادة التنفيذية</span>'
-    +perBtn('day','اليوم')+perBtn('week','الأسبوع')+perBtn('month','الشهر')+perBtn('quarter','الربع')+perBtn('year','السنة')+perBtn('all','الكل')+perBtn('custom','مخصص')
+    +perBtn('day',t('اليوم','Today'))+perBtn('week',t('الأسبوع','Week'))+perBtn('month',t('الشهر','Month'))+perBtn('quarter',t('الربع','Quarter'))+perBtn('year',t('السنة','Year'))+perBtn('all',t('الكل','All'))+perBtn('custom',t('مخصص','Custom'))
     +((window._exPeriod==='custom')?('<input type="date" class="fc" style="font-size:10px" value="'+(window._exFrom||'')+'" onchange="window._exFrom=this.value;window._execCache=null;renderReportsPage()"/><input type="date" class="fc" style="font-size:10px" value="'+(window._exTo||'')+'" onchange="window._exTo=this.value;window._execCache=null;renderReportsPage()"/>'):'')
     +'<select class="fc" style="font-size:10px" onchange="window._exTrainer=this.value;window._execCache=null;renderReportsPage()">'+trainerOpts+'</select>'
     +'<select class="fc" style="font-size:10px" onchange="window._exClient=this.value;window._execCache=null;renderReportsPage()">'+clientOpts+'</select>'
     +'<select class="fc" style="font-size:10px" onchange="window._exCat=this.value;window._execCache=null;renderReportsPage()">'+catOpts+'</select>'
-    +'<select class="fc" style="font-size:10px" onchange="window._exStatus=this.value;window._execCache=null;renderReportsPage()"><option value="all">كل الحالات</option><option value="ended"'+(window._exStatus==='ended'?' selected':'')+'>منتهية</option><option value="running"'+(window._exStatus==='running'?' selected':'')+'>جارية</option><option value="upcoming"'+(window._exStatus==='upcoming'?' selected':'')+'>قادمة</option></select>'
+    +'<select class="fc" style="font-size:10px" onchange="window._exStatus=this.value;window._execCache=null;renderReportsPage()"><option value="all">كل الحالات</option><option value="ended"'+(window._exStatus==='ended'?' selected':'')+'>منتهية</option><option value="running"'+(window._exStatus==='running'?' selected':'')+'>جارية</option><option value="upcoming"'+(window._exStatus==='upcoming'?' selected':'')+t('>قادمة</option></select>','>Upcoming</option></select>')
     +'<button onclick="exportExecutiveReport()" style="margin-right:auto;background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.35);border-radius:7px;color:#9B59B6;padding:7px 14px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:700">📑 Export Executive Report</button>'
     +'</div>';
 
@@ -7672,26 +7672,26 @@ function _renderReportsInner(el){
       +items.map(function(it){ return '<div style="background:#0B1E3D;border-radius:8px;padding:8px;text-align:center"><div style="color:#6A85A5;font-size:8px">'+it[0]+'</div><div style="color:'+(it[2]||'#F5F7FA')+';font-size:14px;font-weight:800;font-family:monospace">'+it[1]+'</div></div>'; }).join('')
       +'</div></div>';
   };
-  html += grp('الدورات','📚',[['إجمالي الدورات',D.courses.total],['منتهية',D.courses.ended,'#1A8A5A'],['جارية',D.courses.running,'#C9A84C'],['قادمة',D.courses.upcoming,'#23A0B5'],['نسبة الإنجاز',D.courses.completionPct+'%','#9B59B6']]);
-  html += grp('المتدربون','🎓',[['الإجمالي',fmt(D.trainees.total)],['هذا الشهر',D.trainees.month,'#23A0B5'],['ناجح',fmt(D.trainees.pass),'#1A8A5A'],['راسب',D.trainees.fail,'#C0392B'],['معدل النجاح',D.trainees.passRate+'%','#1A8A5A']]);
-  html += grp('المدربون','👨‍🏫',[['نشط',D.trainers.active],['متوسط التقييم',D.trainers.avgRating+' ⭐','#C9A84C'],['الأكثر نشاطاً',(D.trainers.top[0]?D.trainers.top[0].name:'—')],['جلساته',(D.trainers.top[0]?D.trainers.top[0].sessions:0),'#23A0B5']]);
-  html += grp('المبيعات','💼',[['العملاء',D.sales.clients],['جدد بالفترة',D.sales.newClients,'#1A8A5A'],['عروض الأسعار',D.sales.quotes],['المقبول',D.sales.accepted,'#1A8A5A'],['معدل التحويل',D.sales.conversion+'%','#C9A84C']]);
-  html += grp('المالية','💰',[['الإيرادات','SAR '+fmt(D.finance.revenue),'#23A0B5'],['المحصّل','SAR '+fmt(D.finance.collected),'#1A8A5A'],['غير محصّل','SAR '+fmt(D.finance.uncollected),'#C0392B'],['المصروفات','SAR '+fmt(D.finance.expenses),'#C0392B'],['صافي الربح','SAR '+fmt(D.finance.net),D.finance.net>=0?'#1A8A5A':'#C0392B'],['هامش الربح',D.finance.margin+'%','#C9A84C']]);
+  html += grp(t('الدورات','Courses'),'📚',[[t('إجمالي الدورات','Total Courses'),D.courses.total],[t('منتهية','Completed'),D.courses.ended,'#1A8A5A'],[t('جارية','Ongoing'),D.courses.running,'#C9A84C'],[t('قادمة','Upcoming'),D.courses.upcoming,'#23A0B5'],[t('نسبة الإنجاز','Completion Rate'),D.courses.completionPct+'%','#9B59B6']]);
+  html += grp(t('المتدربون','Trainees'),'🎓',[[t('الإجمالي','Total'),fmt(D.trainees.total)],[t('هذا الشهر','This Month'),D.trainees.month,'#23A0B5'],[t('ناجح','Pass'),fmt(D.trainees.pass),'#1A8A5A'],[t('راسب','Fail'),D.trainees.fail,'#C0392B'],[t('معدل النجاح','Pass Rate'),D.trainees.passRate+'%','#1A8A5A']]);
+  html += grp(t('المدربون','Trainers'),'👨‍🏫',[[t('نشط','Active'),D.trainers.active],[t('متوسط التقييم','Avg. Rating'),D.trainers.avgRating+' ⭐','#C9A84C'],[t('الأكثر نشاطاً','Most Active'),(D.trainers.top[0]?D.trainers.top[0].name:'—')],[t('جلساته','Sessions'),(D.trainers.top[0]?D.trainers.top[0].sessions:0),'#23A0B5']]);
+  html += grp(t('المبيعات','Sales'),'💼',[[t('العملاء','Clients'),D.sales.clients],[t('جدد بالفترة','New This Period'),D.sales.newClients,'#1A8A5A'],[t('عروض الأسعار','Quotations'),D.sales.quotes],[t('المقبول','Accepted'),D.sales.accepted,'#1A8A5A'],[t('معدل التحويل','Conversion Rate'),D.sales.conversion+'%','#C9A84C']]);
+  html += grp(t('المالية','Finance'),'💰',[[t('الإيرادات','Revenue'),'SAR '+fmt(D.finance.revenue),'#23A0B5'],[t('المحصّل','Collected'),'SAR '+fmt(D.finance.collected),'#1A8A5A'],[t('غير محصّل','Uncollected'),'SAR '+fmt(D.finance.uncollected),'#C0392B'],[t('المصروفات','Expenses'),'SAR '+fmt(D.finance.expenses),'#C0392B'],[t('صافي الربح','Net Profit'),'SAR '+fmt(D.finance.net),D.finance.net>=0?'#1A8A5A':'#C0392B'],[t('هامش الربح','Profit Margin'),D.finance.margin+'%','#C9A84C']]);
 
   // ═ Charts ═
   var card = function(title, inner){ return '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:12px;padding:14px"><div style="color:#8BABC9;font-size:11px;font-weight:700;margin-bottom:10px">'+title+'</div>'+inner+'</div>'; };
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
-    + card('💰 الإيرادات الشهرية '+new Date().getFullYear(), execBars(D.monthly.rev,'#23A0B5',110))
-    + card('💸 المصروفات الشهرية', execBars(D.monthly.exp,'#C0392B',110))
-    + card('📈 صافي الربح الشهري', execLine(D.monthly.net,'#1A8A5A',110))
-    + card('🎓 المتدربون حسب الشهر', execLine(D.monthly.tr,'#C9A84C',110))
-    + card('🧩 توزيع الدورات حسب الفئة', Object.keys(D.catDist).length? execDonut(D.catDist,pal) : '<div style="color:#3A5070;font-size:10px">لا توجد دورات في الفترة المحددة</div>')
-    + card('🌍 المتدربون حسب الجنسية', Object.keys(D.trainees.byNat).length? execDonut(D.trainees.byNat,pal) : '<div style="color:#3A5070;font-size:10px">حقل الجنسية غير متوفر في السجلات الحالية</div>')
+    + card(t('💰 الإيرادات الشهرية ','💰 Monthly Revenue ')+new Date().getFullYear(), execBars(D.monthly.rev,'#23A0B5',110))
+    + card(t('💸 المصروفات الشهرية','💸 Monthly Expenses'), execBars(D.monthly.exp,'#C0392B',110))
+    + card(t('📈 صافي الربح الشهري','📈 Monthly Net Profit'), execLine(D.monthly.net,'#1A8A5A',110))
+    + card(t('🎓 المتدربون حسب الشهر','🎓 Trainees by Month'), execLine(D.monthly.tr,'#C9A84C',110))
+    + card(t('🧩 توزيع الدورات حسب الفئة','🧩 Courses by Category'), Object.keys(D.catDist).length? execDonut(D.catDist,pal) : '<div style="color:#3A5070;font-size:10px">لا توجد دورات في الفترة المحددة</div>')
+    + card(t('🌍 المتدربون حسب الجنسية','🌍 Trainees by Nationality'), Object.keys(D.trainees.byNat).length? execDonut(D.trainees.byNat,pal) : '<div style="color:#3A5070;font-size:10px">حقل الجنسية غير متوفر في السجلات الحالية</div>')
     +'</div>';
 
   // ═ Trainer performance ═
   var mxTr = Math.max.apply(null, D.trainers.top.map(function(t2){return t2.sessions;}).concat([1]));
-  html += card('🏆 أداء المدربين (Top 10)', D.trainers.top.map(function(t2){
+  html += card(t('🏆 أداء المدربين (Top 10)','🏆 Trainer Performance (Top 10)'), D.trainers.top.map(function(t2){
     return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:130px;color:#F5F7FA;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+t2.name+'</div>'
       +'<div style="flex:1;background:#0B1E3D;border-radius:5px;height:14px"><div style="background:#23A0B5;height:100%;border-radius:5px;width:'+(t2.sessions/mxTr*100)+'%"></div></div>'
       +'<div style="color:#23A0B5;font-size:10px;font-family:monospace;width:30px">'+t2.sessions+'</div>'
@@ -7702,13 +7702,13 @@ function _renderReportsInner(el){
   var alertRow = function(icon,label,items,color,render){
     if(!items.length) return '';
     return '<div style="border-right:3px solid '+color+';background:#0B1E3D;border-radius:8px;padding:9px;margin-bottom:7px"><div style="color:'+color+';font-size:10px;font-weight:800;margin-bottom:4px">'+icon+' '+label+' ('+items.length+')</div>'
-      +'<div style="color:#8BABC9;font-size:9px;line-height:1.7">'+items.slice(0,5).map(render).join('<br>')+(items.length>5?'<br>… و'+(items.length-5)+' أخرى':'')+'</div></div>';
+      +'<div style="color:#8BABC9;font-size:9px;line-height:1.7">'+items.slice(0,5).map(render).join('<br>')+(items.length>5?t('<br>… و','<br>… and ')+(items.length-5)+t(' أخرى',' more'):'')+'</div></div>';
   };
-  html += card('🔔 التنبيهات',
-    alertRow('📅','دورات تبدأ خلال 7 أيام',D.alerts.upcoming7,'#C9A84C',function(s2){return s2.startDate+' — '+s2.course+' ('+(s2.trainer||'')+')';})
-    +alertRow('✅','دورات انتهت خلال آخر 7 أيام',D.alerts.ended7,'#1A8A5A',function(s2){return s2.startDate+' — '+s2.course;})
-    +alertRow('🧾','فواتير غير مسددة',D.alerts.unpaid,'#C0392B',function(i2){var bal=(i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0));return (i2.invoiceNumber||i2.id)+' — '+i2.client+' — متبقي SAR '+fmt(bal);})
-    +alertRow('⏰','عملاء متأخرون بالسداد',D.alerts.overdue,'#C0392B',function(i2){return i2.client+' — استحقاق '+i2.dueDate;})
+  html += card(t('🔔 التنبيهات','🔔 Alerts'),
+    alertRow('📅',t('دورات تبدأ خلال 7 أيام','Courses starting within 7 days'),D.alerts.upcoming7,'#C9A84C',function(s2){return s2.startDate+' — '+s2.course+' ('+(s2.trainer||'')+')';})
+    +alertRow('✅',t('دورات انتهت خلال آخر 7 أيام','Courses completed in the last 7 days'),D.alerts.ended7,'#1A8A5A',function(s2){return s2.startDate+' — '+s2.course;})
+    +alertRow('🧾',t('فواتير غير مسددة','Unpaid invoices'),D.alerts.unpaid,'#C0392B',function(i2){var bal=(i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0));return (i2.invoiceNumber||i2.id)+' — '+i2.client+t(' — متبقي SAR ',' — remaining SAR ')+fmt(bal);})
+    +alertRow('⏰',t('عملاء متأخرون بالسداد','Clients overdue on payment'),D.alerts.overdue,'#C0392B',function(i2){return i2.client+t(' — استحقاق ',' — due ')+i2.dueDate;})
     ||'<div style="color:#1A8A5A;font-size:10px">✓ لا توجد تنبيهات</div>');
 
   // ═ Top lists ═
@@ -7718,9 +7718,9 @@ function _renderReportsInner(el){
     }).join('') : '<div style="color:#3A5070;font-size:10px">لا يوجد</div>');
   };
   html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'
-    + listCard('🏢 أكثر الشركات تدريباً', D.top.customers, function(v){return v+' جلسة';})
-    + listCard('📚 أكثر الدورات طلباً', D.top.courses, function(v){return v+' مرة';})
-    + listCard('💎 أعلى العملاء إيراداً', D.top.revenue, function(v){return 'SAR '+fmt(v);})
+    + listCard(t('🏢 أكثر الشركات تدريباً','🏢 Top Training Companies'), D.top.customers, function(v){return v+t(' جلسة',' sessions');})
+    + listCard(t('📚 أكثر الدورات طلباً','📚 Most Requested Courses'), D.top.courses, function(v){return v+t(' مرة',' times');})
+    + listCard(t('💎 أعلى العملاء إيراداً','💎 Top Revenue Clients'), D.top.revenue, function(v){return 'SAR '+fmt(v);})
     +'</div>';
 
   html += '</div>';
@@ -7729,17 +7729,17 @@ function _renderReportsInner(el){
 function execAnalysisText(D){
   var mNames = getMonthNamesLocalized();
   var now = new Date();
-  var period = (window._exPeriod||'month')==='month' ? 'شهر '+mNames[now.getMonth()]+' '+now.getFullYear() : 'الفترة من '+(D.range.from||'البداية')+' إلى '+D.range.to;
+  var period = (window._exPeriod||'month')==='month' ? t('شهر ','Month ')+mNames[now.getMonth()]+' '+now.getFullYear() : t('الفترة من ','the period from ')+(D.range.from||t('البداية','Start'))+t(' إلى ',' to ')+D.range.to;
   var topTr = D.trainers.top[0], topCo = D.top.courses[0], topRev = D.top.revenue[0];
-  var txt = 'خلال '+period+' تم تنفيذ '+D.courses.total+' دورة تدريبية';
-  if(D.trainees.passRate) txt += ' بمعدل نجاح '+D.trainees.passRate+'%';
-  txt += '، وبلغ إجمالي الإيرادات '+fmt(D.finance.revenue)+' ريال مقابل مصروفات '+fmt(D.finance.expenses)+' ريال، ليحقق النظام صافي '+(D.finance.net>=0?'ربح':'خسارة')+' قدره '+fmt(Math.abs(D.finance.net))+' ريال (هامش '+D.finance.margin+'%).';
-  if(topTr) txt += ' سجل المدرب '+topTr.name+' أعلى عدد من الجلسات ('+topTr.sessions+')';
-  if(topCo) txt += '، بينما كانت دورة "'+topCo[0]+'" الأكثر طلباً ('+topCo[1]+' مرة)';
+  var txt = t('خلال ','During ')+period+t(' تم تنفيذ ',', ')+D.courses.total+t(' دورة تدريبية',' courses were delivered');
+  if(D.trainees.passRate) txt += t(' بمعدل نجاح ',' with a pass rate of ')+D.trainees.passRate+'%';
+  txt += t('، وبلغ إجمالي الإيرادات ',', total revenue reached ')+fmt(D.finance.revenue)+t(' ريال مقابل مصروفات ',' SAR against expenses of ')+fmt(D.finance.expenses)+t(' ريال، ليحقق النظام صافي ',' SAR, resulting in a net ')+(D.finance.net>=0?t('ربح','profit'):t('خسارة','loss'))+t(' قدره ',' of ')+fmt(Math.abs(D.finance.net))+t(' ريال (هامش ',' SAR (margin ')+D.finance.margin+'%).';
+  if(topTr) txt += t(' سجل المدرب ','. Trainer ')+topTr.name+t(' أعلى عدد من الجلسات (',' recorded the most sessions (')+topTr.sessions+')';
+  if(topCo) txt += '، بينما كانت دورة "'+topCo[0]+'" الأكثر طلباً ('+topCo[1]+t(' مرة)',' times)');
   txt += '.';
-  if(topRev) txt += ' ويُعد "'+topRev[0]+'" أعلى العملاء تحقيقاً للإيرادات بقيمة '+fmt(topRev[1])+' ريال.';
-  if(D.sales.newClients) txt += ' وانضم '+D.sales.newClients+' عميل جديد خلال الفترة، بمعدل تحويل للعروض بلغ '+D.sales.conversion+'%.';
-  if(D.finance.uncollected>0) txt += ' يُلفت الانتباه إلى وجود مستحقات غير محصّلة بقيمة '+fmt(D.finance.uncollected)+' ريال تتطلب المتابعة.';
+  if(topRev) txt += ' ويُعد "'+topRev[0]+'" أعلى العملاء تحقيقاً للإيرادات بقيمة '+fmt(topRev[1])+t(' ريال.',' SAR.');
+  if(D.sales.newClients) txt += t(' وانضم ',' A total of ')+D.sales.newClients+t(' عميل جديد خلال الفترة، بمعدل تحويل للعروض بلغ ',' new clients joined this period, with a quote conversion rate of ')+D.sales.conversion+'%.';
+  if(D.finance.uncollected>0) txt += t(' يُلفت الانتباه إلى وجود مستحقات غير محصّلة بقيمة ',' Note: outstanding uncollected dues amount to ')+fmt(D.finance.uncollected)+t(' ريال تتطلب المتابعة.',' SAR and require follow-up.');
   return txt;
 }
 function exportExecutiveReport(){
@@ -7748,7 +7748,7 @@ function exportExecutiveReport(){
   var issued = new Date().toLocaleString('ar-SA');
   var mNames = getMonthNamesLocalized();
   var pal = ['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5'];
-  var mN=['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
+  var mN=[t('ينا','Jan'),t('فبر','Feb'),t('مار','Mar'),t('أبر','Apr'),t('ماي','May'),t('يون','Jun'),t('يول','Jul'),t('أغس','Aug'),t('سبت','Sep'),t('أكت','Oct'),t('نوف','Nov'),t('ديس','Dec')];
   var barTbl = function(arr,color){
     var mx=Math.max.apply(null,arr.concat([1]));
     return '<table style="width:100%;border-collapse:collapse"><tr>'+arr.map(function(v){return '<td style="vertical-align:bottom;border:none;padding:1px"><div style="background:'+color+';height:'+Math.max(v/mx*70,2)+'px;border-radius:2px 2px 0 0"></div></td>';}).join('')+'</tr><tr>'+mN.map(function(m2){return '<td style="border:none;text-align:center;font-size:7px;color:#666">'+m2+'</td>';}).join('')+'</tr></table>';
@@ -7777,35 +7777,35 @@ function exportExecutiveReport(){
     +'<h1 style="font-size:26px;margin:34px 0 8px">التقرير التنفيذي الشامل</h1>'
     +'<div style="color:#C9A84C;font-size:13px">Executive Report — TrainFlow CRM</div>'
     +'<div style="margin-top:44px;font-size:11px;color:#B9CBE0;line-height:2.3">'
-    +'رقم التقرير: <b style="color:#fff">'+repNo+'</b><br>الفترة: <b style="color:#fff">'+(D.range.from||'البداية')+' → '+D.range.to+'</b><br>تاريخ الإصدار: <b style="color:#fff">'+issued+'</b><br>أصدره: <b style="color:#fff">'+(CU?CU.name:'')+' — مدير التشغيل</b></div>'
+    +'رقم التقرير: <b style="color:#fff">'+repNo+'</b><br>الفترة: <b style="color:#fff">'+(D.range.from||t('البداية','Start'))+' → '+D.range.to+'</b><br>تاريخ الإصدار: <b style="color:#fff">'+issued+'</b><br>أصدره: <b style="color:#fff">'+(CU?CU.name:'')+t(' — مدير التشغيل</b></div>',' — Operations Manager</b></div>')
     +'<div style="margin-top:40px;border:1px dashed #3A5070;border-radius:8px;padding:8px 14px;font-size:9px;color:#8BABC9">وثيقة داخلية — للإدارة العليا</div></div>'
     // ── KPIs ──
     +'<div class="page"><h2>أولاً: الملخص التنفيذي (KPIs)</h2>'
-    +'<div style="font-size:10px;color:#555;font-weight:800;margin-top:8px">📚 الدورات</div>'+kpiRow([['الإجمالي',D.courses.total],['منتهية',D.courses.ended,'#1A8A5A'],['جارية',D.courses.running,'#B7950B'],['قادمة',D.courses.upcoming,'#23A0B5'],['نسبة الإنجاز',D.courses.completionPct+'%']])
-    +'<div style="font-size:10px;color:#555;font-weight:800">🎓 المتدربون</div>'+kpiRow([['الإجمالي',fmt(D.trainees.total)],['هذا الشهر',D.trainees.month],['ناجح',fmt(D.trainees.pass),'#1A8A5A'],['راسب',D.trainees.fail,'#C0392B'],['معدل النجاح',D.trainees.passRate+'%','#1A8A5A']])
-    +'<div style="font-size:10px;color:#555;font-weight:800">👨‍🏫 المدربون</div>'+kpiRow([['نشط',D.trainers.active],['متوسط التقييم',D.trainers.avgRating+' ⭐'],['الأكثر نشاطاً',(D.trainers.top[0]?D.trainers.top[0].name:'—')]])
-    +'<div style="font-size:10px;color:#555;font-weight:800">💼 المبيعات</div>'+kpiRow([['العملاء',D.sales.clients],['جدد',D.sales.newClients,'#1A8A5A'],['العروض',D.sales.quotes],['المقبول',D.sales.accepted],['التحويل',D.sales.conversion+'%','#B7950B']])
-    +'<div style="font-size:10px;color:#555;font-weight:800">💰 المالية</div>'+kpiRow([['الإيرادات',fmt(D.finance.revenue),'#23A0B5'],['المحصّل',fmt(D.finance.collected),'#1A8A5A'],['غير محصّل',fmt(D.finance.uncollected),'#C0392B'],['المصروفات',fmt(D.finance.expenses),'#C0392B'],['صافي الربح',fmt(D.finance.net),D.finance.net>=0?'#1A8A5A':'#C0392B'],['الهامش',D.finance.margin+'%']])
+    +'<div style="font-size:10px;color:#555;font-weight:800;margin-top:8px">📚 الدورات</div>'+kpiRow([[t('الإجمالي','Total'),D.courses.total],[t('منتهية','Completed'),D.courses.ended,'#1A8A5A'],[t('جارية','Ongoing'),D.courses.running,'#B7950B'],[t('قادمة','Upcoming'),D.courses.upcoming,'#23A0B5'],[t('نسبة الإنجاز','Completion Rate'),D.courses.completionPct+'%']])
+    +'<div style="font-size:10px;color:#555;font-weight:800">🎓 المتدربون</div>'+kpiRow([[t('الإجمالي','Total'),fmt(D.trainees.total)],[t('هذا الشهر','This Month'),D.trainees.month],[t('ناجح','Pass'),fmt(D.trainees.pass),'#1A8A5A'],[t('راسب','Fail'),D.trainees.fail,'#C0392B'],[t('معدل النجاح','Pass Rate'),D.trainees.passRate+'%','#1A8A5A']])
+    +'<div style="font-size:10px;color:#555;font-weight:800">👨‍🏫 المدربون</div>'+kpiRow([[t('نشط','Active'),D.trainers.active],[t('متوسط التقييم','Avg. Rating'),D.trainers.avgRating+' ⭐'],[t('الأكثر نشاطاً','Most Active'),(D.trainers.top[0]?D.trainers.top[0].name:'—')]])
+    +'<div style="font-size:10px;color:#555;font-weight:800">💼 المبيعات</div>'+kpiRow([[t('العملاء','Clients'),D.sales.clients],[t('جدد','New'),D.sales.newClients,'#1A8A5A'],[t('العروض','Quotes'),D.sales.quotes],[t('المقبول','Accepted'),D.sales.accepted],[t('التحويل','Conversion'),D.sales.conversion+'%','#B7950B']])
+    +'<div style="font-size:10px;color:#555;font-weight:800">💰 المالية</div>'+kpiRow([[t('الإيرادات','Revenue'),fmt(D.finance.revenue),'#23A0B5'],[t('المحصّل','Collected'),fmt(D.finance.collected),'#1A8A5A'],[t('غير محصّل','Uncollected'),fmt(D.finance.uncollected),'#C0392B'],[t('المصروفات','Expenses'),fmt(D.finance.expenses),'#C0392B'],[t('صافي الربح','Net Profit'),fmt(D.finance.net),D.finance.net>=0?'#1A8A5A':'#C0392B'],[t('الهامش','Margin'),D.finance.margin+'%']])
     +'<h2 style="margin-top:18px">ثانياً: التحليل التنفيذي</h2>'
     +'<div style="background:#F7F9FC;border:1px solid #dde;border-radius:9px;padding:13px;font-size:11px;line-height:2.1;text-align:justify">'+execAnalysisText(D)+'</div>'
-    +'<div class="foot"><span>'+repNo+'</span><span>معهد TUV التدريبي — TrainFlow CRM</span><span>صفحة 2</span></div></div>'
+    +'<div class="foot"><span>'+repNo+t('</span><span>معهد TUV التدريبي — TrainFlow CRM</span><span>صفحة 2</span></div></div>','</span><span>TUV Training Institute — TrainFlow CRM</span><span>Page 2</span></div></div>')
     // ── Charts ──
     +'<div class="page"><h2>ثالثاً: الرسوم البيانية — '+new Date().getFullYear()+'</h2>'
     +'<div style="font-size:10px;font-weight:800;color:#23A0B5;margin-top:10px">الإيرادات الشهرية</div>'+barTbl(D.monthly.rev,'#23A0B5')
     +'<div style="font-size:10px;font-weight:800;color:#C0392B;margin-top:14px">المصروفات الشهرية</div>'+barTbl(D.monthly.exp,'#C0392B')
     +'<div style="font-size:10px;font-weight:800;color:#1A8A5A;margin-top:14px">صافي الربح الشهري</div>'+barTbl(D.monthly.net.map(function(v){return Math.max(v,0);}),'#1A8A5A')
     +'<div style="font-size:10px;font-weight:800;color:#B7950B;margin-top:14px">المتدربون حسب الشهر</div>'+barTbl(D.monthly.tr,'#C9A84C')
-    +'<div class="foot"><span>'+repNo+'</span><span>معهد TUV التدريبي</span><span>صفحة 3</span></div></div>'
+    +'<div class="foot"><span>'+repNo+t('</span><span>معهد TUV التدريبي</span><span>صفحة 3</span></div></div>','</span><span>TUV Training Institute</span><span>Page 3</span></div></div>')
     // ── Top lists ──
     +'<div class="page"><h2>رابعاً: قوائم التميّز</h2>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px">'
-    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">🏆 أفضل المدربين</div>'+listTbl(D.trainers.top.map(function(t2){return [t2.name,t2.sessions+' جلسة'+(t2.rating?' — '+t2.rating+'⭐':'')];}),'المدرب',function(v){return v;})+'</div>'
-    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">🏢 أكثر الشركات تدريباً</div>'+listTbl(D.top.customers,'الشركة',function(v){return v+' جلسة';})+'</div>'
-    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">📚 أكثر الدورات طلباً</div>'+listTbl(D.top.courses,'الدورة',function(v){return v+' مرة';})+'</div>'
-    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">💎 أعلى مصادر الإيرادات</div>'+listTbl(D.top.revenue,'العميل',function(v){return 'SAR '+fmt(v);})+'</div>'
+    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">🏆 أفضل المدربين</div>'+listTbl(D.trainers.top.map(function(t2){return [t2.name,t2.sessions+t(' جلسة',' sessions')+(t2.rating?' — '+t2.rating+'⭐':'')];}),t('المدرب','Trainer'),function(v){return v;})+'</div>'
+    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">🏢 أكثر الشركات تدريباً</div>'+listTbl(D.top.customers,t('الشركة','Company'),function(v){return v+t(' جلسة',' sessions');})+'</div>'
+    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">📚 أكثر الدورات طلباً</div>'+listTbl(D.top.courses,t('الدورة','Course'),function(v){return v+t(' مرة',' times');})+'</div>'
+    +'<div><div style="font-size:10px;font-weight:800;color:#0B1E3D">💎 أعلى مصادر الإيرادات</div>'+listTbl(D.top.revenue,t('العميل','Client'),function(v){return 'SAR '+fmt(v);})+'</div>'
     +'</div>'
     +'<div style="margin-top:24px;display:flex;justify-content:space-between"><div style="text-align:center;width:190px;border-top:1px solid #999;padding-top:5px;font-size:10px;color:#555">مدير التشغيل</div><div style="text-align:center;width:190px;border-top:1px solid #999;padding-top:5px;font-size:10px;color:#555">الإدارة العليا</div></div>'
-    +'<div class="foot"><span>'+repNo+'</span><span>تقرير مُولَّد آلياً من TrainFlow CRM — '+issued+'</span><span>صفحة 4</span></div></div>'
+    +'<div class="foot"><span>'+repNo+t('</span><span>تقرير مُولَّد آلياً من TrainFlow CRM — ','</span><span>Auto-generated report from TrainFlow CRM — ')+issued+t('</span><span>صفحة 4</span></div></div>','</span><span>Page 4</span></div></div>')
     +'</body></html>');
   w.document.close();
   setTimeout(function(){ w.print(); }, 500);
