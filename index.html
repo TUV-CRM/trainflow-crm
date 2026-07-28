@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.58</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.59</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -9045,7 +9045,11 @@ function openScheduleExportDialog(){
     +'<button id="selectAllDays" style="background:rgba(26,122,138,.15);border:1px solid rgba(26,122,138,.3);border-radius:7px;color:#23A0B5;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-left:8px">'+t('تحديد الكل','Select All')+'</button>'
     +'<button id="deselectAllDays" style="background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:7px;color:#C0392B;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'+t('إلغاء الكل','Deselect All')+'</button>'
     +'</div>'
-    +'<div id="dayCheckboxes" style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px"></div>'
+    +'<div id="dayCheckboxes" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>'
+    +'<div style="margin-bottom:20px">'
+    +'<label style="color:#8BABC9;font-size:11px;font-weight:700;display:block;margin-bottom:6px">🏢 '+t('تصدير حسب الشركة','Export by Company')+'</label>'
+    +'<select id="exportCompanyFilter" class="fc" style="width:100%;font-size:12px"></select>'
+    +'</div>'
     +'<button id="exportSelectedDays" style="background:linear-gradient(135deg,#C0392B,#E74C3C);border:none;border-radius:10px;color:white;padding:12px;font-size:13px;font-weight:700;cursor:pointer;width:100%;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">'
     +'📄 '+t('تصدير PDF','Export PDF')+'</button>';
 
@@ -9076,6 +9080,21 @@ function openScheduleExportDialog(){
     cbContainer.appendChild(row);
   });
 
+  // Populate company filter dropdown — distinct companies from THIS week's sessions, + "All"
+  var _companySet = {};
+  DB.sessions.forEach(function(s){
+    if(!s.startDate) return;
+    var sd = new Date(s.startDate+'T12:00:00');
+    var inWeek = DAYS.some(function(_,i2){ var dt=new Date(weekStart); dt.setDate(weekStart.getDate()+i2); return sd.toDateString()===dt.toDateString(); });
+    if(!inWeek) return;
+    (s.companies||[]).forEach(function(c2){ var name=(c2.company||c2.name||c2)+''; if(name) _companySet[name]=1; });
+    if(!(s.companies||[]).length && s.client) _companySet[s.client]=1;
+  });
+  var _companyNames = Object.keys(_companySet).sort();
+  var companySelect = document.getElementById('exportCompanyFilter');
+  companySelect.innerHTML = '<option value="all">'+t('كل الشركات','All Companies')+'</option>'
+    + _companyNames.map(function(name){ return '<option value="'+name.replace(/"/g,'&quot;')+'">'+name+'</option>'; }).join('');
+
   // Wire buttons
   document.getElementById('closeExportDialog').onclick = ()=>overlay.remove();
   document.getElementById('selectAllDays').onclick = ()=>document.querySelectorAll('.export-day-cb').forEach(cb=>cb.checked=true);
@@ -9083,12 +9102,13 @@ function openScheduleExportDialog(){
   document.getElementById('exportSelectedDays').onclick = ()=>{
     const selected = Array.from(document.querySelectorAll('.export-day-cb:checked')).map(cb=>parseInt(cb.dataset.day));
     if(!selected.length){ alert(t('اختر يوم واحد على الأقل','Select at least one day')); return; }
+    const companyFilter = document.getElementById('exportCompanyFilter').value;
     overlay.remove();
-    exportSchedulePDF(selected);
+    exportSchedulePDF(selected, companyFilter);
   };
 }
 
-function exportSchedulePDF(selectedDays){
+function exportSchedulePDF(selectedDays, companyFilter){
   const today  = new Date();
   const monday = new Date(today);
   // ROOT FIX (v7.50): the business week used everywhere else in this system starts on
@@ -9113,7 +9133,15 @@ function exportSchedulePDF(selectedDays){
   const weekSessions = DB.sessions.filter(s=>{
     if(!s.startDate) return true;
     const sd = new Date(s.startDate);
-    return sd >= monday && sd <= sunday;
+    if(!(sd >= monday && sd <= sunday)) return false;
+    // Company filter (v7.59): 'all' or undefined = every company, otherwise only
+    // sessions where this exact company appears in the session's companies list.
+    if(companyFilter && companyFilter !== 'all'){
+      const names = (s.companies||[]).map(c=>(c.company||c.name||c)+'');
+      const clientName = (!(s.companies||[]).length && s.client) ? [s.client] : [];
+      return names.concat(clientName).includes(companyFilter);
+    }
+    return true;
   });
 
   // Group sessions by day
