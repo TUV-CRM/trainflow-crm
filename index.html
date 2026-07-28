@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.55</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.50</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -650,6 +650,13 @@ input[type=date].fc{color-scheme:dark}
 <script>
 // ── Language must be initialized first ──
 let SYS_LANG = localStorage.getItem('tf4_lang') || 'ar';
+
+function getMonthNamesLocalized(){
+  return isAR()
+    ? ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']
+    : ['January','February','March','April','May','June','July','August','September','October','November','December'];
+}
+
 function isAR(){ return SYS_LANG === 'ar'; }
 function t(ar,en){ return isAR() ? ar : en; }
 
@@ -1461,13 +1468,13 @@ const UI = {
     logout:'Logout ⏻',
     langBtn:'🇸🇦 عربي',
     navSections:{
-      ops:{label:'Operations',children:{reports:'Reports',perf:'Team Performance',users:'Users',settings:'Settings',storage:'Firebase Audit',diag:'Sync Diagnostics',weeklyreport:'Weekly Executive Report',perms:'Permissions Management'}},
+      ops:{label:'Operations',children:{reports:'Reports',perf:'Team Performance',users:'Users',settings:'Settings'}},
       sales:{label:'Sales Management',children:{ops:'Point of Sale',leads:'Leads',quotes:'Quotations',invoices:'Invoices',daily:'Daily Activity'}},
       daily:{label:'Daily Activity',children:{main:"Today's Report"}},
       trainers:{label:'Trainers',children:{list:'Trainer List',perf:'Performance'}},
       training:{label:'Training Management',children:{courses:'Courses',schedule:'Training Schedule'}},
-      finance:{label:'Finance',children:{invoices:'Invoices',payments:'Payments',dashboard:'Financial Dashboard',income:'Income',expenses:'Expenses',monthly:'Monthly Report',quarterly:'Quarterly Report',statement:'Customer Statement',targets:'Sales Targets Report'}},
-      trainees:{label:'Trainees',children:{active:'Active Trainees',grads:'Graduates','prom-test':'TEST','prom-training':'TRAINING','prom-safety':'SAFETY COURSES','prom-wpr':'WPR','prom-firstaid':'FIRST AID & BLS','prom-osha':'OSHA','prom-dev':'Development Courses'}},
+      finance:{label:'Finance',children:{invoices:'Invoices',payments:'Payments'}},
+      trainees:{label:'Trainees',children:{active:'Active Trainees',grads:'Graduates'}},
       catalog:{label:'Course Catalog',children:{main:'Courses & Pricing'}},
       clients:{label:'Institute Clients',children:{main:'Client List'}},
     },
@@ -2855,7 +2862,7 @@ function renderOps(){
   }
 
   // Monthly registration data (simulated from DB)
-  const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو'];
+  const months = getMonthNamesLocalized().slice(0,6);
   const monthVals = [42, 54, 37, 63, 50, 69];
   const maxVal = Math.max(...monthVals);
 
@@ -4475,7 +4482,7 @@ function renderQuotes(sc){
   
   // Month filter
   var months=['01','02','03','04','05','06','07','08','09','10','11','12'];
-  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mNames = getMonthNamesLocalized();
   fb.innerHTML += '<select onchange="window._quoteFilterMonth=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:70px"><option value="all">'+t('كل الشهور','All Months')+'</option>'+months.map(function(m,i){return '<option value="'+m+'"'+(fMonth===m?' selected':'')+'>'+mNames[i]+'</option>'}).join('')+'</select>';
   
   // Year filter
@@ -7245,7 +7252,7 @@ var BI_REPORTS = {
     var exp=(fd.expenses||[]).filter(function(x){return repIn(x.date,r);}).reduce(function(s2,x){return s2+(x.amount||0);},0);
     var mRev=repMonthlySum(fd.income||[],yr), mExp=repMonthlySum(fd.expenses||[],yr);
     var mNet=mRev.map(function(v,i){return v-mExp[i];});
-    var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    var mNames = getMonthNamesLocalized();
     var monthsRanked = mNet.map(function(v,i){return [mNames[i],v];}).sort(function(a,b){return b[1]-a[1];});
     var thisM = new Date().getMonth();
     var dual = '<div style="display:flex;align-items:flex-end;gap:3px;height:110px">'+mRev.map(function(v,i){
@@ -7720,7 +7727,7 @@ function _renderReportsInner(el){
   el.innerHTML = html;
 }
 function execAnalysisText(D){
-  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mNames = getMonthNamesLocalized();
   var now = new Date();
   var period = (window._exPeriod||'month')==='month' ? 'شهر '+mNames[now.getMonth()]+' '+now.getFullYear() : 'الفترة من '+(D.range.from||'البداية')+' إلى '+D.range.to;
   var topTr = D.trainers.top[0], topCo = D.top.courses[0], topRev = D.top.revenue[0];
@@ -7739,7 +7746,7 @@ function exportExecutiveReport(){
   var D = buildExecData();
   var repNo = 'EXR-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+String(Math.floor(Math.random()*900)+100);
   var issued = new Date().toLocaleString('ar-SA');
-  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mNames = getMonthNamesLocalized();
   var pal = ['#23A0B5','#C9A84C','#1A8A5A','#9B59B6','#C0392B','#6A85A5'];
   var mN=['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
   var barTbl = function(arr,color){
@@ -7995,7 +8002,7 @@ function renderWeeklySchedule(){
   const monday = weekStart;
   const sunday = weekEnd;
 
-  const MONTHS_AR_W=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const MONTHS_AR_W = getMonthNamesLocalized();
   const MONTHS_EN_W=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const fmt2 = d => d.getDate()+' '+(isAR()?MONTHS_AR_W:MONTHS_EN_W)[d.getMonth()]+' '+d.getFullYear();
   const monthLabel = (isAR()?MONTHS_AR_W:MONTHS_EN_W)[monday.getMonth()]+' '+monday.getFullYear();
@@ -9097,7 +9104,7 @@ function exportSchedulePDF(selectedDays){
   const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
   sunday.setHours(23,59,59,999); // same fix for the end boundary
 
-  const MONTHS_AR_W=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const MONTHS_AR_W = getMonthNamesLocalized();
   const MONTHS_EN_W=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const fmtDate = d => d.getDate()+' '+(isAR()?MONTHS_AR_W:MONTHS_EN_W)[d.getMonth()]+' '+d.getFullYear();
   const DAYS_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
@@ -11666,7 +11673,7 @@ function renderTrainees(){
     if(c && trCourses.indexOf(c)<0) trCourses.push(c);
   });
   trYears.sort(); trCourses.sort();
-  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mNames = getMonthNamesLocalized();
   var mOpts='<option value="all">'+(isAR()?'كل الأشهر':'All Months')+'</option>';
   for(var mi=0;mi<12;mi++){var mv=String(mi+1).padStart(2,'0');mOpts+='<option value="'+mv+'"'+(fM===mv?' selected':'')+'>'+mNames[mi]+'</option>';}
   var yOpts='<option value="all">'+(isAR()?'كل السنوات':'All Years')+'</option>'+trYears.map(function(y){return '<option value="'+y+'"'+(fY===y?' selected':'')+'>'+y+'</option>'}).join('');
@@ -13993,7 +14000,7 @@ function renderInvoicesTab(sc){
   filterBar.innerHTML += '<select onchange="window._invFilterStatus=this.value;renderInvoicesTab(this.closest(\'[id]\')||document.getElementById(\'salesContent\'))" class="fc" style="min-width:80px"><option value="all">'+t('كل الحالات','All Status')+'</option>'+['معلق','معتمد','مدفوع','متأخر'].map(function(s){return '<option value="'+s+'"'+(fStatus===s?' selected':'')+'>'+s+'</option>'}).join('')+'</select>';
   // Month filter
   var months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-  var monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var monthNames = getMonthNamesLocalized();
   filterBar.innerHTML += '<select onchange="window._invFilterMonth=this.value;renderInvoicesTab(this.closest(\'[id]\')||document.getElementById(\'salesContent\'))" class="fc" style="min-width:80px"><option value="all">'+t('كل الشهور','All Months')+'</option>'+months.map(function(m,i){return '<option value="'+m+'"'+(fMonth===m?' selected':'')+'>'+monthNames[i]+'</option>'}).join('')+'</select>';
   // New invoice button
   filterBar.innerHTML += '<button onclick="openInvoiceModal()" style="background:#1A8A5A;border:none;border-radius:8px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">+ '+t('فاتورة جديدة','New Invoice')+'</button>';
@@ -14511,7 +14518,7 @@ function buildFinFilterBar(refresh){
     if(y && years.indexOf(y)<0) years.push(y);
   });
   years.sort();
-  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mNames = getMonthNamesLocalized();
   var mOpts='<option value="all">'+t('كل الأشهر','All Months')+'</option>';
   for(var i=0;i<12;i++){var v=String(i+1).padStart(2,'0');mOpts+='<option value="'+v+'"'+(fm===v?' selected':'')+'>'+mNames[i]+'</option>';}
   var yOpts='<option value="all">'+t('كل السنوات','All Years')+'</option>'+years.map(function(y){return '<option value="'+y+'"'+(fy===y?' selected':'')+'>'+y+'</option>'}).join('');
@@ -14865,7 +14872,7 @@ function renderSalesTargets(el){
   var y = window._tgYear || String(now.getFullYear());
   var m = window._tgMonth || String(now.getMonth()+1).padStart(2,'0');
   var monthKey = y+'-'+m;
-  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mNames = getMonthNamesLocalized();
 
   el.innerHTML = '';
   var selEmp = window._tgEmp || 'all';
@@ -15012,7 +15019,7 @@ function printTargetsReport(){
   var y = window._tgYear || String(new Date().getFullYear());
   var m = window._tgMonth || String(new Date().getMonth()+1).padStart(2,'0');
   var monthKey = y+'-'+m;
-  var mNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mNames = getMonthNamesLocalized();
   var monthName = mNames[parseInt(m)-1]+' '+y;
   var selEmp = window._tgEmp || 'all';
   var rows = computeTargetRows(monthKey).filter(function(r){ return selEmp==='all' || r.emp===selEmp; });
@@ -15121,7 +15128,7 @@ function renderFinDashboard(el){
   const cur = getMonthlyReport(curMonth);
   const prev = getMonthlyReport(prevMonth);
   const growth = prev.totalIncome>0 ? Math.round(((cur.totalIncome-prev.totalIncome)/prev.totalIncome)*100) : 0;
-  const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const MONTHS_AR = getMonthNamesLocalized();
 
   el.innerHTML = '<div style="color:#F5F7FA;font-size:14px;font-weight:800;margin-bottom:4px">📊 '+t('الملخص التنفيذي — ','Executive Summary — ')+MONTHS_AR[now.getMonth()]+' '+now.getFullYear()+'</div>';
 
@@ -15212,7 +15219,7 @@ function renderFinMonthly(el){
   const now = new Date();
   const month = window._finMonth || now.toISOString().slice(0,7);
   const r = getMonthlyReport(month);
-  const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const MONTHS_AR = getMonthNamesLocalized();
   const mIdx = parseInt(month.split('-')[1])-1;
 
   el.innerHTML = '';
@@ -15282,7 +15289,7 @@ function renderFinQuarterly(el){
   el.appendChild(kpis);
 
   // Monthly breakdown table
-  const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const MONTHS_AR = getMonthNamesLocalized();
   const tbl = document.createElement('div');
   tbl.style.cssText = 'background:#060F1E;border-radius:12px;border:1px solid #1A2E4A;overflow:hidden';
   tbl.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#0B1E3D">'+[t('الشهر','Month'),t('الإيرادات','Income'),t('المصروفات','Expenses'),t('صافي الربح','Net Profit'),t('نسبة الربح','Profit %')].map(h=>'<th style="padding:10px 14px;color:#6A85A5;font-size:10px;text-align:right">'+h+'</th>').join('')+'</tr></thead><tbody>'
