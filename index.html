@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.62</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.63</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -191,6 +191,7 @@ input[type=date].fc{color-scheme:dark}
       <div id="page-prom_osha" class="page"></div>
       <div id="page-prom_dev" class="page"></div>
       <div id="page-daily" class="page"></div>
+      <div id="page-saleskpi" class="page"></div>
       <div id="page-clients" class="page"></div>
     <div class="page" id="page-reports"></div>
     <div class="page" id="page-perms"></div>
@@ -906,6 +907,7 @@ const NAV = [
       {key:'sales-quotes',   label:'عروض الأسعار',      icon:'📄', page:'sales'},
       {key:'sales-invoices', label:'الفواتير',           icon:'🧾', page:'sales'},
       {key:'sales-daily',    label:'نشاط اليوم',        icon:'📝', page:'daily'},
+      {key:'sales-kpi',      label:'مؤشرات قياس الأداء', icon:'📊', page:'saleskpi'},
     ]
   },
   {
@@ -2042,6 +2044,7 @@ function renderPage(p){
   else if(p==='users')    renderUsers();
   else if(p==='salesperf') renderSalesPerf();
   else if(p==='daily')     renderDailyActivity();
+  else if(p==='saleskpi')  renderSalesKPIPage();
   else if(p==='prom_test')     renderPromPage('prom_test');
   else if(p==='prom_training') renderPromPage('prom_training');
   else if(p==='prom_safety')   renderPromPage('prom_safety');
@@ -10652,6 +10655,71 @@ let _editDailyIdx = null;
 //  metrics per sales employee, and generates an expert-level PDF for senior
 //  management. No new data model, no stored/cached numbers.
 // ════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
+//  SALES KPI DASHBOARD PAGE — reuses computeSalesEmployeeKPIs() (already tested
+//  for the PDF export) as a live in-app page. Sources: quotes, invoices, daily
+//  activity, customer follow-ups — no new data model, no duplication.
+// ════════════════════════════════════════════════════════════════
+function renderSalesKPIPage(){
+  var pg = document.getElementById('page-saleskpi');
+  if(!pg) return;
+  var fromDate = window._skpiFrom || (new Date().toISOString().slice(0,8)+'01');
+  var toDate = window._skpiTo || new Date().toISOString().slice(0,10);
+  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var results = salesUsers.map(function(u){ return computeSalesEmployeeKPIs(u.name, fromDate, toDate); });
+
+  var totalRevenue = results.reduce(function(s,k){return s+k.totalRevenue;},0);
+  var totalQuotes = results.reduce(function(s,k){return s+k.quoteCount;},0);
+  var totalAccepted = results.reduce(function(s,k){return s+k.acceptedCount;},0);
+  var totalInvoices = results.reduce(function(s,k){return s+k.invoiceCount;},0);
+  var totalFollowups = results.reduce(function(s,k){return s+k.followupCount;},0);
+  var teamConversion = totalQuotes ? Math.round(totalAccepted/totalQuotes*100) : 0;
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">'
+    +'<div><div class="page-title">'+(isAR()?'📊 مؤشرات قياس الأداء':'📊 Performance KPIs')+'</div>'
+    +'<div class="page-sub">'+(isAR()?'عروض الأسعار · الفواتير · نشاط اليوم · متابعة العملاء':'Quotes · Invoices · Daily Activity · Customer Follow-ups')+'</div></div>'
+    +'<div style="display:flex;gap:8px;align-items:center">'
+    +'<input type="date" class="fc" style="font-size:11px" value="'+fromDate+'" onchange="window._skpiFrom=this.value;renderSalesKPIPage()"/>'
+    +'<span style="color:#6A85A5;font-size:11px">'+(isAR()?'إلى':'to')+'</span>'
+    +'<input type="date" class="fc" style="font-size:11px" value="'+toDate+'" onchange="window._skpiTo=this.value;renderSalesKPIPage()"/>'
+    + (typeof openSalesKPIExportDialog==='function' ? '<button onclick="openSalesKPIExportDialog()" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.35);border-radius:8px;color:#9B59B6;padding:7px 14px;cursor:pointer;font-size:11px;font-family:inherit">📄 PDF</button>' : '')
+    +'</div></div>';
+
+  // ═ Team-wide KPI cards ═
+  html += '<div class="card" style="margin-top:14px"><div style="display:flex;flex-wrap:wrap;gap:10px">'
+    + [['إجمالي إيراد الفريق','SAR '+totalRevenue.toLocaleString(),'#1A8A5A'],
+       ['عروض الأسعار', totalQuotes, '#23A0B5'],
+       ['المقبولة', totalAccepted, '#1A8A5A'],
+       ['معدل التحويل الجماعي', teamConversion+'%', teamConversion>=50?'#1A8A5A':'#E67E22'],
+       ['الفواتير', totalInvoices, '#C9A84C'],
+       ['متابعات العملاء', totalFollowups, '#9B59B6']
+      ].map(function(x){ return '<div style="flex:1;min-width:130px;background:#0B1E3D;border-radius:10px;padding:12px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+x[0]+'</div><div style="color:'+x[2]+';font-size:19px;font-weight:800;font-family:monospace">'+x[1]+'</div></div>'; }).join('')
+    +'</div></div>';
+
+  // ═ Per-employee comparison ═
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:14px">';
+  results.forEach(function(k){
+    var convColor = k.conversionRate>=50 ? '#1A8A5A' : (k.conversionRate>0 ? '#E67E22' : '#C0392B');
+    html += '<div class="card">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><span style="font-size:22px">👤</span><div style="font-weight:800;color:#F5F7FA;font-size:14px">'+k.employee+'</div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">'
+      + [['إيرادات','SAR '+k.totalRevenue.toLocaleString()],['فواتير',k.invoiceCount],
+         ['عروض',k.quoteCount],['مقبولة',k.acceptedCount],
+         ['تحويل',k.conversionRate+'%'],['فوز Pipeline',k.pipelineWinRate+'%'],
+         ['متابعات عملاء',k.followupCount],['أيام نشاط',k.activityDays]
+        ].map(function(x){ return '<div style="background:#0B1E3D;border-radius:8px;padding:8px;text-align:center"><div style="color:#6A85A5;font-size:8px">'+x[0]+'</div><div style="color:#F5F7FA;font-size:13px;font-weight:700;font-family:monospace">'+x[1]+'</div></div>'; }).join('')
+      +'</div>'
+      +'<div style="margin-top:10px;background:#0B1E3D;border-radius:6px;height:8px;overflow:hidden"><div style="width:'+Math.min(k.conversionRate,100)+'%;height:100%;background:'+convColor+'"></div></div>'
+      +'<div style="color:#6A85A5;font-size:9px;margin-top:4px">'+(isAR()?'معدل تحويل العروض':'Quote conversion rate')+'</div>'
+      +(k.activityDays===0 ? '<div style="margin-top:10px;color:#E67E22;font-size:10px;background:rgba(230,126,34,.1);border-radius:6px;padding:6px">⚠️ '+(isAR()?'لا يوجد نشاط يومي مُسجَّل في هذه الفترة':'No daily activity recorded this period')+'</div>' : '')
+      +'</div>';
+  });
+  html += '</div>';
+
+  pg.innerHTML = html;
+}
+
 function computeSalesEmployeeKPIs(employeeName, fromDate, toDate){
   var invoices = (DB.invoices||[]).filter(function(i2){
     var d = (i2.invoiceDate||i2.date||'').slice(0,10);
@@ -10676,6 +10744,17 @@ function computeSalesEmployeeKPIs(employeeName, fromDate, toDate){
     return s;
   }, {calls:0,visits:0,emails:0,proposals:0,deals:0,followups:0});
 
+  // Real customer follow-up log — DB.leads[].activityLog[], the same source used by
+  // "متابعة العملاء" in the Weekly Executive Report, distinct from the daily-report
+  // summary count above.
+  var followupLog = [];
+  leads.forEach(function(l){
+    (l.activityLog||[]).forEach(function(a){
+      var d = (a.date||'').slice(0,10);
+      if(d>=fromDate && d<=toDate){ followupLog.push({ client:l.company||l.name||'—', type:a.type||'—', note:a.note||'—', date:d }); }
+    });
+  });
+
   var conversionRate = quotes.length ? Math.round(accepted.length/quotes.length*100) : 0;
   var pipelineWinRate = (wonLeads.length+lostLeads.length) ? Math.round(wonLeads.length/(wonLeads.length+lostLeads.length)*100) : 0;
   var avgDealSize = invoices.length ? Math.round(totalRevenue/invoices.length) : 0;
@@ -10687,6 +10766,7 @@ function computeSalesEmployeeKPIs(employeeName, fromDate, toDate){
     quoteCount: quotes.length, acceptedCount: accepted.length, conversionRate: conversionRate,
     leadsTotal: leads.length, leadsWon: wonLeads.length, leadsLost: lostLeads.length, leadsOpen: openLeads.length, pipelineWinRate: pipelineWinRate,
     activity: activity, activityDays: activityDays,
+    followupLog: followupLog, followupCount: followupLog.length,
     invoices: invoices
   };
 }
