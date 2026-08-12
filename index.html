@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.61</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.62</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -10645,6 +10645,152 @@ let _editDailyIdx = null;
 //  Reads the SAME real source (getDailyReports()) the page itself uses — no new
 //  data source, no change to save/load/sync.
 // ════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
+//  SALES EMPLOYEE KPI REPORT — reads REAL live data (DB.invoices, lsQuotes(),
+//  DB.leads, getDailyReports()) at export time, computes real performance
+//  metrics per sales employee, and generates an expert-level PDF for senior
+//  management. No new data model, no stored/cached numbers.
+// ════════════════════════════════════════════════════════════════
+function computeSalesEmployeeKPIs(employeeName, fromDate, toDate){
+  var invoices = (DB.invoices||[]).filter(function(i2){
+    var d = (i2.invoiceDate||i2.date||'').slice(0,10);
+    return (i2.salesPerson||i2.createdBy)===employeeName && d>=fromDate && d<=toDate;
+  });
+  var quotes = (typeof lsQuotes==='function' ? lsQuotes() : []).filter(function(q){
+    var d = (q.createdAt||q.date||'').slice(0,10);
+    return (q.salesperson||q.createdBy)===employeeName && d>=fromDate && d<=toDate;
+  });
+  var accepted = quotes.filter(function(q){ return q.status==='مقبول'||q.status==='accepted'; });
+  var leads = (DB.leads||[]).filter(function(l){ return l.assignee===employeeName; });
+  var wonLeads = leads.filter(function(l){ return l.stage==='مُنجَز'; });
+  var lostLeads = leads.filter(function(l){ return l.stage==='خسارة'; });
+  var openLeads = leads.filter(function(l){ return l.stage!=='مُنجَز' && l.stage!=='خسارة'; });
+  var dailyReports = (typeof getDailyReports==='function' ? getDailyReports() : []).filter(function(r){
+    return r.user===employeeName && r.date>=fromDate && r.date<=toDate;
+  });
+  var totalRevenue = invoices.reduce(function(s,i2){ return s+(i2.amount||0); },0);
+  var totalCollected = invoices.reduce(function(s,i2){ return s+((i2.amount||0)-((i2.amount||0)-(i2.status==='مدفوع'?(i2.amount||0):(i2.paidAmount||0)))); },0);
+  var activity = dailyReports.reduce(function(s,r){
+    s.calls+=r.calls||0; s.visits+=r.visits||0; s.emails+=r.emails||0; s.proposals+=r.proposals||0; s.deals+=r.deals||0; s.followups+=r.followups||0;
+    return s;
+  }, {calls:0,visits:0,emails:0,proposals:0,deals:0,followups:0});
+
+  var conversionRate = quotes.length ? Math.round(accepted.length/quotes.length*100) : 0;
+  var pipelineWinRate = (wonLeads.length+lostLeads.length) ? Math.round(wonLeads.length/(wonLeads.length+lostLeads.length)*100) : 0;
+  var avgDealSize = invoices.length ? Math.round(totalRevenue/invoices.length) : 0;
+  var activityDays = dailyReports.length;
+
+  return {
+    employee: employeeName, fromDate: fromDate, toDate: toDate,
+    invoiceCount: invoices.length, totalRevenue: totalRevenue, totalCollected: totalCollected, avgDealSize: avgDealSize,
+    quoteCount: quotes.length, acceptedCount: accepted.length, conversionRate: conversionRate,
+    leadsTotal: leads.length, leadsWon: wonLeads.length, leadsLost: lostLeads.length, leadsOpen: openLeads.length, pipelineWinRate: pipelineWinRate,
+    activity: activity, activityDays: activityDays,
+    invoices: invoices
+  };
+}
+
+// Rule-based expert commentary — grounded strictly in the computed numbers above,
+// never invented. Same discipline used for the Weekly Executive Report narrative.
+function generateKPIExpertCommentary(k){
+  var lines = [];
+  if(k.conversionRate >= 50) lines.push('معدل تحويل عروض الأسعار إلى فواتير مرتفع ('+k.conversionRate+'%)، ما يعكس جودة تأهيل العملاء واستهداف العروض المناسبة.');
+  else if(k.conversionRate > 0) lines.push('معدل تحويل العروض ('+k.conversionRate+'%) دون المتوسط المطلوب — يستدعي مراجعة جودة العروض المُقدَّمة أو توقيت المتابعة بعدها.');
+  else if(k.quoteCount>0) lines.push('لم يتحول أي من العروض المُقدَّمة ('+k.quoteCount+') إلى فاتورة خلال هذه الفترة — يحتاج تدخلاً فورياً من الإدارة لفهم أسباب التعثر.');
+
+  if(k.activityDays===0) lines.push('⚠️ لا يوجد أي تقرير نشاط يومي مُسجَّل خلال هذه الفترة — لا يمكن تقييم جهد العمل الفعلي المبذول.');
+  else if(k.activity.calls===0 && k.activity.visits===0) lines.push('⚠️ نشاط منخفض جداً: صفر مكالمات وصفر زيارات مُسجَّلة رغم وجود '+k.activityDays+' يوم عمل مُسجَّل.');
+
+  if(k.pipelineWinRate < 30 && (k.leadsWon+k.leadsLost)>0) lines.push('نسبة إغلاق الفرص البيعية منخفضة ('+k.pipelineWinRate+'%) — الفجوة بين النشاط والنتائج تستحق تحليلاً أعمق (جودة الفرص، أم مهارات الإغلاق).');
+  else if(k.pipelineWinRate >= 60) lines.push('نسبة إغلاق ممتازة للفرص البيعية ('+k.pipelineWinRate+'%).');
+
+  if(k.leadsOpen > 5) lines.push('يوجد '+k.leadsOpen+' فرصة مفتوحة حالياً بلا إغلاق — تحتاج متابعة لتفادي تجمّد الـPipeline.');
+
+  if(k.invoiceCount===0) lines.push('⚠️ لم تُسجَّل أي فاتورة مبيعات باسم هذا الموظف خلال الفترة المحددة.');
+
+  return lines.length ? lines : ['لا توجد ملاحظات استثنائية — الأداء ضمن النطاق الطبيعي المتوقَّع بناءً على البيانات المتاحة.'];
+}
+
+function openSalesKPIExportDialog(){
+  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var overlay = document.createElement('div');
+  overlay.id = 'kpiExportOverlay';
+  overlay.className = 'modal-overlay open';
+  var todayStr = new Date().toISOString().slice(0,10);
+  var monthStart = todayStr.slice(0,8)+'01';
+
+  overlay.innerHTML = '<div class="modal" style="max-width:420px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">'
+    +'<div class="modal-title">📊 '+(isAR()?'تقرير مؤشرات أداء المبيعات':'Sales KPI Report')+'</div>'
+    +'<button onclick="document.getElementById(\'kpiExportOverlay\').remove()" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">×</button>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:14px">'
+    +'<div style="color:#8BABC9;font-size:11px;line-height:1.7">'+(isAR()?'يُنشئ تقريراً منفصلاً لكل موظف مبيعات + مقارنة، من البيانات الحقيقية الحيّة حالياً (الفواتير، العروض، الفرص، النشاط اليومي).':'Generates a separate report per sales employee + comparison, from real live data (invoices, quotes, pipeline, daily activity).')+'</div>'
+    +'<div style="display:flex;gap:10px">'
+    +'<div style="flex:1"><label style="color:#8BABC9;font-size:11px;font-weight:700;display:block;margin-bottom:6px">'+(isAR()?'من':'From')+'</label>'
+    +'<input type="date" id="kpiFrom" class="fc" style="width:100%;font-size:12px" value="'+monthStart+'"/></div>'
+    +'<div style="flex:1"><label style="color:#8BABC9;font-size:11px;font-weight:700;display:block;margin-bottom:6px">'+(isAR()?'إلى':'To')+'</label>'
+    +'<input type="date" id="kpiTo" class="fc" style="width:100%;font-size:12px" value="'+todayStr+'"/></div>'
+    +'</div>'
+    +'<button onclick="runSalesKPIExport()" style="background:#1A7A4C;border:none;border-radius:9px;color:white;padding:11px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit">'+(isAR()?'إنشاء التقرير الآن':'Generate Report Now')+'</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+}
+
+function runSalesKPIExport(){
+  var fromDate = document.getElementById('kpiFrom').value;
+  var toDate = document.getElementById('kpiTo').value;
+  if(!fromDate || !toDate){ showSuccessToast('⚠️ '+(isAR()?'حدد الفترة':'Select a range')); return; }
+  if(toDate < fromDate){ var _t=fromDate; fromDate=toDate; toDate=_t; }
+  var overlay = document.getElementById('kpiExportOverlay');
+  if(overlay) overlay.remove();
+
+  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var results = salesUsers.map(function(u){ return computeSalesEmployeeKPIs(u.name, fromDate, toDate); });
+  _renderSalesKPIPDF(results, fromDate, toDate);
+}
+
+function _renderSalesKPIPDF(results, fromDate, toDate){
+  var kpiBlock = function(k){
+    var comments = generateKPIExpertCommentary(k);
+    return '<div style="page-break-inside:avoid;margin-bottom:24px;border:1px solid #ddd;border-radius:10px;padding:16px">'
+      +'<h2 style="margin:0 0 10px 0;color:#0B1E3D;font-size:15px;border-bottom:2px solid #C9A84C;padding-bottom:6px">👤 '+k.employee+'</h2>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">'
+      + [['إجمالي الفواتير', k.invoiceCount],['إجمالي الإيرادات','SAR '+k.totalRevenue.toLocaleString()],['متوسط قيمة الصفقة','SAR '+k.avgDealSize.toLocaleString()],
+         ['عروض الأسعار', k.quoteCount],['العروض المقبولة', k.acceptedCount],['معدل التحويل', k.conversionRate+'%'],
+         ['فرص Pipeline', k.leadsTotal],['فرص مُغلَقة (فوز)', k.leadsWon],['فرص خاسرة', k.leadsLost],['فرص مفتوحة', k.leadsOpen],['نسبة الفوز', k.pipelineWinRate+'%'],
+         ['أيام نشاط مُسجَّلة', k.activityDays],['مكالمات', k.activity.calls],['زيارات', k.activity.visits],['متابعات', k.activity.followups]
+        ].map(function(x){ return '<div style="flex:1;min-width:110px;border:1px solid #eee;border-radius:7px;padding:7px;text-align:center"><div style="font-size:8px;color:#888">'+x[0]+'</div><div style="font-size:13px;font-weight:800;color:#0B1E3D">'+x[1]+'</div></div>'; }).join('')
+      +'</div>'
+      +'<div style="background:#F7F9FC;border:1px solid #dde;border-radius:8px;padding:10px">'
+      +'<div style="font-size:10px;font-weight:800;color:#0B1E3D;margin-bottom:6px">🔍 تحليل الخبير:</div>'
+      +'<ul style="margin:0;padding-right:16px;font-size:10px;color:#333;line-height:1.9">'+comments.map(function(c){return '<li>'+c+'</li>';}).join('')+'</ul>'
+      +'</div></div>';
+  };
+
+  var totalRev = results.reduce(function(s,k){return s+k.totalRevenue;},0);
+  var topPerformer = results.slice().sort(function(a,b){return b.totalRevenue-a.totalRevenue;})[0];
+
+  var w = window.open('','_blank');
+  w.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>Sales KPI Report</title>'
+    +'<style>body{font-family:Tahoma,Arial;padding:30px 36px;color:#111}h1{font-size:19px;color:#0B1E3D;margin:0}'
+    +'.sub{color:#666;font-size:11px;margin-top:4px}.foot{margin-top:20px;border-top:1px solid #eee;padding-top:6px;font-size:8px;color:#999;display:flex;justify-content:space-between}</style></head><body>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0B1E3D;padding-bottom:10px;margin-bottom:16px">'
+    +'<div><h1>📊 تقرير مؤشرات أداء فريق المبيعات</h1><div class="sub">معهد TUV التدريبي — للإدارة العليا</div>'
+    +'<div class="sub">الفترة: '+fromDate+' → '+toDate+' | تاريخ الإصدار: '+new Date().toLocaleString('ar-SA')+'</div></div>'
+    +'<div style="font-weight:900;font-size:22px;color:#0B1E3D;border:2px solid #C9A84C;border-radius:9px;padding:5px 14px">TUV</div></div>'
+    +'<div style="display:flex;gap:10px;margin-bottom:20px">'
+    +'<div style="flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center"><div style="font-size:9px;color:#777">إجمالي إيرادات الفريق</div><div style="font-size:16px;font-weight:800;color:#1A8A5A">SAR '+totalRev.toLocaleString()+'</div></div>'
+    +'<div style="flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center"><div style="font-size:9px;color:#777">الأعلى أداءً (إيراداً)</div><div style="font-size:14px;font-weight:800;color:#0B1E3D">'+(topPerformer?topPerformer.employee:'—')+'</div></div>'
+    +'</div>'
+    + results.map(kpiBlock).join('')
+    +'<div class="foot"><span>تقرير مُولَّد آلياً من بيانات النظام الحقيقية — TrainFlow CRM</span><span>'+new Date().toLocaleString('ar-SA')+'</span></div>'
+    +'</body></html>');
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 500);
+}
+
 function openDailyActivityExportDialog(){
   var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
   var overlay = document.createElement('div');
@@ -10805,6 +10951,7 @@ function renderDailyActivity(){
         style="background:var(--bg-deep,#0B1E3D);border:1px solid var(--border-primary,#1A2E4A);border-radius:9px;color:var(--accent-gold,#C9A84C);padding:9px 14px;cursor:pointer;font-size:13px;font-family:inherit;display:flex;align-items:center;gap:6px">
         📤 ${isAR()?'تصدير':'Export'}
       </button>
+      ${isOps ? '<button onclick="openSalesKPIExportDialog()" title="'+(isAR()?'تقرير مؤشرات الأداء':'KPI Report')+'" style="background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.35);border-radius:9px;color:#9B59B6;padding:9px 14px;cursor:pointer;font-size:13px;font-family:inherit;display:flex;align-items:center;gap:6px">📊 '+(isAR()?'تقرير الأداء':'KPI Report')+'</button>' : ''}
       </div>
     </div>
 
