@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.60</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.61</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -10648,7 +10648,7 @@ let _editDailyIdx = null;
 function openDailyActivityExportDialog(){
   var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
   var overlay = document.createElement('div');
-  overlay.className = 'modal-overlay active';
+  overlay.className = 'modal-overlay open'; // FIX: this app's modal CSS only triggers visibility via .open (display:none -> flex), not .active — the dialog was rendering correctly but staying invisible
   overlay.id = 'dailyExportOverlay';
   var todayStr = new Date().toISOString().slice(0,10);
   var monthStart = todayStr.slice(0,8)+'01';
