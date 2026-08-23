@@ -3966,6 +3966,7 @@ function saveLead(){
     course:   get('f-course'),
     value:    parseFloat(get('f-value'))||0,
     stage:    get('f-stage')   || 'جديد',
+    updatedAt: new Date().toISOString(), // same root-cause fix as the Kanban handler — this is the OTHER real entry point that changes a lead's stage
     assignee: get('f-assignee'),
     source:   get('f-source'),
     phone:    get('f-phone'),
@@ -4157,6 +4158,13 @@ function deleteLead(leadId){
         const lead = DB.leads.find(l=>l.id===leadId);
         if(lead && lead.stage !== stg.key){
           lead.stage = stg.key;
+          // ROOT-CAUSE FIX: mergeArrays() in save() only lets a local record win over
+          // the remote one when its updatedAt is strictly newer — this lead never had
+          // updatedAt set anywhere, so the change was silently discarded by the merge
+          // on every save() call, even though it reached DB.leads correctly. Stamping
+          // it here is the minimal fix — no change to mergeArrays() itself, no change
+          // to the merge strategy for any other entity.
+          lead.updatedAt = new Date().toISOString();
           addLeadActivity(DB.leads.indexOf(lead), t('نقل','Move'), t('نُقل إلى ','Moved to ')+stg.label);
           save();
           renderLeadsList(document.getElementById('salesContent'));
