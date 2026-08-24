@@ -100,7 +100,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.64</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.65</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -192,6 +192,9 @@ input[type=date].fc{color-scheme:dark}
       <div id="page-prom_dev" class="page"></div>
       <div id="page-daily" class="page"></div>
       <div id="page-saleskpi" class="page"></div>
+      <div id="page-newclients" class="page"></div>
+      <div id="page-salescalls" class="page"></div>
+      <div id="page-recovery" class="page"></div>
       <div id="page-clients" class="page"></div>
     <div class="page" id="page-reports"></div>
     <div class="page" id="page-perms"></div>
@@ -908,6 +911,9 @@ const NAV = [
       {key:'sales-invoices', label:'الفواتير',           icon:'🧾', page:'sales'},
       {key:'sales-daily',    label:'نشاط اليوم',        icon:'📝', page:'daily'},
       {key:'sales-kpi',      label:'مؤشرات قياس الأداء', icon:'📊', page:'saleskpi'},
+      {key:'sales-newclients', label:'العملاء الجدد',      icon:'👤', page:'newclients'},
+      {key:'sales-calls',      label:'الاتصالات',           icon:'📞', page:'salescalls'},
+      {key:'sales-recovery',   label:'العملاء المستعادون',  icon:'♻️', page:'recovery'},
     ]
   },
   {
@@ -1127,6 +1133,7 @@ async function save(){
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
       salesTargets:    Object.assign({}, remote.salesTargets||{}, JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}')),
       dailyReports:    mergeArrays(JSON.parse(localStorage.getItem('tf4_daily')||'[]'), remote.dailyReports, []),
+      salesCalls:      mergeArrays(JSON.parse(localStorage.getItem('tf4_sales_calls')||'[]'), remote.salesCalls, []), // NEW: same mergeArrays pattern as dailyReports/leads — zero change to mergeArrays() itself
       trainees:        mergeArrays(DB.trainees||[], remote.trainees, []),
       trainers:        mergeArrays(DB.trainers||[], remote.trainers, []),
       traineeProfiles: JSON.parse(localStorage.getItem('tf4_trainee_profiles')||'[]'),
@@ -1329,6 +1336,7 @@ async function loadFromGist(){
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
     if(data.salesTargets) localStorage.setItem('tf4_sales_targets', JSON.stringify(Object.assign({}, data.salesTargets, JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}'))));
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
+    if(data.salesCalls) localStorage.setItem('tf4_sales_calls', JSON.stringify(data.salesCalls)); // NEW: identical pattern to dailyReports
     if(data.trainees){
       var localTe = DB.trainees || [];
       var remoteTeIds = {};
@@ -2045,6 +2053,9 @@ function renderPage(p){
   else if(p==='salesperf') renderSalesPerf();
   else if(p==='daily')     renderDailyActivity();
   else if(p==='saleskpi')  renderSalesKPIPage();
+  else if(p==='newclients') renderNewClientsPage();
+  else if(p==='salescalls') renderSalesCallsPage();
+  else if(p==='recovery')   renderClientRecoveryPage();
   else if(p==='prom_test')     renderPromPage('prom_test');
   else if(p==='prom_training') renderPromPage('prom_training');
   else if(p==='prom_safety')   renderPromPage('prom_safety');
@@ -10640,6 +10651,80 @@ function handlePromExcelUpload(pageId, file){
 // ════════════════════════════════════════════
 //  PAGE: نشاط اليوم — Daily Activity Report
 // ════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
+//  SALES CALLS — independent, individually-timestamped call log.
+//  Mirrors getDailyReports()/saveDailyReports() exactly (same localStorage +
+//  save() pattern). Does NOT touch or replace tf4_daily.clientVisits[].
+// ════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
+//  CLIENT RECOVERY — PURE CALCULATION, zero storage. Derived entirely and
+//  deterministically from DB.invoices on every call, so it can never diverge
+//  or double-count across devices — there is nothing to sync or merge.
+//  Definition (approved): a client is "lost" after 90 consecutive days with
+//  no new invoice since their last one; "recovered" the moment a new real
+//  invoice arrives after having been lost. Each lost→recovered cycle counts
+//  as exactly one recovery event, proven by that invoice's own ID.
+// ════════════════════════════════════════════════════════════════
+function computeClientRecoveryEvents(fromDate, toDate){
+  var LOST_WINDOW_DAYS = 90;
+  var byClient = {};
+  (DB.invoices||[]).forEach(function(inv){
+    var cid = inv.clientId || inv.client; // fall back to name if clientId missing on old records
+    if(!cid) return;
+    var d = (inv.invoiceDate||inv.date||'').slice(0,10);
+    if(!d) return;
+    (byClient[cid] = byClient[cid]||[]).push({ date:d, id: inv.id||inv.invoiceNumber, salesPerson: inv.salesPerson||inv.createdBy||null });
+  });
+
+  var events = [];
+  Object.keys(byClient).forEach(function(cid){
+    var invs = byClient[cid].sort(function(a,b){ return a.date.localeCompare(b.date); });
+    for(var i=1;i<invs.length;i++){
+      var gapDays = (new Date(invs[i].date) - new Date(invs[i-1].date)) / 86400000;
+      if(gapDays >= LOST_WINDOW_DAYS){ // CHANGED per explicit decision: 90 days exactly = Lost (was >90, required 91)
+        var recoveredAt = invs[i].date;
+        if(recoveredAt < fromDate || recoveredAt > toDate) continue; // only events within the requested period
+        events.push({
+          clientId: cid,
+          // NOT attributed to any employee: no reliable Sales Owner field exists in the
+          // system (invoice.salesPerson = whoever clicked Save, which may be Ops acting
+          // on someone else's behalf; client.addedBy has the identical weakness; leads
+          // have no clientId link to cross-reference assignee reliably). Per explicit
+          // decision: never guess — always Unassigned until a real ownership field exists.
+          employee: null,
+          lostSince: invs[i-1].date,
+          recoveredAt: recoveredAt,
+          recoveryInvoiceId: invs[i].id
+        });
+      }
+    }
+  });
+  return events;
+}
+
+function getSalesCalls(){ return JSON.parse(localStorage.getItem('tf4_sales_calls')||'[]'); }
+function saveSalesCalls(list){
+  localStorage.setItem('tf4_sales_calls', JSON.stringify(list));
+  save();
+}
+function logSalesCall(clientId, clientName, type, result, notes){
+  var list = getSalesCalls();
+  var now = new Date();
+  list.unshift({
+    id: 'CALL-'+now.getTime()+'-'+Math.random().toString(36).slice(2,7), // collision-safe unique id
+    clientId: clientId, client: clientName,
+    employee: CU ? CU.name : '—',
+    date: now.toISOString().slice(0,10),
+    time: now.toTimeString().slice(0,5),
+    type: type||'اتصال', result: result||'', notes: notes||'',
+    createdAt: now.toISOString()
+  });
+  saveSalesCalls(list);
+  return list[0];
+}
+
 function getDailyReports(){ return JSON.parse(localStorage.getItem('tf4_daily')||'[]'); }
 function saveDailyReports(r){
   // Tag each report with current user
@@ -10669,6 +10754,337 @@ let _editDailyIdx = null;
 //  for the PDF export) as a live in-app page. Sources: quotes, invoices, daily
 //  activity, customer follow-ups — no new data model, no duplication.
 // ════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
+//  1) NEW CLIENTS PAGE — pure view over getClients(), no new data model.
+// ════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
+//  SALES PERFORMANCE SCORE — reads-only, no writes, no new storage.
+//  Combines: computeSalesEmployeeKPIs() (existing, untouched), getClients(),
+//  getSalesCalls(), getSalesTargets() — all real, all already in production.
+//  N/A components are NEVER treated as 0 and their weight is NEVER redistributed.
+// ════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
+//  3 formerly-N/A components, now real — implemented exactly per explicit
+//  business decision (documented in each), reusing only existing data.
+// ════════════════════════════════════════════════════════════════
+
+// 1) العملاء المستعادون — attribution now via client.addedBy, per explicit decision.
+//    Acknowledged limitation (still true, now a conscious choice not a silent guess):
+//    addedBy reflects whoever registered the client, not necessarily who is actively
+//    working their recovery — but it is the ONLY existing field usable, and the
+//    business has now explicitly authorized using it for this purpose.
+function computeClientRecoveryEventsAttributed(fromDate, toDate){
+  var raw = computeClientRecoveryEvents(fromDate, toDate);
+  var clients = getClients();
+  raw.forEach(function(ev){
+    var c2 = clients.find(function(x){ return x.id===ev.clientId || x.company===ev.clientId; });
+    ev.employee = c2 ? (c2.addedBy||null) : null; // still null if the client itself has no addedBy on record
+  });
+  return raw;
+}
+
+// New page: currently-lost clients (not yet recovered), for the sales team to work.
+function computeCurrentlyLostClients(){
+  var LOST_WINDOW_DAYS = 90;
+  var byClient = {};
+  (DB.invoices||[]).forEach(function(inv){
+    var cid = inv.clientId || inv.client;
+    if(!cid) return;
+    var d = (inv.invoiceDate||inv.date||'').slice(0,10);
+    if(!d) return;
+    (byClient[cid] = byClient[cid]||[]).push(d);
+  });
+  var clients = getClients();
+  var today = new Date().toISOString().slice(0,10);
+  var lost = [];
+  Object.keys(byClient).forEach(function(cid){
+    var dates = byClient[cid].sort();
+    var lastDate = dates[dates.length-1];
+    var gapDays = (new Date(today) - new Date(lastDate)) / 86400000;
+    if(gapDays >= LOST_WINDOW_DAYS){
+      var c2 = clients.find(function(x){ return x.id===cid || x.company===cid; });
+      lost.push({ clientId:cid, clientName: c2?c2.company:cid, employee: c2?(c2.addedBy||null):null, lastInvoiceDate:lastDate, daysSince:Math.floor(gapDays) });
+    }
+  });
+  return lost.sort(function(a,b){ return b.daysSince-a.daysSince; });
+}
+
+function renderLostClientsPage(){
+  var pg = document.getElementById('page-lostclients');
+  if(!pg) return;
+  var isOps = CU && CU.dept==='ops';
+  var lost = computeCurrentlyLostClients();
+  var visible = isOps ? lost : lost.filter(function(l){ return l.employee===CU.name; });
+  var html = '<div class="page-header"><div><div class="page-title">⚠️ العملاء المفقودون</div><div class="page-sub">آخر فاتورة منذ 90 يوماً فأكثر — بلا فاتورة جديدة بعدها</div></div></div>';
+  html += '<div class="kpi-grid" style="margin-top:14px"><div class="kpi"><div class="kpi-label">عدد العملاء المفقودين</div><div class="kpi-value">'+visible.length+'</div></div></div>';
+  html += '<div class="card" style="margin-top:14px"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['العميل','الموظف المسؤول','آخر فاتورة','أيام الانقطاع'].map(function(h){return '<th style="padding:8px;text-align:right;color:var(--text-muted,#6A85A5);font-size:10px">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    + visible.map(function(l){ return '<tr style="border-top:1px solid rgba(26,46,74,.3)"><td style="padding:8px">'+l.clientName+'</td><td style="padding:8px">'+(l.employee||'⚠️ غير معروف')+'</td><td style="padding:8px">'+l.lastInvoiceDate+'</td><td style="padding:8px;color:#E67E22">'+l.daysSince+' يوماً</td></tr>'; }).join('')
+    + (visible.length? '' : '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text-muted,#6A85A5)">لا يوجد عملاء مفقودون حالياً</td></tr>')
+    +'</tbody></table></div>';
+  pg.innerHTML = html;
+}
+
+// 2) دقة التوثيق — قابلية قياس حقيقية: انتظام تسجيل نشاط اليوم فعلياً، وليس افتراضاً.
+//    Definition (per explicit decision): Documentation Accuracy = (working days with an
+//    actual submitted daily report) / (total working days in the period) × 100.
+//    Source: getDailyReports() — real, existing, already used elsewhere.
+function computeDocAccuracy(employeeName, fromDate, toDate){
+  var reports = getDailyReports().filter(function(r){ return r.user===employeeName && r.date>=fromDate && r.date<=toDate; });
+  var reportedDays = {}; reports.forEach(function(r){ reportedDays[r.date]=1; });
+  var workingDays = 0;
+  var cursor = new Date(fromDate);
+  var end = new Date(toDate);
+  while(cursor <= end){
+    var dow = cursor.getDay(); // 5=Friday, 6=Saturday (KSA weekend) — excluded from "working days"
+    if(dow!==5 && dow!==6) workingDays++;
+    cursor.setDate(cursor.getDate()+1);
+  }
+  var reportedCount = Object.keys(reportedDays).length;
+  if(workingDays===0) return { actual:null, workingDays:0, reportedDays:0 };
+  return { actual: Math.round(reportedCount/workingDays*100), workingDays:workingDays, reportedDays:reportedCount };
+}
+
+// 3) متابعة التحصيل — الآن حقيقية عبر paidDate الجديد (لا تقريب).
+//    Eligible = invoice had a dueDate in the past relative to paidDate (i.e. was
+//    actually overdue/pending) AND transitioned to 'مدفوع' with paidDate in period.
+function computeCollectionFollowup(employeeName, fromDate, toDate){
+  var today = new Date().toISOString().slice(0,10);
+  var invs = (DB.invoices||[]).filter(function(inv){ return (inv.salesPerson||inv.createdBy)===employeeName; });
+  // Eligible = invoices whose due date has passed (were genuinely overdue at some point) —
+  // whether still unpaid today, or since paid.
+  var eligible = invs.filter(function(inv){ return inv.dueDate && inv.dueDate < today; });
+  if(eligible.length===0) return { actual:null, eligible:0, paid:0 };
+  // Paid = the subset that genuinely transitioned overdue→paid WITHIN this period,
+  // proven by paidDate (never fabricated from updatedAt).
+  var paidWithinPeriod = eligible.filter(function(inv){
+    return inv.status==='مدفوع' && inv.paidDate
+        && inv.paidDate.slice(0,10)>=fromDate && inv.paidDate.slice(0,10)<=toDate
+        && inv.dueDate < inv.paidDate.slice(0,10); // was genuinely overdue when it got paid
+  });
+  var rate = Math.round(paidWithinPeriod.length/eligible.length*100);
+  return { actual: rate, eligible: eligible.length, paid: paidWithinPeriod.length };
+}
+
+var KPI_WEIGHTS = { revenue:25, newClients:15, activity:15, quoteConv:10, recovery:10, dataCompleteness:10, docAccuracy:10, collectionFollowup:5 };
+var REQUIRED_CLIENT_FIELDS = ['company','name','phone','email','city','sector'];
+
+function computeSalesPerformanceScore(employeeName, fromDate, toDate){
+  var monthKey = fromDate.slice(0,7); // YYYY-MM, matches getSalesTargets()' existing key format
+  var base = computeSalesEmployeeKPIs(employeeName, fromDate, toDate); // UNCHANGED function, read-only reuse
+  var components = [];
+
+  // 1) الإيراد — 25%
+  var revTarget = (getSalesTargets()[monthKey]||{})[employeeName] || 100000; // approved default
+  var revAch = Math.min(base.totalRevenue / revTarget, 1);
+  components.push({ key:'revenue', label:'الإيراد المحقق', weight:KPI_WEIGHTS.revenue, actual:base.totalRevenue, target:revTarget, achievement:revAch, included:true });
+
+  // 2) العملاء الجدد — 15%, Target=10 (approved)
+  var newClients = getClients().filter(function(c2){ return c2.addedBy===employeeName && c2.addedAt>=fromDate && c2.addedAt<=toDate; });
+  var ncAch = Math.min(newClients.length / 10, 1);
+  components.push({ key:'newClients', label:'العملاء الجدد', weight:KPI_WEIGHTS.newClients, actual:newClients.length, target:10, achievement:ncAch, included:true });
+
+  // 3) الزيارات والاتصالات — 15%, Target=100, المصدر getSalesCalls() حصراً
+  var calls = getSalesCalls().filter(function(c2){ return c2.employee===employeeName && c2.date>=fromDate && c2.date<=toDate; });
+  var actAch = Math.min(calls.length / 100, 1);
+  components.push({ key:'activity', label:'الزيارات والاتصالات', weight:KPI_WEIGHTS.activity, actual:calls.length, target:100, achievement:actAch, included:true });
+
+  // 4) تحويل العروض — 10%, Target=50%
+  if(base.quoteCount === 0){
+    components.push({ key:'quoteConv', label:'تحويل العروض', weight:KPI_WEIGHTS.quoteConv, actual:null, target:50, achievement:null, included:false, reason:'N/A — No Quotes' });
+  } else {
+    var qcAch = Math.min(base.conversionRate / 50, 1);
+    components.push({ key:'quoteConv', label:'تحويل العروض', weight:KPI_WEIGHTS.quoteConv, actual:base.conversionRate, target:50, achievement:qcAch, included:true });
+  }
+
+  // 5) العملاء المستعادون — 10%, الآن حقيقية عبر client.addedBy (قرار عمل صريح)
+  var recEvents = computeClientRecoveryEventsAttributed(fromDate, toDate).filter(function(e){ return e.employee===employeeName; });
+  var myLostEver = computeCurrentlyLostClients().filter(function(l){ return l.employee===employeeName; }).length + recEvents.length; // rough denominator: currently-lost + already-recovered this period
+  if(myLostEver===0){
+    components.push({ key:'recovery', label:'العملاء المستعادون', weight:KPI_WEIGHTS.recovery, actual:null, target:null, achievement:null, included:false, reason:'N/A — No Lost Clients To Recover' });
+  } else {
+    var recRate = Math.round(recEvents.length/myLostEver*100);
+    var recAch = Math.min(recRate/50,1); // target 50% recovery rate — reasonable default, flagged for approval
+    components.push({ key:'recovery', label:'العملاء المستعادون', weight:KPI_WEIGHTS.recovery, actual:recRate, target:50, achievement:recAch, included:true, note:'Attribution via client.addedBy — قرار عمل صريح، وليس ضماناً هيكلياً' });
+  }
+
+  // 6) اكتمال بيانات العملاء — 10%, Target=90%
+  var myClients = getClients().filter(function(c2){ return c2.addedBy===employeeName; });
+  if(myClients.length === 0){
+    components.push({ key:'dataCompleteness', label:'اكتمال بيانات العملاء', weight:KPI_WEIGHTS.dataCompleteness, actual:null, target:90, achievement:null, included:false, reason:'N/A — No Clients' });
+  } else {
+    var complete = myClients.filter(function(c2){
+      return REQUIRED_CLIENT_FIELDS.every(function(f){ return c2[f] && String(c2[f]).trim().length>0; });
+    }).length;
+    var completionPct = Math.round(complete/myClients.length*100);
+    var dcAch = Math.min(completionPct/90, 1);
+    components.push({ key:'dataCompleteness', label:'اكتمال بيانات العملاء', weight:KPI_WEIGHTS.dataCompleteness, actual:completionPct, target:90, achievement:dcAch, included:true });
+  }
+
+  // 7) دقة التوثيق — 10%, الآن حقيقية عبر انتظام تسجيل نشاط اليوم
+  var docRes = computeDocAccuracy(employeeName, fromDate, toDate);
+  if(docRes.actual===null){
+    components.push({ key:'docAccuracy', label:'دقة التوثيق', weight:KPI_WEIGHTS.docAccuracy, actual:null, target:null, achievement:null, included:false, reason:'N/A — No Working Days In Range' });
+  } else {
+    var docAch = Math.min(docRes.actual/90,1); // target 90% consistency — reasonable default, flagged for approval
+    components.push({ key:'docAccuracy', label:'دقة التوثيق', weight:KPI_WEIGHTS.docAccuracy, actual:docRes.actual, target:90, achievement:docAch, included:true });
+  }
+
+  // 8) متابعة التحصيل — 5%, الآن حقيقية عبر paidDate الجديد
+  var collRes = computeCollectionFollowup(employeeName, fromDate, toDate);
+  if(collRes.actual===null){
+    components.push({ key:'collectionFollowup', label:'متابعة التحصيل', weight:KPI_WEIGHTS.collectionFollowup, actual:null, target:90, achievement:null, included:false, reason:'N/A — No Eligible Overdue Invoices' });
+  } else {
+    var collAch = Math.min(collRes.actual/90,1);
+    components.push({ key:'collectionFollowup', label:'متابعة التحصيل', weight:KPI_WEIGHTS.collectionFollowup, actual:collRes.actual, target:90, achievement:collAch, included:true });
+  }
+
+  var evaluated = components.filter(function(c2){ return c2.included; });
+  var evaluableWeight = evaluated.reduce(function(s,c2){ return s+c2.weight; },0);
+  var weightedSum = evaluated.reduce(function(s,c2){ return s+(c2.achievement*c2.weight); },0);
+  var performanceScore = evaluableWeight>0 ? Math.round(weightedSum/evaluableWeight*evaluableWeight*100)/100 : 0; // weighted points out of evaluableWeight
+  var coverage = components.reduce(function(s,c2){ return s+c2.weight; },0); // sanity: should always be 100
+  var evaluatedCoverage = evaluableWeight;
+
+  // Display-only correction (per explicit decision): the raw weighted sum must NEVER
+  // be presented as a "%" on its own — 50.31 alone wrongly implies "out of 100" when the
+  // true denominator is the evaluable weight (e.g. 75). No change to any underlying
+  // calculation, data source, or protected function — this only reshapes the return value.
+  var normalizedScore = evaluableWeight>0 ? Math.round((weightedSum/evaluableWeight*100)*100)/100 : null;
+  return {
+    employee: employeeName, components: components,
+    weightedScore: Math.round(weightedSum*100)/100,      // e.g. 50.31 — ALWAYS shown as "X / coverage", never as "X%" alone
+    coverage: evaluatedCoverage,                          // e.g. 75  → "KPI Coverage: 75%"
+    unevaluatedWeight: 100 - evaluatedCoverage,            // e.g. 25  → "Unevaluated Weight: 25%"
+    normalizedScore: normalizedScore,                      // e.g. 67.08 — OPTIONAL, comparison-only, explicitly labeled
+    naComponents: components.filter(function(c2){ return !c2.included; }) // for direct listing with reasons
+  };
+}
+
+function renderNewClientsPage(){
+  var pg = document.getElementById('page-newclients');
+  if(!pg) return;
+  var monthStart = window._ncFrom || (new Date().toISOString().slice(0,8)+'01');
+  var monthEnd = window._ncTo || new Date().toISOString().slice(0,10);
+  var isOps = CU && CU.dept==='ops';
+  var all = getClients().filter(function(c2){ return c2.addedAt>=monthStart && c2.addedAt<=monthEnd; });
+  var visible = isOps ? all : all.filter(function(c2){ return c2.addedBy===CU.name; });
+
+  var byEmp = {};
+  visible.forEach(function(c2){ var k=c2.addedBy||'—'; byEmp[k]=(byEmp[k]||0)+1; });
+
+  var html = '<div class="page-header"><div><div class="page-title">👤 العملاء الجدد</div><div class="page-sub">مصدر البيانات: getClients() — بلا أي تخزين إضافي</div></div>'
+    +'<div style="display:flex;gap:8px"><input type="date" class="fc" value="'+monthStart+'" onchange="window._ncFrom=this.value;renderNewClientsPage()"/><input type="date" class="fc" value="'+monthEnd+'" onchange="window._ncTo=this.value;renderNewClientsPage()"/></div></div>';
+
+  html += '<div class="kpi-grid" style="margin-top:14px">'
+    +'<div class="kpi"><div class="kpi-label">إجمالي العملاء الجدد</div><div class="kpi-value">'+visible.length+'</div></div>'
+    + Object.keys(byEmp).map(function(e){ return '<div class="kpi"><div class="kpi-label">'+e+'</div><div class="kpi-value">'+byEmp[e]+'</div></div>'; }).join('')
+    +'</div>';
+
+  html += '<div class="card" style="margin-top:14px"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['الشركة','الموظف المسؤول','تاريخ الإضافة','المدينة','القطاع'].map(function(h){return '<th style="padding:8px;text-align:right;color:var(--text-muted,#6A85A5);font-size:10px">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    + visible.map(function(c2){ return '<tr style="border-top:1px solid rgba(26,46,74,.3)"><td style="padding:8px">'+c2.company+'</td><td style="padding:8px">'+(c2.addedBy||'—')+'</td><td style="padding:8px">'+c2.addedAt+'</td><td style="padding:8px">'+(c2.city||'—')+'</td><td style="padding:8px">'+(c2.sector||'—')+'</td></tr>'; }).join('')
+    + (visible.length? '' : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted,#6A85A5)">لا يوجد عملاء جدد في هذه الفترة</td></tr>')
+    +'</tbody></table></div>';
+  pg.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  2) SALES CALLS PAGE — add + list, individually timestamped, permission-isolated.
+// ════════════════════════════════════════════════════════════════
+function renderSalesCallsPage(){
+  var pg = document.getElementById('page-salescalls');
+  if(!pg) return;
+  var isOps = CU && CU.dept==='ops';
+  var monthStart = window._callFrom || (new Date().toISOString().slice(0,8)+'01');
+  var monthEnd = window._callTo || new Date().toISOString().slice(0,10);
+  var all = getSalesCalls().filter(function(c2){ return c2.date>=monthStart && c2.date<=monthEnd; });
+  var visible = isOps ? all : all.filter(function(c2){ return c2.employee===CU.name; }); // permission isolation
+
+  var clients = getClients();
+  var html = '<div class="page-header"><div><div class="page-title">📞 الاتصالات</div><div class="page-sub">سجل فردي مستقل — tf4_sales_calls</div></div>'
+    +'<button class="btn btn-teal" onclick="openLogCallModal()">+ تسجيل اتصال</button></div>';
+
+  html += '<div class="kpi-grid" style="margin-top:14px"><div class="kpi"><div class="kpi-label">'+(isOps?'إجمالي الفريق':'اتصالاتي')+' هذا النطاق</div><div class="kpi-value">'+visible.length+'</div></div></div>';
+
+  html += '<div class="card" style="margin-top:14px"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['التاريخ','الوقت','الموظف','العميل','النوع','النتيجة','ملاحظات'].map(function(h){return '<th style="padding:8px;text-align:right;color:var(--text-muted,#6A85A5);font-size:10px">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    + visible.map(function(c2){ return '<tr style="border-top:1px solid rgba(26,46,74,.3)"><td style="padding:8px">'+c2.date+'</td><td style="padding:8px">'+c2.time+'</td><td style="padding:8px">'+c2.employee+'</td><td style="padding:8px">'+c2.client+'</td><td style="padding:8px">'+c2.type+'</td><td style="padding:8px">'+(c2.result||'—')+'</td><td style="padding:8px;font-size:11px;color:var(--text-muted,#6A85A5)">'+(c2.notes||'')+'</td></tr>'; }).join('')
+    + (visible.length? '' : '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted,#6A85A5)">لا توجد اتصالات مُسجَّلة في هذه الفترة</td></tr>')
+    +'</tbody></table></div>';
+  pg.innerHTML = html;
+
+  var monthPicker = document.createElement('div'); // (kept simple — date filters wired inline via table header would be redundant here)
+}
+
+function openLogCallModal(){
+  var clients = getClients();
+  var overlay = document.createElement('div');
+  overlay.id = 'logCallOverlay';
+  overlay.className = 'modal-overlay open';
+  overlay.innerHTML = '<div class="modal" style="max-width:400px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div class="modal-title">📞 تسجيل اتصال</div>'
+    +'<button onclick="document.getElementById(\'logCallOverlay\').remove()" style="background:rgba(192,57,43,.2);border:none;color:#E74C3C;width:26px;height:26px;border-radius:6px;cursor:pointer">×</button></div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px">'
+    +'<select id="callClient" class="fc"><option value="">اختر العميل...</option>'+clients.map(function(c2){return '<option value="'+c2.id+'|'+c2.company+'">'+c2.company+'</option>';}).join('')+'</select>'
+    +'<select id="callType" class="fc"><option>اتصال</option><option>زيارة</option><option>بريد إلكتروني</option></select>'
+    +'<select id="callResult" class="fc"><option value="">النتيجة (اختياري)</option><option>مهتم</option><option>غير مهتم</option><option>يحتاج متابعة</option><option>تم الإغلاق</option></select>'
+    +'<textarea id="callNotes" class="fc" placeholder="ملاحظات (اختياري)" style="min-height:60px"></textarea>'
+    +'<button class="btn btn-teal" onclick="submitLogCall()">حفظ الاتصال</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+}
+function submitLogCall(){
+  var sel = document.getElementById('callClient').value;
+  if(!sel){ alert('اختر عميلاً'); return; }
+  var parts = sel.split('|'); var clientId = parts[0], clientName = parts.slice(1).join('|');
+  logSalesCall(clientId, clientName, document.getElementById('callType').value, document.getElementById('callResult').value, document.getElementById('callNotes').value);
+  document.getElementById('logCallOverlay').remove();
+  showSuccessToast('✅ تم تسجيل الاتصال');
+  renderSalesCallsPage();
+}
+
+// ════════════════════════════════════════════════════════════════
+//  3) CLIENT RECOVERY PAGE — read-only, pure calculation, no manual button.
+// ════════════════════════════════════════════════════════════════
+function renderClientRecoveryPage(){
+  var pg = document.getElementById('page-recovery');
+  if(!pg) return;
+  var isOps = CU && CU.dept==='ops';
+  // Employee attribution is unreliable system-wide (see computeClientRecoveryEvents),
+  // so this report is INTENTIONALLY ops-only — it cannot be filtered per sales employee
+  // and must never feed an individual employee's Performance Score.
+  if(!isOps){
+    pg.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted,#6A85A5)">🔒 هذا التقرير إجمالي فقط لمدير التشغيل — لا يمكن إسناده لموظف فردي حالياً (لا يوجد حقل Sales Owner موثوق بالنظام)</div>';
+    return;
+  }
+  var monthStart = window._recFrom || (new Date().toISOString().slice(0,8)+'01');
+  var monthEnd = window._recTo || new Date().toISOString().slice(0,10);
+  var events = computeClientRecoveryEvents(monthStart, monthEnd);
+  var visible = events; // ops sees the full, unattributed list — no per-employee filtering possible
+  var clients = getClients();
+  function clientName(id){ var c2=clients.find(function(x){return x.id===id||x.company===id;}); return c2?c2.company:id; }
+
+  var html = '<div class="page-header"><div><div class="page-title">♻️ العملاء المستعادون</div><div class="page-sub">محسوبة حياً من الفواتير الفعلية — تقرير إجمالي فقط، غير قابل للإسناد لموظف حالياً</div></div>'
+    +'<div style="display:flex;gap:8px"><input type="date" class="fc" value="'+monthStart+'" onchange="window._recFrom=this.value;renderClientRecoveryPage()"/><input type="date" class="fc" value="'+monthEnd+'" onchange="window._recTo=this.value;renderClientRecoveryPage()"/></div></div>';
+
+  html += '<div class="kpi-grid" style="margin-top:14px"><div class="kpi"><div class="kpi-label">عمليات استعادة في هذه الفترة</div><div class="kpi-value">'+visible.length+'</div></div></div>';
+
+  html += '<div class="card" style="margin-top:14px"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['العميل','الموظف (من الفاتورة)','فقدان منذ','تاريخ الاستعادة','رقم فاتورة الإثبات'].map(function(h){return '<th style="padding:8px;text-align:right;color:var(--text-muted,#6A85A5);font-size:10px">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    + visible.map(function(e){ return '<tr style="border-top:1px solid rgba(26,46,74,.3)"><td style="padding:8px">'+clientName(e.clientId)+'</td><td style="padding:8px;color:#E67E22">⚠️ غير منسوب (Unassigned)</td><td style="padding:8px">'+e.lostSince+'</td><td style="padding:8px">'+e.recoveredAt+'</td><td style="padding:8px">'+e.recoveryInvoiceId+'</td></tr>'; }).join('')
+    + (visible.length? '' : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted,#6A85A5)">لا توجد عمليات استعادة في هذه الفترة</td></tr>')
+    +'</tbody></table></div>';
+  pg.innerHTML = html;
+}
+
 function renderSalesKPIPage(){
   var pg = document.getElementById('page-saleskpi');
   if(!pg) return;
@@ -14633,6 +15049,7 @@ function saveInvoice(editId){
   if(editId){
     var inv = DB.invoices.find(function(x){return x.id===editId});
     if(inv){
+      var _wasNotPaid = inv.status !== 'مدفوع';
       inv.client = client; inv.clientId = _cliId;
       inv.course = courseName;
       inv.items = items;
@@ -14645,6 +15062,11 @@ function saveInvoice(editId){
       inv.dueDate = dueDate;
       inv.status = status;
       inv.updatedAt = new Date().toISOString();
+      // NEW (minimal, additive): stamp paidDate ONLY on the actual transition into
+      // "مدفوع" — never touched on any other edit, never overwritten once set, so it
+      // reliably proves WHEN payment happened (unlike updatedAt, which changes on any
+      // unrelated edit). This is the sole purpose of this change.
+      if(_wasNotPaid && status==='مدفوع' && !inv.paidDate){ inv.paidDate = new Date().toISOString(); }
     }
   } else {
     var maxNum = DB.invoices.reduce(function(mx,x){var n=parseInt((x.invoiceNumber||'0').replace(/\D/g,''))||0;return n>mx?n:mx},0)+1;
