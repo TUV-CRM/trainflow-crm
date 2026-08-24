@@ -195,6 +195,7 @@ input[type=date].fc{color-scheme:dark}
       <div id="page-newclients" class="page"></div>
       <div id="page-salescalls" class="page"></div>
       <div id="page-recovery" class="page"></div>
+      <div id="page-lostclients" class="page"></div>
       <div id="page-clients" class="page"></div>
     <div class="page" id="page-reports"></div>
     <div class="page" id="page-perms"></div>
@@ -914,6 +915,7 @@ const NAV = [
       {key:'sales-newclients', label:'العملاء الجدد',      icon:'👤', page:'newclients'},
       {key:'sales-calls',      label:'الاتصالات',           icon:'📞', page:'salescalls'},
       {key:'sales-recovery',   label:'العملاء المستعادون',  icon:'♻️', page:'recovery'},
+      {key:'sales-lostclients', label:'العملاء المفقودون',   icon:'⚠️', page:'lostclients'},
     ]
   },
   {
@@ -2056,6 +2058,7 @@ function renderPage(p){
   else if(p==='newclients') renderNewClientsPage();
   else if(p==='salescalls') renderSalesCallsPage();
   else if(p==='recovery')   renderClientRecoveryPage();
+  else if(p==='lostclients') renderLostClientsPage();
   else if(p==='prom_test')     renderPromPage('prom_test');
   else if(p==='prom_training') renderPromPage('prom_training');
   else if(p==='prom_safety')   renderPromPage('prom_safety');
