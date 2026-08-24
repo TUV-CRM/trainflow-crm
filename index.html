@@ -18,20 +18,17 @@ body{background:#060F1E;color:#F5F7FA}
 #topbar{height:58px;background:linear-gradient(135deg,#060F1E,#0D1E35);border-bottom:1px solid #1A2E4A;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;z-index:100;position:relative}
 #body{display:flex;flex:1;overflow:hidden}
 #sidebar{width:210px;min-width:210px;background:#080F1C;border-left:1px solid #1A2E4A;display:flex;flex-direction:column;overflow-y:auto;padding:12px 0;transition:width .25s}
-/* CORRECTED FIX (the previous flex-shrink:0 attempt made this worse):
-   The real cause is the classic flex `min-height:auto` trap — a flex item refuses to
-   shrink below its content height, so #sidebarNav could never become smaller than its
-   full content, and the scroll on #sidebar never engaged; the extra items were simply
-   clipped by the parent's overflow:hidden with no way to reach them.
-   Making the NAV ITSELF the scroll container, with min-height:0 to defeat that default,
-   is the canonical solution. The footer below stays pinned and always visible. */
-#sidebarNav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden}
-#sidebar{overflow:hidden}
+/* DETERMINISTIC FIX: both earlier attempts relied on flex height inheritance behaving
+   as expected through #app > #body > #sidebar, which it evidently did not. This pins the
+   sidebar's height explicitly to the viewport minus the fixed 58px topbar, so scrolling
+   is guaranteed regardless of any flex quirk in the chain above it. !important is used
+   deliberately to override the base #sidebar rule without editing it. */
+#sidebar{height:calc(100vh - 58px) !important;max-height:calc(100vh - 58px) !important;overflow-y:auto !important;display:block !important}
+#sidebarNav{overflow:visible}
 #sidebar > div[style*="flex:1"]{display:none}
-/* make the (very thin) scrollbar actually discoverable inside the nav */
-#sidebarNav::-webkit-scrollbar{width:7px}
-#sidebarNav::-webkit-scrollbar-thumb{background:#1A2E4A;border-radius:4px}
-#sidebarNav::-webkit-scrollbar-thumb:hover{background:#23A0B5}
+#sidebar::-webkit-scrollbar{width:8px}
+#sidebar::-webkit-scrollbar-thumb{background:#23A0B5;border-radius:4px}
+#sidebar::-webkit-scrollbar-track{background:#0B1E3D}
 #main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .page{display:none;flex:1;overflow-y:auto;padding:22px}
 .page.active{display:flex;flex-direction:column;gap:16px}
@@ -114,7 +111,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.68</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.69</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
