@@ -111,7 +111,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.69</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.70</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -1989,7 +1989,7 @@ function buildSidebar(){
 
     // Children container
     const childrenEl = document.createElement('div');
-    childrenEl.style.cssText=`overflow:hidden;transition:max-height .25s ease;max-height:${isOpen?'300px':'0'}`;
+    childrenEl.style.cssText=`overflow:hidden;transition:max-height .25s ease;max-height:0`;
 
     accessibleChildren.forEach(child=>{
       const isActive = activeChild === child.key;
@@ -2008,11 +2008,19 @@ function buildSidebar(){
 
     c.appendChild(childrenEl);
 
+    // ROOT-CAUSE FIX: the container used a hardcoded max-height of 300px with
+    // overflow:hidden. Once a section exceeded ~9 children (Sales now has 10), the
+    // remaining items were silently clipped — no scrollbar, no way to reach them,
+    // while permissions and keys were entirely correct. Size is now derived from the
+    // container's REAL content height, so it can never be outgrown again. The
+    // open/close transition is preserved exactly as before.
+    if(isOpen) childrenEl.style.maxHeight = childrenEl.scrollHeight + 'px';
+
     // Toggle collapse on header click
     header.onclick=()=>{
       const nowOpen = collapsedSections[section.key] !== false;
       collapsedSections[section.key] = !nowOpen;
-      childrenEl.style.maxHeight = !nowOpen ? '300px' : '0';
+      childrenEl.style.maxHeight = !nowOpen ? (childrenEl.scrollHeight + 'px') : '0';
       chevron.textContent = !nowOpen ? '∧' : '∨';
     };
   });
