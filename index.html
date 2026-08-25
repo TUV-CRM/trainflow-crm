@@ -111,7 +111,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.70</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.71</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -11112,7 +11112,13 @@ function renderSalesKPIPage(){
   if(!pg) return;
   var fromDate = window._skpiFrom || (new Date().toISOString().slice(0,8)+'01');
   var toDate = window._skpiTo || new Date().toISOString().slice(0,10);
-  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  // PERMISSION ISOLATION: a sales rep sees ONLY their own KPIs; ops sees the whole team.
+  // Previously every sales user's revenue/performance was visible to every other rep.
+  var isOps = CU && CU.dept==='ops';
+  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){
+    if(u.dept!=='sales') return false;
+    return isOps ? true : (CU && u.name===CU.name);
+  });
   var results = salesUsers.map(function(u){ return computeSalesEmployeeKPIs(u.name, fromDate, toDate); });
 
   var totalRevenue = results.reduce(function(s,k){return s+k.totalRevenue;},0);
@@ -11124,7 +11130,7 @@ function renderSalesKPIPage(){
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">'
     +'<div><div class="page-title">'+(isAR()?'📊 مؤشرات قياس الأداء':'📊 Performance KPIs')+'</div>'
-    +'<div class="page-sub">'+(isAR()?'عروض الأسعار · الفواتير · نشاط اليوم · متابعة العملاء':'Quotes · Invoices · Daily Activity · Customer Follow-ups')+'</div></div>'
+    +'<div class="page-sub">'+(isAR()?'عروض الأسعار · الفواتير · نشاط اليوم · متابعة العملاء':'Quotes · Invoices · Daily Activity · Customer Follow-ups')+(isOps?'':(isAR()?' — بياناتي فقط':' — my data only'))+'</div></div>'
     +'<div style="display:flex;gap:8px;align-items:center">'
     +'<input type="date" class="fc" style="font-size:11px" value="'+fromDate+'" onchange="window._skpiFrom=this.value;renderSalesKPIPage()"/>'
     +'<span style="color:#6A85A5;font-size:11px">'+(isAR()?'إلى':'to')+'</span>'
@@ -11134,7 +11140,7 @@ function renderSalesKPIPage(){
 
   // ═ Team-wide KPI cards ═
   html += '<div class="card" style="margin-top:14px"><div style="display:flex;flex-wrap:wrap;gap:10px">'
-    + [['إجمالي إيراد الفريق','SAR '+totalRevenue.toLocaleString(),'#1A8A5A'],
+    + [[(isOps?'إجمالي إيراد الفريق':'إجمالي إيرادي'),'SAR '+totalRevenue.toLocaleString(),'#1A8A5A'],
        ['عروض الأسعار', totalQuotes, '#23A0B5'],
        ['المقبولة', totalAccepted, '#1A8A5A'],
        ['معدل التحويل الجماعي', teamConversion+'%', teamConversion>=50?'#1A8A5A':'#E67E22'],
