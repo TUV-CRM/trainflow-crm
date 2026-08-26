@@ -111,7 +111,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.71</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.72</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -4464,14 +4464,43 @@ function exportQuotesExcel(){
   showSuccessToast('✅ '+(isAR()?'تم تصدير '+quotes.length+' عرض':'Exported '+quotes.length+' quotes'));
 }
 
+
+// ════════════════════════════════════════════════════════════════
+//  Quote filter helpers — UI/filtering only. No data writes, no save().
+// ════════════════════════════════════════════════════════════════
+function applyQuoteDateFilter(){
+  var fromEl = document.getElementById('qFilterFrom');
+  var toEl = document.getElementById('qFilterTo');
+  var from = fromEl ? fromEl.value : '';
+  var to = toEl ? toEl.value : '';
+  // Validation: refuse an inverted range instead of silently returning zero results.
+  if(from && to && from > to){
+    showSuccessToast('⚠️ '+(isAR()?'تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية':'Start date must be on or before the end date'));
+    // revert the field the user just broke, keep the page intact
+    if(fromEl) fromEl.value = window._quoteFilterFrom || '';
+    if(toEl) toEl.value = window._quoteFilterTo || '';
+    return;
+  }
+  window._quoteFilterFrom = from;
+  window._quoteFilterTo = to;
+  renderQuotes(document.getElementById('salesContent'));
+}
+function resetQuoteFilters(){
+  window._quoteFilterStatus = 'all';
+  window._quoteFilterFrom = '';
+  window._quoteFilterTo = '';
+  renderQuotes(document.getElementById('salesContent'));
+}
+
 function renderQuotes(sc){
   var allQuotes = lsQuotes();
   var isOps = CU && CU.dept==='ops';
   
   // Filters
   var fEmployee = window._quoteFilterEmployee || 'all';
-  var fMonth = window._quoteFilterMonth || 'all';
-  var fYear = window._quoteFilterYear || 'all';
+  var fStatus = window._quoteFilterStatus || 'all';
+  var fFrom = window._quoteFilterFrom || '';
+  var fTo = window._quoteFilterTo || '';
   var fSearch = (window._quoteFilterSearch || '').toLowerCase();
   
   // Role filter
@@ -4479,8 +4508,18 @@ function renderQuotes(sc){
   
   // Apply filters
   if(fEmployee!=='all') quotes = quotes.filter(function(q){ return q.salesperson===fEmployee || q.createdBy===fEmployee; });
-  if(fMonth!=='all') quotes = quotes.filter(function(q){ var d=q.createdAt||q.date||''; return d.slice(5,7)===fMonth; });
-  if(fYear!=='all') quotes = quotes.filter(function(q){ var d=q.createdAt||q.date||''; return d.slice(0,4)===fYear; });
+  // Status filter — matches BOTH the Arabic and English stored values, exactly as the
+  // KPI counters above already do. Stored q.status values are never modified.
+  if(fStatus!=='all'){
+    var _statusPairs = { draft:['مسودة','draft'], sent:['مُرسَل','sent'], accepted:['مقبول','accepted'], rejected:['مرفوض','rejected'] };
+    var _accepted = _statusPairs[fStatus] || [];
+    quotes = quotes.filter(function(q){ return _accepted.indexOf(q.status) >= 0; });
+  }
+  // Date-range filter — inclusive on both ends, using the SAME date source the rest of
+  // the page already uses (createdAt || date). Plain YYYY-MM-DD string comparison, so
+  // there is no Date parsing and therefore no timezone drift.
+  if(fFrom) quotes = quotes.filter(function(q){ var d=(q.createdAt||q.date||'').slice(0,10); return d && d >= fFrom; });
+  if(fTo)   quotes = quotes.filter(function(q){ var d=(q.createdAt||q.date||'').slice(0,10); return d && d <= fTo; });
   if(fSearch) quotes = quotes.filter(function(q){ return (q.client||'').toLowerCase().includes(fSearch)||(q.id||'').toLowerCase().includes(fSearch); });
   
   // KPIs
@@ -4515,7 +4554,7 @@ function renderQuotes(sc){
   fb.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px';
   
   // Search
-  fb.innerHTML = '<input placeholder="'+t('بحث...','Search...')+'" value="'+(window._quoteFilterSearch||'')+'" oninput="window._quoteFilterSearch=this.value;renderQuotes(this.closest(\'[id]\'))" class="fc" style="flex:1;min-width:120px"/>';
+  fb.innerHTML = '<input placeholder="'+t('بحث...','Search...')+'" value="'+(window._quoteFilterSearch||'')+'" oninput="window._quoteFilterSearch=this.value;renderQuotes(this.closest(\'[id]\'))" class="fc" style="flex:1 1 160px;min-width:140px"/>';
   
   // Employee filter (ops only)
   if(isOps){
@@ -4524,24 +4563,29 @@ function renderQuotes(sc){
     fb.innerHTML += '<select onchange="window._quoteFilterEmployee=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:90px"><option value="all">'+t('كل الموظفين','All Staff')+'</option>'+emps.map(function(e){return '<option value="'+e+'"'+(fEmployee===e?' selected':'')+'>'+e+'</option>'}).join('')+'</select>';
   }
   
-  // Month filter
-  var months=['01','02','03','04','05','06','07','08','09','10','11','12'];
-  var mNames = getMonthNamesLocalized();
-  fb.innerHTML += '<select onchange="window._quoteFilterMonth=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:70px"><option value="all">'+t('كل الشهور','All Months')+'</option>'+months.map(function(m,i){return '<option value="'+m+'"'+(fMonth===m?' selected':'')+'>'+mNames[i]+'</option>'}).join('')+'</select>';
-  
-  // Year filter
-  var years = [];
-  allQuotes.forEach(function(q){ var d=q.createdAt||q.date||''; var y=d.slice(0,4); if(y&&years.indexOf(y)<0) years.push(y); });
-  if(years.indexOf('2025')<0) years.push('2025');
-  if(years.indexOf('2026')<0) years.push('2026');
-  if(years.indexOf('2027')<0) years.push('2027');
-  years.sort();
-  fb.innerHTML += '<select onchange="window._quoteFilterYear=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="min-width:60px"><option value="all">'+t('كل السنوات','All Years')+'</option>'+years.map(function(y){return '<option value="'+y+'"'+(fYear===y?' selected':'')+'>'+y+'</option>'}).join('')+'</select>';
+  // Status (الإجراء) filter — replaces the former month/year pair
+  var _statusOpts = [['all',t('كل الحالات','All Statuses')],['draft',t('مسودة','Draft')],['sent',t('مُرسَل','Sent')],['accepted',t('مقبول','Accepted')],['rejected',t('مرفوض','Rejected')]];
+  fb.innerHTML += '<select onchange="window._quoteFilterStatus=this.value;renderQuotes(document.getElementById(\'salesContent\'))" class="fc" style="width:110px;flex:0 0 auto" title="'+t('الإجراء','Status')+'">'
+    + _statusOpts.map(function(o){ return '<option value="'+o[0]+'"'+(fStatus===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('') + '</select>';
+
+  // Date range (من / إلى) — inclusive, validated
+  fb.innerHTML += '<input type="date" id="qFilterFrom" value="'+fFrom+'" class="fc" style="width:135px;flex:0 0 auto" title="'+t('من تاريخ','From date')+'" onchange="applyQuoteDateFilter()"/>';
+  fb.innerHTML += '<input type="date" id="qFilterTo" value="'+fTo+'" class="fc" style="width:135px;flex:0 0 auto" title="'+t('إلى تاريخ','To date')+'" onchange="applyQuoteDateFilter()"/>';
+  fb.innerHTML += '<button onclick="resetQuoteFilters()" style="flex:0 0 auto;background:rgba(106,133,165,.15);border:1px solid rgba(106,133,165,.3);border-radius:8px;color:#8BABC9;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap" title="'+t('إعادة تعيين','Reset')+'">↺ '+t('إعادة تعيين','Reset')+'</button>';
   
   // New quote button
   fb.innerHTML += '<button onclick="exportQuotesExcel()" style="background:rgba(35,160,181,.15);border:1px solid rgba(35,160,181,.3);border-radius:8px;color:#23A0B5;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap" title="'+t('تصدير Excel','Export Excel')+'">📊 Excel</button>';
   fb.innerHTML += '<button onclick="openQuoteModal()" style="background:#1A8A5A;border:none;border-radius:8px;color:white;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">+ '+t('عرض سعر جديد','New Quote')+'</button>';
   sc.appendChild(fb);
+
+  // Results counter — the denominator is the user's OWN permitted set (allQuotes after
+  // lsQuotes() + the existing role filter), never the global total, so it can never
+  // reveal the existence of records outside the viewer's permission scope.
+  var _permitted = isOps ? allQuotes.length : allQuotes.filter(function(q){ return q.salesperson===CU.name || q.createdBy===CU.name; }).length;
+  var counter = document.createElement('div');
+  counter.style.cssText = 'color:#6A85A5;font-size:11px;margin-bottom:10px';
+  counter.innerHTML = t('عرض ','Showing ')+'<b style="color:#C9A84C">'+quotes.length+'</b>'+t(' من أصل ',' of ')+'<b style="color:#8BABC9">'+_permitted+'</b>'+t(' عرض',' quotes');
+  sc.appendChild(counter);
   
   // Table
   var tbl = document.createElement('div');
