@@ -111,7 +111,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.72</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.73</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -207,6 +207,8 @@ input[type=date].fc{color-scheme:dark}
       <div id="page-salescalls" class="page"></div>
       <div id="page-recovery" class="page"></div>
       <div id="page-lostclients" class="page"></div>
+      <div id="page-quarterlytargets" class="page"></div>
+      <div id="page-quarterlyeval" class="page"></div>
       <div id="page-clients" class="page"></div>
     <div class="page" id="page-reports"></div>
     <div class="page" id="page-perms"></div>
@@ -934,6 +936,8 @@ const NAV = [
       {key:'sales-calls',      label:'الاتصالات',           icon:'📞', page:'salescalls'},
       {key:'sales-recovery',   label:'العملاء المستعادون',  icon:'♻️', page:'recovery'},
       {key:'sales-lostclients', label:'العملاء المفقودون',   icon:'⚠️', page:'lostclients'},
+      {key:'sales-quarterly-targets', label:'أهداف المبيعات الربعية', icon:'🎯', page:'quarterlytargets'},
+      {key:'sales-quarterly-evaluation', label:'التقييم الربعي الرسمي', icon:'📋', page:'quarterlyeval'},
     ]
   },
   {
@@ -1152,6 +1156,7 @@ async function save(){
       })(),
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
       salesTargets:    Object.assign({}, remote.salesTargets||{}, JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}')),
+      quarterlyTargets: Object.assign({}, remote.quarterlyTargets||{}, JSON.parse(localStorage.getItem('tf4_quarterly_targets')||'{}')),
       dailyReports:    mergeArrays(JSON.parse(localStorage.getItem('tf4_daily')||'[]'), remote.dailyReports, []),
       salesCalls:      mergeArrays(JSON.parse(localStorage.getItem('tf4_sales_calls')||'[]'), remote.salesCalls, []), // NEW: same mergeArrays pattern as dailyReports/leads — zero change to mergeArrays() itself
       trainees:        mergeArrays(DB.trainees||[], remote.trainees, []),
@@ -1356,7 +1361,8 @@ async function loadFromGist(){
     if(data.userPerms) localStorage.setItem('tf4_user_perms', JSON.stringify(data.userPerms));
     if(data.salesTargets) localStorage.setItem('tf4_sales_targets', JSON.stringify(Object.assign({}, data.salesTargets, JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}'))));
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
-    if(data.salesCalls) localStorage.setItem('tf4_sales_calls', JSON.stringify(data.salesCalls)); // NEW: identical pattern to dailyReports
+    if(data.salesCalls) localStorage.setItem('tf4_sales_calls', JSON.stringify(data.salesCalls));
+    if(data.quarterlyTargets) localStorage.setItem('tf4_quarterly_targets', JSON.stringify(data.quarterlyTargets)); // NEW: identical pattern to dailyReports
     if(data.trainees){
       var localTe = DB.trainees || [];
       var remoteTeIds = {};
@@ -2085,6 +2091,8 @@ function renderPage(p){
   else if(p==='salescalls') renderSalesCallsPage();
   else if(p==='recovery')   renderClientRecoveryPage();
   else if(p==='lostclients') renderLostClientsPage();
+  else if(p==='quarterlytargets') renderQuarterlyTargetsPage();
+  else if(p==='quarterlyeval') renderQuarterlyEvaluationPage();
   else if(p==='prom_test')     renderPromPage('prom_test');
   else if(p==='prom_training') renderPromPage('prom_training');
   else if(p==='prom_safety')   renderPromPage('prom_safety');
@@ -11036,6 +11044,306 @@ function computeSalesPerformanceScore(employeeName, fromDate, toDate){
     normalizedScore: normalizedScore,                      // e.g. 67.08 — OPTIONAL, comparison-only, explicitly labeled
     naComponents: components.filter(function(c2){ return !c2.included; }) // for direct listing with reasons
   };
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  QUARTERLY OFFICIAL KPI EVALUATION — fully independent from
+//  computeSalesPerformanceScore(). Policy source: نموذج تقييم الأداء.xlsx (Quality
+//  Dept). Sales Target is QUARTERLY (not monthly-summed), per-employee, set by Ops,
+//  with a real audit trail. 450,000 is only the DEFAULT pre-fill — never hardcoded.
+// ════════════════════════════════════════════════════════════════
+var QKPI_WEIGHTS = { sales:0.65, collection:0.075, newClients:0.075, visits:0.05, profitability:0.15 };
+var QUARTERLY_TARGET_DEFAULT = 450000;
+
+function _qtKey(employeeName, quarter, year){
+  var qNum = String(quarter).replace(/[^0-9]/g,'');
+  return employeeName+'|Q'+qNum+'-'+year;
+}
+function getQuarterlyTargets(){ return JSON.parse(localStorage.getItem('tf4_quarterly_targets')||'{}'); }
+function setQuarterlyTarget(employeeName, quarter, year, amount){
+  var all = getQuarterlyTargets();
+  var key = _qtKey(employeeName, quarter, year);
+  var existing = all[key];
+  var oldAmount = existing ? existing.amount : null;
+  var entry = {
+    employee: employeeName, quarter: (typeof quarter==='string'&&quarter.indexOf('Q')===0)?quarter:('Q'+quarter), year: year, amount: amount,
+    setBy: CU ? CU.name : '—', updatedAt: new Date().toISOString(),
+    createdAt: existing ? existing.createdAt : new Date().toISOString(),
+    history: (existing ? existing.history : []).concat([{ oldAmount: oldAmount, newAmount: amount, changedBy: CU?CU.name:'—', changedAt: new Date().toISOString() }])
+  };
+  all[key] = entry;
+  localStorage.setItem('tf4_quarterly_targets', JSON.stringify(all));
+  save();
+  return entry;
+}
+function getQuarterlyTarget(employeeName, quarter, year){
+  var all = getQuarterlyTargets();
+  return all[_qtKey(employeeName, quarter, year)] || null;
+}
+function _quarterOf(dateStr){ var m = parseInt(dateStr.slice(5,7),10); return Math.floor((m-1)/3)+1; }
+
+function computeQuarterlyKPI(employeeName, quarterStart, quarterEnd){
+  var year = parseInt(quarterStart.slice(0,4),10);
+  var quarter = _quarterOf(quarterStart);
+  var result = { employee: employeeName, quarterStart: quarterStart, quarterEnd: quarterEnd, quarter:quarter, year:year, axes: {} };
+
+  var qt = getQuarterlyTarget(employeeName, quarter, year);
+  var actualSales = (DB.invoices||[]).filter(function(inv){
+    var d=(inv.invoiceDate||inv.date||'').slice(0,10);
+    return (inv.salesPerson||inv.createdBy)===employeeName && d>=quarterStart && d<=quarterEnd;
+  }).reduce(function(s,inv){ return s+(inv.amount||0); },0);
+
+  if(!qt || !qt.amount){
+    result.axes.sales = { actual:actualSales, target:null, achievement:null, na:true, reason:'N/A — لم يُحدَّد Target ربعي لهذا الموظف من مدير التشغيل' };
+  } else {
+    var target = qt.amount;
+    var floor = target * 0.30;
+    var salesAch;
+    if(actualSales <= floor) salesAch = 0;
+    else if(actualSales < target) salesAch = (actualSales-floor)/(target-floor);
+    else salesAch = actualSales/target;
+    result.axes.sales = { actual:actualSales, target:target, floor:floor, achievement:salesAch, na:false, targetSetBy:qt.setBy, targetUpdatedAt:qt.updatedAt };
+  }
+
+  var collectedActual = (DB.invoices||[]).filter(function(inv){
+    var d=(inv.invoiceDate||inv.date||'').slice(0,10);
+    return (inv.salesPerson||inv.createdBy)===employeeName && inv.status==='مدفوع' && d>=quarterStart && d<=quarterEnd;
+  }).reduce(function(s,inv){ return s+(inv.amount||0); },0);
+  result.axes.collection = { actual:collectedActual, target:null, achievement:null, na:true,
+    reason:'N/A — لا يوجد مصدر موثوق للمستحقات المستهدفة (Collection Target) في CRM حالياً' };
+
+  var newClientsCount = getClients().filter(function(c2){ return c2.addedBy===employeeName && c2.addedAt>=quarterStart && c2.addedAt<=quarterEnd; }).length;
+  var ncAch;
+  if(newClientsCount<=3) ncAch=0; else if(newClientsCount<=6) ncAch=0.75; else ncAch=1;
+  result.axes.newClients = { actual:newClientsCount, tiers:'≤3=0% | 4-6=75% | 7+=100%', achievement:ncAch, na:false };
+
+  var months = []; var cursor = new Date(quarterStart);
+  while(cursor <= new Date(quarterEnd)){ months.push(cursor.toISOString().slice(0,7)); cursor.setMonth(cursor.getMonth()+1); }
+  var monthlyVisits = months.map(function(mk){
+    var count = getSalesCalls().filter(function(c2){ return c2.employee===employeeName && c2.date.slice(0,7)===mk && c2.type==='زيارة'; }).length;
+    var perf; if(count<4) perf=0; else if(count===4) perf=0.75; else perf=1;
+    return { month:mk, visitCount:count, monthlyPerformance:perf };
+  });
+  result.axes.visits = { monthly: monthlyVisits, achievement:null, na:true,
+    reason:'N/A — طريقة تجميع الأداء الشهري إلى نتيجة ربع سنوية واحدة لم تُعتمَد رسمياً بعد (معلَّقة بانتظار قرار الإدارة)' };
+
+  result.axes.profitability = { actual:null, target:null, achievement:null, na:true, reason:'N/A — لا يوجد مصدر موثوق لتكلفة العقد أو هامش الربح في CRM حالياً' };
+
+  var weightedSum = 0, evaluableWeight = 0;
+  Object.keys(QKPI_WEIGHTS).forEach(function(k){
+    var ax = result.axes[k]; var w = QKPI_WEIGHTS[k];
+    if(!ax.na){ weightedSum += ax.achievement*w; evaluableWeight += w; }
+  });
+  result.rawWeightedScore = Math.round(weightedSum*10000)/100;
+  result.evaluableWeight = Math.round(evaluableWeight*10000)/100;
+  result.coverage = result.evaluableWeight;
+  result.normalizedAvailableScore = evaluableWeight>0 ? Math.round((weightedSum/evaluableWeight)*10000)/100 : null;
+  return result;
+}
+
+var QKPI_TEMPLATE_URL = 'https://raw.githubusercontent.com/TUV-CRM/trainflow-crm/main/quarterly_kpi_template.xlsx';
+
+async function exportQuarterlyKPIExcel(employeeName, quarterStart, quarterEnd){
+  if(typeof ExcelJS==='undefined'){ showSuccessToast('⚠️ ExcelJS لم تُحمَّل بعد'); return; }
+  var resp = await fetch(QKPI_TEMPLATE_URL);
+  if(!resp.ok){ showSuccessToast('⚠️ تعذّر تحميل القالب الرسمي'); return; }
+  var buf = await resp.arrayBuffer();
+  var wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  var ws = wb.worksheets[0];
+
+  var r = computeQuarterlyKPI(employeeName, quarterStart, quarterEnd);
+
+  var _axisCells = { sales:'J15', collection:'J21', newClients:'J27', visits:'J33', profitability:'J39' };
+  var hasNA = false;
+  Object.keys(_axisCells).forEach(function(k){
+    var cell = ws.getCell(_axisCells[k]);
+    if(r.axes[k].na){ hasNA = true; cell.value = null; }
+    else { cell.value = r.axes[k].achievement; }
+  });
+
+  ws.getCell('C8').value = 'الاسم: ' + employeeName;
+
+  if(hasNA){
+    ws.getCell('H45').value = '⚠️ جزئي — راجع C49';
+    ws.getCell('H45').numFmt = '@';
+  }
+  var naNotes = [];
+  Object.keys(r.axes).forEach(function(k){ if(r.axes[k].na) naNotes.push(k+': '+r.axes[k].reason); });
+  var noteLines = [
+    'Raw Weighted Score: '+r.rawWeightedScore+' / '+r.evaluableWeight,
+    'Evaluation Coverage: '+r.coverage+'%',
+    'Normalized Available Score: '+(r.normalizedAvailableScore!==null?r.normalizedAvailableScore+'%':'N/A')
+  ];
+  if(naNotes.length) noteLines.push('N/A: '+naNotes.join(' | '));
+  ws.getCell('C49').value = noteLines.join('  |  ');
+  ws.getCell('C49').numFmt = '@';
+
+  var outBuf = await wb.xlsx.writeBuffer();
+  var blob = new Blob([outBuf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'تقييم_أداء_'+employeeName+'_Q'+r.quarter+'-'+r.year+'.xlsx';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  showSuccessToast('✅ تم تصدير التقييم الربعي');
+  return r;
+}
+
+// ── NEW UI PAGE (Phase B) — Ops-only, reuses the above functions unchanged ──
+
+// ════════════════════════════════════════════════════════════════
+//  QUARTERLY OFFICIAL EVALUATION PAGE (Phase C) — pure display + export UI.
+//  Reads ONLY from computeQuarterlyKPI() (unchanged) and calls
+//  exportQuarterlyKPIExcel() (unchanged) directly. No new calculation logic here.
+// ════════════════════════════════════════════════════════════════
+var QKPI_AXIS_LABELS = {
+  sales:'المبيعات', collection:'التحصيل', newClients:'تطوير الأعمال / العملاء الجدد',
+  visits:'التقارير / الزيارات', profitability:'الربحية'
+};
+
+function renderQuarterlyEvaluationPage(){
+  var pg = document.getElementById('page-quarterlyeval');
+  if(!pg) return;
+  var isOps = CU && CU.dept==='ops';
+  if(!isOps){
+    pg.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted,#6A85A5)">🔒 '+(isAR()?'هذه الصفحة متاحة حصراً لمدير التشغيل':'This page is restricted to Operations Manager')+'</div>';
+    return;
+  }
+
+  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var selEmployee = window._qeSelEmployee || (salesUsers[0] ? salesUsers[0].name : '');
+  var selYear = window._qeSelYear || new Date().getFullYear();
+  var selQuarter = window._qeSelQuarter || (Math.floor(new Date().getMonth()/3)+1);
+  var qNum = parseInt(String(selQuarter).replace(/[^0-9]/g,''),10);
+  var qStart = new Date(selYear, (qNum-1)*3, 1);
+  var qEnd = new Date(selYear, qNum*3, 0);
+  var quarterStart = qStart.toISOString().slice(0,10);
+  var quarterEnd = qEnd.toISOString().slice(0,10);
+
+  var html = '<div class="page-header"><div><div class="page-title">📋 '+(isAR()?'التقييم الربعي الرسمي':'Official Quarterly Evaluation')+'</div>'
+    +'<div class="page-sub">'+(isAR()?'وفق نموذج تقييم الأداء الصادر عن إدارة الجودة':'Per the Quality Department official evaluation template')+'</div></div></div>';
+
+  html += '<div class="card" style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
+    +'<div><label style="color:#8BABC9;font-size:11px;display:block;margin-bottom:5px">'+(isAR()?'الموظف':'Employee')+'</label>'
+    +'<select id="qeEmployee" class="fc" style="min-width:160px" onchange="window._qeSelEmployee=this.value;renderQuarterlyEvaluationPage()">'+salesUsers.map(function(u){return '<option value="'+u.name+'"'+(u.name===selEmployee?' selected':'')+'>'+u.name+'</option>';}).join('')+'</select></div>'
+    +'<div><label style="color:#8BABC9;font-size:11px;display:block;margin-bottom:5px">'+(isAR()?'السنة':'Year')+'</label>'
+    +'<select id="qeYear" class="fc" style="width:100px" onchange="window._qeSelYear=parseInt(this.value);renderQuarterlyEvaluationPage()">'+[selYear-1,selYear,selYear+1].map(function(y){return '<option value="'+y+'"'+(y===selYear?' selected':'')+'>'+y+'</option>';}).join('')+'</select></div>'
+    +'<div><label style="color:#8BABC9;font-size:11px;display:block;margin-bottom:5px">'+(isAR()?'الربع':'Quarter')+'</label>'
+    +'<select id="qeQuarter" class="fc" style="width:90px" onchange="window._qeSelQuarter=this.value;renderQuarterlyEvaluationPage()">'+['Q1','Q2','Q3','Q4'].map(function(q,i){return '<option value="'+(i+1)+'"'+((i+1)===qNum?' selected':'')+'>'+q+'</option>';}).join('')+'</select></div>'
+    +'<button class="btn btn-teal" onclick="exportQuarterlyKPIExcel(document.getElementById(\'qeEmployee\').value, \''+quarterStart+'\', \''+quarterEnd+'\')">📊 '+(isAR()?'تصدير Excel':'Export Excel')+'</button>'
+    +'</div></div>';
+
+  if(!selEmployee){ pg.innerHTML = html + '<div style="padding:40px;text-align:center;color:var(--text-muted,#6A85A5)">'+(isAR()?'لا يوجد موظفو مبيعات':'No sales employees')+'</div>'; return; }
+
+  // ═ PURE READ — no new calculation, direct call to the unchanged existing function ═
+  var r = computeQuarterlyKPI(selEmployee, quarterStart, quarterEnd);
+
+  html += '<div class="card" style="margin-top:14px"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['المحور','الوزن','Actual','Target','الأداء'].map(function(h){return '<th style="padding:8px;text-align:right;color:var(--text-muted,#6A85A5);font-size:10px">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    + Object.keys(QKPI_WEIGHTS).map(function(k){
+        var ax = r.axes[k];
+        var weightPct = Math.round(QKPI_WEIGHTS[k]*1000)/10 + '%';
+        var actualDisp = ax.actual!==null && ax.actual!==undefined ? (typeof ax.actual==='number' ? ax.actual.toLocaleString() : ax.actual) : '—';
+        var targetDisp = ax.target!==null && ax.target!==undefined ? ax.target.toLocaleString() : '—';
+        var achDisp = ax.na ? ('<span style="color:#E67E22">⚠️ '+ax.reason+'</span>') : (Math.round(ax.achievement*100)+'%');
+        return '<tr style="border-top:1px solid rgba(26,46,74,.3)"><td style="padding:8px;font-weight:700">'+QKPI_AXIS_LABELS[k]+'</td>'
+          +'<td style="padding:8px">'+weightPct+'</td><td style="padding:8px">'+actualDisp+'</td><td style="padding:8px">'+targetDisp+'</td>'
+          +'<td style="padding:8px">'+achDisp+'</td></tr>';
+      }).join('')
+    +'</tbody></table></div>';
+
+  // ═ Monthly visits detail (from r.axes.visits.monthly — already computed) ═
+  if(r.axes.visits.monthly && r.axes.visits.monthly.length){
+    html += '<div class="card" style="margin-top:14px"><div style="color:#8BABC9;font-size:11px;font-weight:700;margin-bottom:8px">📅 '+(isAR()?'تفصيل الزيارات الشهرية':'Monthly Visits Detail')+'</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+      + r.axes.visits.monthly.map(function(m){ return '<div style="background:#0B1E3D;border-radius:8px;padding:8px 14px;text-align:center"><div style="color:#6A85A5;font-size:9px">'+m.month+'</div><div style="color:#F5F7FA;font-weight:700">'+m.visitCount+' '+(isAR()?'زيارة':'visits')+'</div><div style="color:#C9A84C;font-size:10px">'+Math.round(m.monthlyPerformance*100)+'%</div></div>'; }).join('')
+      +'</div></div>';
+  }
+
+  // ═ Summary — Raw / Coverage / Normalized ═
+  html += '<div class="kpi-grid" style="margin-top:14px">'
+    +'<div class="kpi"><div class="kpi-label">Raw Weighted Score</div><div class="kpi-value">'+r.rawWeightedScore+' / '+r.evaluableWeight+'</div></div>'
+    +'<div class="kpi"><div class="kpi-label">Evaluation Coverage</div><div class="kpi-value">'+r.coverage+'%</div></div>'
+    +'<div class="kpi"><div class="kpi-label">Normalized Available Score</div><div class="kpi-value">'+(r.normalizedAvailableScore!==null?r.normalizedAvailableScore+'%':'N/A')+'</div></div>'
+    +'</div>';
+
+  pg.innerHTML = html;
+}
+
+function renderQuarterlyTargetsPage(){
+  var pg = document.getElementById('page-quarterlytargets');
+  if(!pg) return;
+  var isOps = CU && CU.dept==='ops';
+  if(!isOps){
+    pg.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted,#6A85A5)">🔒 '+(isAR()?'هذه الصفحة متاحة حصراً لمدير التشغيل':'This page is restricted to Operations Manager')+'</div>';
+    return;
+  }
+  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var selYear = window._qtSelYear || new Date().getFullYear();
+  var selQuarter = window._qtSelQuarter || ('Q'+(Math.floor(new Date().getMonth()/3)+1));
+
+  var html = '<div class="page-header"><div><div class="page-title">🎯 '+(isAR()?'أهداف المبيعات الربعية':'Quarterly Sales Targets')+'</div>'
+    +'<div class="page-sub">'+(isAR()?'تحديد هدف مبيعات كل موظف لكل ربع — يُستخدَم في تقييم الأداء الربعي الرسمي':'Set each employee\'s quarterly sales target')+'</div></div></div>';
+
+  html += '<div class="card" style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
+    +'<div><label style="color:#8BABC9;font-size:11px;display:block;margin-bottom:5px">'+(isAR()?'الموظف':'Employee')+'</label>'
+    +'<select id="qtEmployee" class="fc" style="min-width:160px">'+salesUsers.map(function(u){return '<option value="'+u.name+'">'+u.name+'</option>';}).join('')+'</select></div>'
+    +'<div><label style="color:#8BABC9;font-size:11px;display:block;margin-bottom:5px">'+(isAR()?'السنة':'Year')+'</label>'
+    +'<select id="qtYear" class="fc" style="width:100px">'+[selYear-1,selYear,selYear+1].map(function(y){return '<option value="'+y+'"'+(y===selYear?' selected':'')+'>'+y+'</option>';}).join('')+'</select></div>'
+    +'<div><label style="color:#8BABC9;font-size:11px;display:block;margin-bottom:5px">'+(isAR()?'الربع':'Quarter')+'</label>'
+    +'<select id="qtQuarter" class="fc" style="width:90px">'+['Q1','Q2','Q3','Q4'].map(function(q){return '<option value="'+q+'"'+(q===selQuarter?' selected':'')+'>'+q+'</option>';}).join('')+'</select></div>'
+    +'<div><label style="color:#8BABC9;font-size:11px;display:block;margin-bottom:5px">'+(isAR()?'الهدف (ريال)':'Target (SAR)')+'</label>'
+    +'<input type="number" id="qtAmount" class="fc" style="width:150px" value="450000" min="0" step="1000"/></div>'
+    +'<button class="btn btn-teal" onclick="submitQuarterlyTarget()">'+(isAR()?'💾 حفظ الهدف':'💾 Save Target')+'</button>'
+    +'</div></div>';
+
+  var all = getQuarterlyTargets();
+  var rows = Object.keys(all).map(function(k){ return all[k]; }).sort(function(a,b){
+    return (b.year-a.year) || b.quarter.localeCompare(a.quarter) || a.employee.localeCompare(b.employee);
+  });
+
+  html += '<div class="card" style="margin-top:14px"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['الموظف','السنة','الربع','الهدف الحالي','آخر تحديث','بواسطة',''].map(function(h){return '<th style="padding:8px;text-align:right;color:var(--text-muted,#6A85A5);font-size:10px">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    + rows.map(function(t,i){ return ''
+        +'<tr style="border-top:1px solid rgba(26,46,74,.3)">'
+        +'<td style="padding:8px">'+t.employee+'</td>'
+        +'<td style="padding:8px">'+t.year+'</td>'
+        +'<td style="padding:8px">'+t.quarter+'</td>'
+        +'<td style="padding:8px;font-weight:700;color:#C9A84C">SAR '+t.amount.toLocaleString()+'</td>'
+        +'<td style="padding:8px;font-size:11px;color:#6A85A5">'+t.updatedAt.slice(0,10)+'</td>'
+        +'<td style="padding:8px;font-size:11px">'+t.setBy+'</td>'
+        +'<td style="padding:8px"><button onclick="toggleQTHistory('+i+')" style="background:none;border:1px solid rgba(106,133,165,.3);border-radius:6px;color:#8BABC9;padding:4px 10px;font-size:10px;cursor:pointer">'+(isAR()?'▾ السجل':'▾ History')+'</button></td>'
+        +'</tr>'
+        +'<tr id="qtHistRow'+i+'" style="display:none"><td colspan="7" style="padding:10px 8px;background:#0B1E3D">'
+        + (t.history||[]).map(function(h){ return '<div style="font-size:10px;color:#8BABC9;padding:3px 0">'
+            + (h.oldAmount!==null ? ('SAR '+h.oldAmount.toLocaleString()) : (isAR()?'(جديد)':'(new)'))
+            + ' ← SAR '+h.newAmount.toLocaleString()+' — '+h.changedBy+' — '+h.changedAt.slice(0,19).replace('T',' ')+'</div>'; }).join('')
+        +'</td></tr>';
+      }).join('')
+    + (rows.length? '' : '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted,#6A85A5)">'+(isAR()?'لا توجد أهداف محدَّدة بعد':'No targets set yet')+'</td></tr>')
+    +'</tbody></table></div>';
+
+  pg.innerHTML = html;
+}
+function toggleQTHistory(i){
+  var row = document.getElementById('qtHistRow'+i);
+  if(row) row.style.display = row.style.display==='none' ? 'table-row' : 'none';
+}
+function submitQuarterlyTarget(){
+  var employee = document.getElementById('qtEmployee').value;
+  var year = parseInt(document.getElementById('qtYear').value,10);
+  var quarter = document.getElementById('qtQuarter').value;
+  var amount = parseFloat(document.getElementById('qtAmount').value);
+  if(!employee || !amount || amount<=0){ showSuccessToast('⚠️ '+(isAR()?'أدخل قيمة هدف صحيحة':'Enter a valid target amount')); return; }
+  window._qtSelYear = year; window._qtSelQuarter = quarter;
+  setQuarterlyTarget(employee, quarter, year, amount);
+  showSuccessToast('✅ '+(isAR()?'تم حفظ الهدف':'Target saved'));
+  renderQuarterlyTargetsPage();
 }
 
 function renderNewClientsPage(){
