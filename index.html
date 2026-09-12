@@ -111,7 +111,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.74</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.75</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -11321,8 +11321,13 @@ function renderQuarterlyTargetsPage(){
         +'</tr>'
         +'<tr id="qtHistRow'+i+'" style="display:none"><td colspan="7" style="padding:10px 8px;background:#0B1E3D">'
         + (t.history||[]).map(function(h){ return '<div style="font-size:10px;color:#8BABC9;padding:3px 0">'
-            + (h.oldAmount!==null ? ('SAR '+h.oldAmount.toLocaleString()) : (isAR()?'(جديد)':'(new)'))
-            + ' ← SAR '+h.newAmount.toLocaleString()+' — '+h.changedBy+' — '+h.changedAt.slice(0,19).replace('T',' ')+'</div>'; }).join('')
+            // FIX: !==null misses `undefined` (loose data from an earlier state) — a
+            // history entry with oldAmount===undefined slipped through this check and
+            // crashed on undefined.toLocaleString(). Also guard newAmount defensively
+            // the same way, and coerce with Number(...)||0 in case a value is stored
+            // as a non-numeric type.
+            + ((h.oldAmount==null) ? (isAR()?'(جديد)':'(new)') : ('SAR '+Number(h.oldAmount).toLocaleString()))
+            + ' ← SAR '+Number(h.newAmount||0).toLocaleString()+' — '+(h.changedBy||'—')+' — '+(h.changedAt?h.changedAt.slice(0,19).replace('T',' '):'—')+'</div>'; }).join('')
         +'</td></tr>';
       }).join('')
     + (rows.length? '' : '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted,#6A85A5)">'+(isAR()?'لا توجد أهداف محدَّدة بعد':'No targets set yet')+'</td></tr>')
