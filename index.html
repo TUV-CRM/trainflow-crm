@@ -111,7 +111,7 @@ input[type=date].fc{color-scheme:dark}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
-<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.75</div>
+<div id="buildBadge" style="position:fixed;bottom:4px;left:6px;color:#3A5070;font-size:9px;z-index:99999;font-family:monospace;pointer-events:none">TrainFlow v7.76</div>
 <div id="loginScreen">
   <div class="login-card">
     <div style="text-align:center;margin-bottom:20px">
@@ -1156,6 +1156,7 @@ async function save(){
       })(),
       userPerms:       JSON.parse(localStorage.getItem('tf4_user_perms')||'{}'),
       salesTargets:    Object.assign({}, remote.salesTargets||{}, JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}')),
+      dynUsers:        JSON.parse(localStorage.getItem('tf4_dyn_users')||'null') || remote.dynUsers || null, // NEW: local edits win if present, else keep remote, else none yet
       quarterlyTargets: Object.assign({}, remote.quarterlyTargets||{}, JSON.parse(localStorage.getItem('tf4_quarterly_targets')||'{}')),
       dailyReports:    mergeArrays(JSON.parse(localStorage.getItem('tf4_daily')||'[]'), remote.dailyReports, []),
       salesCalls:      mergeArrays(JSON.parse(localStorage.getItem('tf4_sales_calls')||'[]'), remote.salesCalls, []), // NEW: same mergeArrays pattern as dailyReports/leads — zero change to mergeArrays() itself
@@ -1362,6 +1363,7 @@ async function loadFromGist(){
     if(data.salesTargets) localStorage.setItem('tf4_sales_targets', JSON.stringify(Object.assign({}, data.salesTargets, JSON.parse(localStorage.getItem('tf4_sales_targets')||'{}'))));
     if(data.dailyReports) localStorage.setItem('tf4_daily', JSON.stringify(data.dailyReports));
     if(data.salesCalls) localStorage.setItem('tf4_sales_calls', JSON.stringify(data.salesCalls));
+    if(data.dynUsers) localStorage.setItem('tf4_dyn_users', JSON.stringify(data.dynUsers));
     if(data.quarterlyTargets) localStorage.setItem('tf4_quarterly_targets', JSON.stringify(data.quarterlyTargets)); // NEW: identical pattern to dailyReports
     if(data.trainees){
       var localTe = DB.trainees || [];
@@ -12629,7 +12631,7 @@ function getDynUsers(){
   if(stored) return JSON.parse(stored);
   return JSON.parse(JSON.stringify(USERS)); // clone defaults
 }
-function saveDynUsers(users){ localStorage.setItem('tf4_dyn_users', JSON.stringify(users)); }
+function saveDynUsers(users){ localStorage.setItem('tf4_dyn_users', JSON.stringify(users)); save(); } // FIX: was never synced to Firebase — edits (email/phone/etc.) only ever persisted on the editing device's own browser
 
 function renderUsers(){
   const pg  = document.getElementById('page-users');
