@@ -6366,7 +6366,7 @@ function openSessionDetail(sessionIdx){
     
     {key:'eval',       label:t('⭐ التقييم','⭐ Evaluation'),      icon:'⭐'},
     {key:'report',     label:t('📊 التقرير','📊 Report'),          icon:'📊'},
-  ];
+  ].filter(function(tab){ return tab.key !== 'eval' || isCWQAPCourse(session.course); });
 
   const tabBar = document.createElement('div');
   tabBar.style.cssText = 'display:flex;gap:4px;padding:12px 16px;background:#060F1E;overflow-x:auto';
@@ -16961,13 +16961,31 @@ const EVAL_CRITERIA = [
   {id:'recommendation', ar:'توصية اختبار', en:'CWQAP Exam Recommendation', options:['Highly Confident','Confident','Somewhat Confident','Not Confident']},
 ];
 
-
+// Official CWQAP classification source: catId === 'cat1', checked against
+// (1) built-in courses inside TUV_CATEGORIES['cat1'].courses[] by exact name,
+// then (2) custom courses via getCustomCourses(), by their own stored catId.
+// No substring matching on the course name is used, per approved design.
+function isCWQAPCourse(courseName){
+  if(!courseName) return false;
+  try{
+    if(typeof TUV_CATEGORIES !== 'undefined'){
+      var cat1 = TUV_CATEGORIES.find(function(c){ return c.id === 'cat1'; });
+      if(cat1 && Array.isArray(cat1.courses) && cat1.courses.some(function(c){ return c.name === courseName; })){
+        return true;
+      }
+    }
+    if(typeof getCustomCourses === 'function'){
+      var custom = getCustomCourses() || [];
+      var match = custom.find(function(c){ return c.name === courseName; });
+      if(match && match.catId === 'cat1') return true;
+    }
+  }catch(e){ /* fail safe: treat as non-CWQAP on any lookup error */ }
+  return false;
+}
 
 function getEvalCriteria(courseName){
-  var crit = (typeof EVAL_CRITERIA!=='undefined') ? EVAL_CRITERIA.slice() : [];
-  var isCWQAP = courseName && (courseName.toLowerCase().includes('cwqap') || courseName.toLowerCase().includes('professional') || courseName.toLowerCase().includes('trade'));
-  if(!isCWQAP) crit = crit.filter(function(c){ return c.id !== 'recommendation'; });
-  return crit;
+  if(!isCWQAPCourse(courseName)) return [];
+  return (typeof EVAL_CRITERIA!=='undefined') ? EVAL_CRITERIA.slice() : [];
 }
 
 function renderEvalTab(el, session, data){
@@ -17223,16 +17241,18 @@ function renderSessionReport(el, session, data, sessionIdx){
   }
   el.appendChild(sec2);
 
-  // ── Section 3: Evaluation ──
-  const sec3 = document.createElement('div');
-  sec3.innerHTML = '<div style="color:#9B59B6;font-weight:700;font-size:13px;margin:14px 0 8px">📊 '+t('ثالثاً: التقييم','3. Evaluation')+'</div>';
-  const evalCount = attendance.filter(a=>evals[a.name]&&Object.keys(evals[a.name]).length>0).length;
-  if(evalCount){
-    sec3.innerHTML += '<div style="color:#6A85A5;font-size:12px;padding:10px">'+t('تم تقييم ','Evaluated ')+evalCount+t(' متدرب',' trainees')+'</div>';
-  } else {
-    sec3.innerHTML += '<div style="color:#6A85A5;font-size:12px;padding:10px">'+t('لم يتم التقييم بعد','No evaluations yet')+'</div>';
+  // ── Section 3: Evaluation (CWQAP courses only) ──
+  if(isCWQAPCourse(session.course)){
+    const sec3 = document.createElement('div');
+    sec3.innerHTML = '<div style="color:#9B59B6;font-weight:700;font-size:13px;margin:14px 0 8px">📊 '+t('ثالثاً: التقييم','3. Evaluation')+'</div>';
+    const evalCount = attendance.filter(a=>evals[a.name]&&Object.keys(evals[a.name]).length>0).length;
+    if(evalCount){
+      sec3.innerHTML += '<div style="color:#6A85A5;font-size:12px;padding:10px">'+t('تم تقييم ','Evaluated ')+evalCount+t(' متدرب',' trainees')+'</div>';
+    } else {
+      sec3.innerHTML += '<div style="color:#6A85A5;font-size:12px;padding:10px">'+t('لم يتم التقييم بعد','No evaluations yet')+'</div>';
+    }
+    el.appendChild(sec3);
   }
-  el.appendChild(sec3);
 
   // ── Full table ──
   const fullTbl = document.createElement('div');
@@ -17313,10 +17333,7 @@ function generateCompanyReport(sessionId, companyFilter){
   var avg = scoredList.length ? Math.round(scoredList.reduce(function(s,a){return s+(scores[a.name]||0)},0)/scoredList.length) : 0;
   var passCount = scoredList.filter(function(a){return (scores[a.name]||0)>=70}).length;
   var passRate = scoredList.length ? Math.round(passCount/scoredList.length*100) : 0;
-  var evalCritHeaders = typeof EVAL_CRITERIA!=='undefined' ? EVAL_CRITERIA : [];
-  // Only show CWQAP recommendation for CWQAP/professional courses
-  var isCWQAP = session.course && (session.course.toLowerCase().includes('cwqap') || session.course.toLowerCase().includes('professional') || session.course.toLowerCase().includes('trade'));
-  evalCritHeaders = getEvalCriteria(session.course);
+  var evalCritHeaders = getEvalCriteria(session.course);
 
   var html = '<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8"/>'
     +'<title>Training Report — '+(companyFilter||'All Companies')+'</title>'
