@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#060F1E"/>
+<title>TrainFlow CRM — غير متصل</title>
+<link rel="icon" href="icons/favicon-32.png" type="image/png"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#060F1E;color:#F5F7FA;font-family:'Cairo',Tahoma,Arial,sans-serif;padding:16px}
+.card{background:#0D1A2E;border:1px solid #1A2E4A;border-radius:18px;padding:30px 24px;max-width:420px;width:100%;text-align:center}
+img{width:64px;height:64px;border-radius:14px;margin-bottom:12px}
+h1{font-size:19px;margin-bottom:8px}
+p{color:#9BB0C9;font-size:13px;line-height:1.9}
+.en{direction:ltr;margin-top:14px;padding-top:14px;border-top:1px solid #1A2E4A}
+button{margin-top:18px;background:#1A7A8A;color:#fff;border:none;border-radius:9px;padding:11px 26px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<div class="card">
+  <img src="icons/icon-192.png" alt="TrainFlow"/>
+  <h1>لا يوجد اتصال بالإنترنت</h1>
+  <p>يحتاج TrainFlow CRM إلى الإنترنت لتسجيل الدخول وقراءة البيانات وحفظها.<br/>تحقق من الاتصال ثم اضغط «إعادة المحاولة».</p>
+  <p class="en">No internet connection. TrainFlow CRM needs the internet to sign in, read and save data. Check your connection and tap “Try again”.</p>
+  <button onclick="location.reload()">إعادة المحاولة / Try again</button>
+</div>
+<script>window.addEventListener('online',function(){location.reload();});</script>
+</body>
+</html>
