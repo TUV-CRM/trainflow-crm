@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="TrainFlow"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://trainflow-crm1-default-rtdb.asia-southeast1.firebasedatabase.app wss://trainflow-crm1-default-rtdb.asia-southeast1.firebasedatabase.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.github.com https://raw.githubusercontent.com https://cdnjs.cloudflare.com; frame-src 'self' blob: data:; worker-src 'self' blob:; media-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://trainflow-crm1-default-rtdb.asia-southeast1.firebasedatabase.app wss://trainflow-crm1-default-rtdb.asia-southeast1.firebasedatabase.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.github.com https://raw.githubusercontent.com https://cdnjs.cloudflare.com; frame-src 'self' blob: data:; worker-src 'self' blob:; media-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <script>
 /* ── _51 XSS GUARD ─────────────────────────────────────────────────────────────
    Text that looks like code (HTML tags, on…= handlers, javascript:, quote-breakouts, HTML entities)
@@ -298,6 +298,7 @@ input[type=date].fc{color-scheme:dark}
       <div id="page-sales" class="page"></div>
       <div id="page-trainers" class="page"></div>
       <div id="page-training" class="page"></div>
+      <div id="page-certs" class="page"></div>
       <div id="page-finance" class="page"></div>
       <div id="page-trainees" class="page"></div>
       <div id="page-catalog" class="page"></div>
@@ -1278,6 +1279,7 @@ const NAV = [
     children:[
       {key:'training-courses',   label:'الدورات',             icon:'📚', page:'training'},
       {key:'training-schedule',  label:'الجداول التدريبية',   icon:'📅', page:'training'},
+      {key:'training-certs',     label:'الشهادات والبطاقات',  icon:'🎓', page:'certs', _cert:true}, // _64
     ]
   },
   {
@@ -1807,7 +1809,7 @@ const UI = {
       sales:{label:'إدارة المبيعات',children:{ops:'عملية البيع',leads:'متابعة العملاء',quotes:'عروض الأسعار',invoices:'الفواتير',daily:'نشاط اليوم',kpi:'مؤشرات قياس الأداء',newclients:'العملاء الجدد',calls:'الاتصالات',recovery:'العملاء المستعادون',lostclients:'العملاء المفقودون'}},
       daily:{label:'نشاط اليوم',children:{main:'تقرير اليوم'}},
       trainers:{label:'إدارة المدربين',children:{list:'قائمة المدربين',perf:'أداء المدربين'}},
-      training:{label:'إدارة التدريب',children:{courses:'الدورات',schedule:'الجداول التدريبية'}},
+      training:{label:'إدارة التدريب',children:{courses:'الدورات',schedule:'الجداول التدريبية',certs:'الشهادات والبطاقات'}},
       finance:{label:'المالية',children:{invoices:'الفواتير',payments:'المدفوعات'}},
       trainees:{label:'المتدربون',children:{active:'المتدربون النشطون',grads:'الخريجون'}},
       catalog:{label:'كتالوج الدورات',children:{main:'الدورات والأسعار'}},
@@ -1846,7 +1848,7 @@ const UI = {
       sales:{label:'Sales Management',children:{ops:'Point of Sale',leads:'Leads',quotes:'Quotations',invoices:'Invoices',daily:'Daily Activity',kpi:'Performance KPIs',newclients:'New Clients',calls:'Calls',recovery:'Recovered Clients',lostclients:'Lost Clients'}},
       daily:{label:'Daily Activity',children:{main:"Today's Report"}},
       trainers:{label:'Trainers',children:{list:'Trainer List',perf:'Performance'}},
-      training:{label:'Training Management',children:{courses:'Courses',schedule:'Training Schedule'}},
+      training:{label:'Training Management',children:{courses:'Courses',schedule:'Training Schedule',certs:'Certificates & ID Cards'}},
       finance:{label:'Finance',children:{invoices:'Invoices',payments:'Payments'}},
       trainees:{label:'Trainees',children:{active:'Active Trainees',grads:'Graduates'}},
       catalog:{label:'Course Catalog',children:{main:'Courses & Pricing'}},
@@ -2349,6 +2351,7 @@ function buildSidebar(){
     // Check if user can access any child in this section
     const accessibleChildren = section.children.filter(ch=>{
       if(ch._sec) return _secUserCanView(); // _38: added course section — inherits the Trainees unit permission
+      if(ch._cert) return _certCanView();   // _64: certificates & ID cards — ops, or the explicit «training-certs» permission
       // Check old page-level permission
       if(!CU.pages.includes(ch.page)) return false;
       // Check granular sub-page permission (if configured)
@@ -2463,6 +2466,7 @@ function navigate(page){
 }
 function navigatePage(page){
   const _isSecPage = _secIsCustom(page);
+  if(page==='certs'){ if(!CU || !_certCanView()){ showDenied('ops'); return; } } else // _64
   if(!CU || (_isSecPage ? !_secUserCanView() : !CU.pages.includes(page))){showDenied(page);return;}
   if(_isSecPage) _secEnsurePageEl(page);
   activePage = page;
@@ -2490,6 +2494,7 @@ function renderPage(p){
   else if(p==='finance')  renderFinanceSystem();
   else if(p==='trainees') renderTrainees();
   else if(p==='catalog')  renderCatalog();
+  else if(p==='certs')    renderCertsPage(); // _64
   else if(p==='users')    renderUsers();
   else if(p==='salesperf') renderSalesPerf();
   else if(p==='daily')     renderDailyActivity();
@@ -20007,6 +20012,953 @@ if(!checkAttendanceMode()){ try { initApp(); } catch(e){
   };
   document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var v=document.getElementById('tfDocViewer'); if(v) v.remove(); } });
 })();
+
+</script>
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   _64/_65/_65w/_65x/FINAL-REVIEW-r2 CERTIFICATES & ID CARDS  (الشهادات والبطاقات)
+   • Official templates = backgrounds rendered from the original PSD files (certs/*.jpg);
+     only the variable values, QR and (optional) photo are placed, at the PSD's own positions.
+   • Records live OUTSIDE /data (save() rewrites /data with a fixed field list).
+     _65 layout — ONE atomic multi-path write creates all three, and the Firebase rules check that they match:
+       /certificates/counters/{year}/{seq6}   serial claim (create-once → no duplicate numbers)
+       /certificates/records/{year}/{seq6}    full record  (ops only — server-enforced)
+       /certVerify/{token}                    public verification (one random token readable, no listing; must equal record.public)
+       /certificates/dupIndex/{dupKey}/{year}/{seq6}  duplicate index (key computed by the rules from ID/name + course; read by exact key only)
+     _65w: issuers = ops, or accounts listed by ops in /certIssuers/{authUid} = true (the rules check it; /data/userPerms is never trusted).
+     _65x: MANAGER-APPROVED BATCHES. ops approves rows into /certificates/approved/{batch}/rows/{row} (a frozen copy, outside /data);
+           a document can only be issued from such a row, every document field must equal it (enforced by the rules), and each
+           row is issued once (rows/{row}/issued = {year, seq}). Issuers see only batches ops assigned to them (/certificates/batchesFor/{uid}).
+     FINAL-REVIEW: issuer-readable rows carry only printed data; contact data → /certificates/approvedPrivate (ops only, never on the record).
+           Every approval/edit/deletion: revision+1, approvedBy = editor uid, approvedAt = SERVER time, entry in /certificates/approvalLog (ops only).
+           Records: issuedAt = SERVER time, issuedByUid = signed-in uid, approvedRevision; no client-supplied name/time is stored as proof.
+   • Nothing here changes trainees, sessions, attendance, scores, catalog or invoices.
+   ════════════════════════════════════════════════════════════════════════════ */
+var CERT_PUBLIC_BASE = 'https://tuv-crm.github.io/trainflow-crm/';
+var CERT_INSTITUTE = 'TUV Training Institute';
+var CERT_DEFAULT_YEARS = 2;
+var CERT_COLS = ['ID','Name','Email','Phone','National ID','Company Name','Certificate Date','Date of birth','Birth City','Profile Image URL'];
+var CERT_LAYOUT = {
+  cert: { w:2480, h:3508, bg:'certs/certificate-bg.jpg',
+    f:{ name:{x:1005,b:1759,size:104,maxW:1290}, course:{x:1070,b:2167,size:64,maxW:1180},
+        issue:{x:845,b:2333,size:52,maxW:440}, expiry:{x:1650,b:2333,size:52,maxW:560},
+        id:{x:1225,b:2527,size:56,maxW:900}, serial:{x:590,b:2839,size:40,maxW:950} },
+    qr:{x:398,y:2447,s:300} },
+  card: { w:1039, h:661, bg:'certs/card-bg.jpg', bgPhoto:'certs/card-photo-bg.jpg',
+    f:{ name:{x:125,b:303,size:27,maxW:595}, course:{x:222,b:355,size:22,maxW:500},
+        issue:{x:172,b:404,size:22,maxW:180}, expiry:{x:512,b:404,size:22,maxW:270},
+        id:{x:212,b:449,size:22,maxW:480}, serial:{x:212,b:494,size:22,maxW:540} },
+    qr:{x:803,y:356,s:120}, photo:{x:743,y:36,w:238,h:284,r:30} }
+};
+var CERT_TEXT_COLOR = '#151515';
+
+function _certEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function _certPerms(){ try { return (CU && typeof getUserPerms==='function') ? getUserPerms(CU.id) : null; } catch(e){ return null; } }
+function _certIsOps(){ return !!(CU && CU.dept==='ops'); }
+function _certCanView(){ if(!CU) return false; if(_certIsOps()) return true; var p=_certPerms(); return !!(p && p.pages && p.pages.indexOf('training-certs')>=0); }
+function _certCanIssue(){ return _certCanView(); }
+// _65: what the server (Firebase rules) actually allows. Non-ops issuing is BLOCKED until a server-trusted
+// issuer list is approved — /data/userPerms can be rewritten by any staff account, so the server cannot trust it.
+// _65w: what the server (Firebase rules) allows — ops, or an account ops listed in /certIssuers/{uid}.
+var _certIssuerFlag=null, _certIssuerFlagUid='';
+function _certServerCanIssue(){ return _certIsOps() || (_certIssuerFlag===true && _certIssuerFlagUid===_certAuthUid()); }
+async function _certCheckIssuer(force){
+  var uid=_certAuthUid();
+  if(_certIsOps()){ _certIssuerFlag=true; _certIssuerFlagUid=uid; return true; }
+  if(!force && _certIssuerFlag!==null && _certIssuerFlagUid===uid) return _certIssuerFlag;
+  var ok=false;
+  if(uid){ try { var r=await firebaseFetch('/certIssuers/'+encodeURIComponent(uid)+'.json'); ok=!!(r && r.ok && (await _certJson(r))===true); } catch(e){ ok=false; } }
+  _certIssuerFlag=ok; _certIssuerFlagUid=uid; return ok;
+}
+function _certCanManage(){ return _certIsOps(); }
+function _certCanRevoke(){ return _certIsOps(); }
+function _certPublicBase(){ try { if(location.protocol==='https:' && /github\.io$/.test(location.hostname)) return location.origin+location.pathname.replace(/[^\/]*$/,''); } catch(e){} return CERT_PUBLIC_BASE; }
+function _certVerifyUrl(token){ return _certPublicBase()+'verify.html?t='+encodeURIComponent(token); }
+
+// ── dates ───────────────────────────────────────────────────────────────────
+function _certLeap(y){ return (y%4===0 && y%100!==0) || y%400===0; }
+function _certYMD(y,m,d){ y=+y; m=+m; d=+d; if(y<100) y+=2000; if(!(y>1900&&y<2200&&m>=1&&m<=12&&d>=1&&d<=31)) return ''; var dim=[31,_certLeap(y)?29:28,31,30,31,30,31,31,30,31,30,31][m-1]; if(d>dim) return ''; return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+// calendar years; 29 Feb → 28 Feb when the target year is not a leap year
+function _certAddYears(iso, n){ var p=String(iso||'').split('-').map(Number); if(p.length!==3||!p[0]) return ''; var y=p[0]+n, m=p[1], d=p[2]; if(m===2 && d===29 && !_certLeap(y)) d=28; return _certYMD(y,m,d); }
+function _certFmt(iso){ var p=String(iso||'').split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : ''; }
+var _CERT_MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12};
+function _certParseDateText(s){ // day-first (KSA)
+  s=String(s||'').trim(); var m;
+  if(!s) return '';
+  if(m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})(?:[ T].*)?$/.exec(s)) return _certYMD(m[1],m[2],m[3]);
+  if(m=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/.exec(s)) return _certYMD(m[3],m[2],m[1]);
+  if(m=/^(\d{1,2})[-\/. ]([A-Za-z]{3,9})[-\/., ]+(\d{2,4})$/.exec(s)){ var mo=_CERT_MON[m[2].slice(0,4).toLowerCase()]||_CERT_MON[m[2].slice(0,3).toLowerCase()]; return mo?_certYMD(m[3],mo,m[1]):''; }
+  return '';
+}
+function _certToday(){ try { return (typeof formatLocalDateISO==='function') ? formatLocalDateISO(new Date()) : new Date().toISOString().slice(0,10); } catch(e){ return new Date().toISOString().slice(0,10); } }
+
+// ── certificate validity: catalog «valid» field (default 2 years) ─────────────
+function _certParseValid(raw){
+  var s=String(raw==null?'':raw).trim().toLowerCase(); if(!s) return 0;
+  var m=/(\d+)\s*(years?|yrs?|سنة|سنوات|سنه|سنين|عام|أعوام|اعوام)/.exec(s); if(m){ var n=+m[1]; return (n>=1&&n<=10)?n:0; }
+  if(/^\d+$/.test(s)){ var k=+s; return (k>=1&&k<=10)?k:0; }
+  if(/(one|1)\s*year|سنة واحدة|^سنة$|^سنه$|عام واحد|^عام$/.test(s)) return 1;
+  if(/two\s*years|سنتين|سنتان|عامين|عامان/.test(s)) return 2;
+  if(/three\s*years|ثلاث|ثلاثة/.test(s)) return 3;
+  return 0;
+}
+function _certFindCourse(name){
+  var n=String(name||'').trim(); if(!n) return null;
+  var low=n.toLowerCase(), hit=null;
+  try { (getAllCourses()||[]).forEach(function(g){ (g.courses||[]).forEach(function(c){ if(!hit && c && c.name===n) hit=c; }); }); } catch(e){}
+  if(!hit) try { (getAllCourses()||[]).forEach(function(g){ (g.courses||[]).forEach(function(c){ if(!hit && c && String(c.name||'').trim().toLowerCase()===low) hit=c; }); }); } catch(e){}
+  if(!hit) try { hit = findCatalogCourseByName(n); } catch(e){}
+  return hit;
+}
+function _certCourseValidity(name){
+  var c=_certFindCourse(name); var raw=c?(c.valid||''):''; var y=_certParseValid(raw);
+  return { years: y||CERT_DEFAULT_YEARS, defaulted: !y, raw: raw, found: !!c, courseId: c?(c.id||''):'' };
+}
+
+// ── Excel import (official SAMPLE5 columns) ──────────────────────────────────
+function _certNormHead(h){ return String(h==null?'':h).replace(/\s+/g,' ').trim().toLowerCase(); }
+function _certPhone(t){ var s=String(t||'').trim(); var d=s.replace(/[^\d]/g,''); if(/^5\d{8}$/.test(d)) return '0'+d; if(/^9665\d{8}$/.test(d)) return '0'+d.slice(3); if(/^009665\d{8}$/.test(d)) return '0'+d.slice(5); return s; }
+function _certCellText(cell){
+  if(!cell) return '';
+  if(cell.t==='n'){ var v=cell.v; if(Number.isInteger(v)) return String(v); var w=String(cell.w||''); return /e\+/i.test(w)||!w ? String(v) : w; }
+  if(cell.t==='b') return cell.v?'TRUE':'FALSE';
+  return String(cell.w!=null&&cell.t!=='s' ? cell.w : (cell.v==null?'':cell.v)).trim();
+}
+function _certCellDate(cell){
+  if(!cell) return {iso:'', raw:''};
+  if(cell.t==='n'){ try { var p=XLSX.SSF.parse_date_code(cell.v); return {iso:_certYMD(p.y,p.m,p.d), raw:String(cell.w||cell.v)}; } catch(e){ return {iso:'',raw:String(cell.v)}; } }
+  if(cell.t==='d' && cell.v instanceof Date){ var d=cell.v; return {iso:_certYMD(d.getFullYear(),d.getMonth()+1,d.getDate()), raw:String(cell.w||'')}; }
+  var raw=String(cell.v==null?'':cell.v).trim(); return {iso:_certParseDateText(raw), raw:raw};
+}
+function _certParseWorkbook(wb){
+  var res={rows:[], missing:[], unknown:[], sheet:'', read:0, errors:[]};
+  var name=(wb.SheetNames||[]).find(function(n){ var ws=wb.Sheets[n]; return ws && ws['!ref']; });
+  if(!name){ res.errors.push('الملف لا يحتوي على ورقة بيانات'); return res; }
+  res.sheet=name; var ws=wb.Sheets[name]; var R=XLSX.utils.decode_range(ws['!ref']);
+  var hr=-1, map={};
+  for(var r=R.s.r; r<=Math.min(R.e.r,R.s.r+15) && hr<0; r++){
+    for(var c=R.s.c;c<=R.e.c;c++){ var t=_certNormHead(_certCellText(ws[XLSX.utils.encode_cell({r:r,c:c})])); if(t==='name'){ hr=r; break; } }
+  }
+  if(hr<0){ res.errors.push('لم يُعثر على صف العناوين (عمود Name)'); return res; }
+  var heads=[];
+  for(var c2=R.s.c;c2<=R.e.c;c2++){
+    var raw=_certCellText(ws[XLSX.utils.encode_cell({r:hr,c:c2})]); if(!raw) continue;
+    var off=CERT_COLS.find(function(k){ return _certNormHead(k)===_certNormHead(raw); });
+    if(off && map[off]===undefined) map[off]=c2; else heads.push(raw);
+  }
+  res.unknown=heads; res.missing=CERT_COLS.filter(function(k){ return map[k]===undefined; });
+  for(var r2=hr+1;r2<=R.e.r;r2++){
+    var get=function(k){ return map[k]===undefined ? null : ws[XLSX.utils.encode_cell({r:r2,c:map[k]})]; };
+    var row={ _row:r2+1, extId:_certCellText(get('ID')), name:_certCellText(get('Name')).replace(/\s+/g,' ').trim(), email:_certCellText(get('Email')),
+      phone:_certPhone(_certCellText(get('Phone'))), nationalId:_certCellText(get('National ID')).replace(/\s+/g,''), company:_certCellText(get('Company Name')),
+      birthCity:_certCellText(get('Birth City')), photoUrl:_certCellText(get('Profile Image URL')) };
+    var cd=_certCellDate(get('Certificate Date')), db=_certCellDate(get('Date of birth'));
+    row.certificateDate=cd.iso; row.certificateDateRaw=cd.raw; row.dob=db.iso; row.dobRaw=db.raw;
+    var any = [row.extId,row.name,row.email,row.phone,row.nationalId,row.company,row.birthCity,row.photoUrl,cd.raw,db.raw].some(function(x){ return String(x||'').trim(); });
+    if(!any) continue;
+    row.excel={}; CERT_COLS.forEach(function(k){ var cell=get(k); row.excel[k]= (k==='Certificate Date'||k==='Date of birth') ? (k==='Certificate Date'?cd.raw:db.raw) : _certCellText(cell); });
+    res.rows.push(row); res.read++;
+  }
+  return res;
+}
+// row-level validation (errors block the row, warnings do not)
+function _certValidateRows(rows, opts){
+  opts=opts||{};
+  var seenNid={}, seenExt={};
+  rows.forEach(function(r){ r.errors=[]; r.warnings=[]; });
+  rows.forEach(function(r){
+    if(!r.name) r.errors.push({col:'Name', msg:'الاسم مطلوب'});
+    if(!opts.dateOptional){
+      if(!r.certificateDate) r.errors.push({col:'Certificate Date', msg: r.certificateDateRaw ? ('تاريخ غير صالح: '+r.certificateDateRaw) : 'تاريخ الشهادة مطلوب'});
+    } else if(r.certificateDateRaw && !r.certificateDate) r.errors.push({col:'Certificate Date', msg:'تاريخ غير صالح: '+r.certificateDateRaw});
+    if(!r.nationalId) r.warnings.push({col:'National ID', msg:'رقم الهوية فارغ — سيظهر فارغاً في الوثيقة'});
+    else if(!/^[0-9A-Za-z]{5,20}$/.test(r.nationalId)) r.errors.push({col:'National ID', msg:'رقم هوية غير صالح: '+r.nationalId});
+    if(r.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email)) r.warnings.push({col:'Email', msg:'بريد غير صالح'});
+    if(r.dobRaw && !r.dob) r.warnings.push({col:'Date of birth', msg:'تاريخ ميلاد غير صالح: '+r.dobRaw});
+    if(r.photoUrl && !_certPhotoCandidates(r.photoUrl).length) r.warnings.push({col:'Profile Image URL', msg:'رابط الصورة غير صالح — ستصدر البطاقة بدون صورة'});
+    if(r.nationalId){ var k=r.nationalId; if(seenNid[k]){ r.errors.push({col:'National ID', msg:'مكرر في الملف (الصف '+seenNid[k]._row+')'}); } else seenNid[k]=r; }
+    if(r.extId){ var e=seenExt[r.extId]; if(e && e.nationalId && r.nationalId && e.nationalId!==r.nationalId) r.errors.push({col:'ID', msg:'تعارض معرّفات: ID '+r.extId+' مستخدم لهوية أخرى (الصف '+e._row+')'}); else if(!e) seenExt[r.extId]=r; }
+  });
+  return rows;
+}
+
+// ── photos (Profile Image URL) ───────────────────────────────────────────────
+function _certDriveId(u){ var m=/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]{10,})/.exec(u)||/[?&]id=([A-Za-z0-9_-]{10,})/.exec(u)||/googleusercontent\.com\/d\/([A-Za-z0-9_-]{10,})/.exec(u); return m?m[1]:''; }
+function _certPhotoCandidates(url){
+  var u=String(url||'').trim(); if(!/^https:\/\/[^\s"'<>]+$/i.test(u)) return [];
+  if(/(^|\.)google\.com\/|googleusercontent\.com\//i.test(u)){ var id=_certDriveId(u); if(id) return ['https://lh3.googleusercontent.com/d/'+id+'=w1000','https://drive.google.com/thumbnail?id='+id+'&sz=w1000']; }
+  return [u];
+}
+var _certPhotoCache = {}; var CERT_PHOTO_TTL = 10*60*1000; // successes only, 10 minutes
+function _certLoadImg(src, timeoutMs){
+  return new Promise(function(res, rej){
+    var im=new Image(), done=false; im.crossOrigin='anonymous'; im.referrerPolicy='no-referrer';
+    var to=setTimeout(function(){ if(!done){ done=true; rej(new Error('timeout')); } }, timeoutMs||15000);
+    im.onload=function(){ if(done) return; done=true; clearTimeout(to); if(im.naturalWidth<40||im.naturalHeight<40) rej(new Error('not an image')); else res(im); };
+    im.onerror=function(){ if(done) return; done=true; clearTimeout(to); rej(new Error('load failed')); };
+    im.src=src;
+  });
+}
+// returns {ok, dataUrl, reason}; dataUrl = the photo already cropped to the PSD frame (cover, no distortion)
+// returns {ok, dataUrl, reason}; dataUrl = the photo already cropped to the PSD frame (cover, no distortion).
+// _65: failures are never cached; a success is reused for at most CERT_PHOTO_TTL; force=true always reloads (reprint).
+async function _certLoadPhoto(url, force){
+  var key=String(url||'').trim(); if(!key) return {ok:false, reason:'none'};
+  var hit=_certPhotoCache[key];
+  if(!force && hit && hit.ok && (Date.now()-hit.at)<CERT_PHOTO_TTL) return hit;
+  var cands=_certPhotoCandidates(key); if(!cands.length) return {ok:false, reason:'رابط غير صالح'};
+  if(force){   // reprint: ask Google for a fresh copy. r2: verified on real Google — lh3 keeps CORS with "?_tfr=", the Drive thumbnail link has no CORS
+    cands=cands.map(function(c){ return /^https:\/\/lh3\.googleusercontent\.com\/d\/[^?]+$/i.test(c) ? c+'?_tfr='+Date.now() : (/^https:\/\/drive\.google\.com\/thumbnail\?/i.test(c) ? c+'&_tfr='+Date.now() : c); });
+    cands.sort(function(a,b){ return (/_tfr=/.test(b)?1:0)-(/_tfr=/.test(a)?1:0); });
+  }
+  var last='';
+  for(var i=0;i<cands.length;i++){
+    try {
+      var im=await _certLoadImg(cands[i]);
+      var P=CERT_LAYOUT.card.photo, sc=3, cv=document.createElement('canvas'); cv.width=P.w*sc; cv.height=P.h*sc;
+      var ctx=cv.getContext('2d'); var r=Math.max(cv.width/im.naturalWidth, cv.height/im.naturalHeight);
+      var dw=im.naturalWidth*r, dh=im.naturalHeight*r; ctx.fillStyle='#fff'; ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.drawImage(im,(cv.width-dw)/2,(cv.height-dh)/2,dw,dh);
+      var data=cv.toDataURL('image/jpeg',0.92);   // throws if the host does not allow use (CORS) → treated as failure
+      return (_certPhotoCache[key]={ok:true, dataUrl:data, src:cands[i], at:Date.now()});
+    } catch(e){ last=(e&&e.message)||String(e); }
+  }
+  delete _certPhotoCache[key];
+  return {ok:false, reason:'تعذّر تحميل الصورة ('+last+') — تحقق من مشاركة الرابط «أي شخص لديه الرابط»'};
+}
+// ── assets: templates, font, jsPDF, QR ───────────────────────────────────────
+var _certAssets = {};
+function _certFetchDataUrl(path){
+  if(_certAssets[path]) return _certAssets[path];
+  return (_certAssets[path] = fetch(path, {cache:'force-cache'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status+' '+path); return r.blob(); })
+    .then(function(b){ return new Promise(function(res,rej){ var fr=new FileReader(); fr.onload=function(){ res(fr.result); }; fr.onerror=rej; fr.readAsDataURL(b); }); })
+    .catch(function(e){ delete _certAssets[path]; throw e; }));
+}
+var CERT_FONT_FILE='fonts/DejaVuSans-Bold.ttf';
+var _certFontReady=null;
+function _certEnsureCanvasFont(){
+  if(_certFontReady) return _certFontReady;
+  return (_certFontReady = (async function(){ var f=new FontFace('TFCertFont','url('+CERT_FONT_FILE+')',{weight:'700'}); await f.load(); document.fonts.add(f); return true; })().catch(function(e){ _certFontReady=null; throw e; }));
+}
+function _certLoadScript(src, test){
+  return new Promise(function(res, rej){ if(test()) return res(); var s=document.createElement('script'); s.src=src; s.onload=function(){ test()?res():rej(new Error('library not ready')); }; s.onerror=function(){ rej(new Error('تعذّر تحميل '+src)); }; document.head.appendChild(s); });
+}
+function _certEnsureJsPDF(){ return _certLoadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function(){ return !!(window.jspdf && window.jspdf.jsPDF); }); }
+function _certEnsureQR(){ return _certLoadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', function(){ return typeof QRCode!=='undefined'; }); }
+async function _certQrDataUrl(text){
+  await _certEnsureQR();
+  var holder=document.createElement('div'); holder.style.cssText='position:fixed;left:-9999px;top:0';
+  document.body.appendChild(holder);
+  try {
+    new QRCode(holder,{text:text, width:600, height:600, colorDark:'#000000', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M});
+    var src=holder.querySelector('canvas'); if(!src) throw new Error('QR canvas missing');
+    var pad=36, cv=document.createElement('canvas'); cv.width=cv.height=600+pad*2; var ctx=cv.getContext('2d');
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,cv.width,cv.height); ctx.imageSmoothingEnabled=false; ctx.drawImage(src,pad,pad,600,600);
+    return cv.toDataURL('image/png');
+  } finally { holder.remove(); }
+}
+var _certPdfFontB64=null;
+async function _certFontBase64(){
+  if(_certPdfFontB64) return _certPdfFontB64;
+  var r=await fetch(CERT_FONT_FILE,{cache:'force-cache'}); if(!r.ok) throw new Error('HTTP '+r.status+' '+CERT_FONT_FILE);
+  var u8=new Uint8Array(await r.arrayBuffer()), s='', CH=0x8000;
+  for(var i=0;i<u8.length;i+=CH) s+=String.fromCharCode.apply(null, u8.subarray(i,i+CH));
+  return (_certPdfFontB64=btoa(s));
+}
+
+// ── document model (same data drives preview, PDF and verification) ─────────
+function _certDocValues(rec){
+  return { name:String(rec.trainee&&rec.trainee.name||'').toUpperCase(), course:String(rec.course&&rec.course.name||''),
+    issue:_certFmt(rec.certificateDate), expiry:_certFmt(rec.expiryDate), id:String(rec.trainee&&rec.trainee.nationalId||''), serial:rec.serial||'' };
+}
+// painter: {image(dataUrl,x,y,w,h), text(str,x,baseline,sizePx,maxWpx)} in template pixels
+async function _certPaint(kind, rec, painter, photo){
+  var L=CERT_LAYOUT[kind], v=_certDocValues(rec);
+  var bg = (kind==='card' && photo && photo.ok) ? L.bgPhoto : L.bg;
+  painter.image(await _certFetchDataUrl(bg), 0, 0, L.w, L.h, 'JPEG');
+  Object.keys(L.f).forEach(function(k){ var f=L.f[k]; if(v[k]) painter.text(v[k], f.x, f.b, f.size, f.maxW); });
+  var qr=await _certQrDataUrl(_certVerifyUrl(rec.token));
+  painter.image(qr, L.qr.x, L.qr.y, L.qr.s, L.qr.s, 'PNG');
+  if(kind==='card' && photo && photo.ok){ var P=L.photo; painter.photo(photo.dataUrl, P.x, P.y, P.w, P.h, P.r); }
+}
+async function _certRenderCanvas(kind, rec, photo){
+  await _certEnsureCanvasFont();
+  var L=CERT_LAYOUT[kind], cv=document.createElement('canvas'); cv.width=L.w; cv.height=L.h; var ctx=cv.getContext('2d');
+  var ops=[];
+  var painter={ image:function(d,x,y,w,h){ ops.push(['i',d,x,y,w,h]); }, text:function(s,x,b,size,maxW){ ops.push(['t',s,x,b,size,maxW]); }, photo:function(d,x,y,w,h,r){ ops.push(['p',d,x,y,w,h,r]); } };
+  await _certPaint(kind, rec, painter, photo);
+  for(var i=0;i<ops.length;i++){
+    var o=ops[i];
+    if(o[0]==='i'||o[0]==='p'){
+      var im=await _certLoadImg(o[1]);
+      if(o[0]==='p'){ ctx.save(); _certRoundRect(ctx,o[2],o[3],o[4],o[5],o[6]); ctx.clip(); ctx.drawImage(im,o[2],o[3],o[4],o[5]); ctx.restore(); }
+      else { ctx.imageSmoothingEnabled = !(o[5]===CERT_LAYOUT[kind].qr.s); ctx.drawImage(im,o[2],o[3],o[4],o[5]); ctx.imageSmoothingEnabled=true; }
+    } else {
+      var size=o[4]; ctx.fillStyle=CERT_TEXT_COLOR; ctx.textBaseline='alphabetic';
+      do { ctx.font='700 '+size+'px TFCertFont'; if(ctx.measureText(o[1]).width<=o[5] || size<=o[4]*0.5) break; size-=1; } while(true);
+      ctx.fillText(o[1], o[2], o[3]);
+    }
+  }
+  return cv;
+}
+function _certRoundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath(); }
+// rounded photo for the PDF (clip baked into a PNG with transparent corners)
+async function _certRoundedPng(dataUrl, w, h, r){
+  var im=await _certLoadImg(dataUrl), sc=3, cv=document.createElement('canvas'); cv.width=w*sc; cv.height=h*sc; var ctx=cv.getContext('2d');
+  _certRoundRect(ctx,0,0,cv.width,cv.height,r*sc); ctx.clip(); ctx.drawImage(im,0,0,cv.width,cv.height); return cv.toDataURL('image/png');
+}
+// PDF: template background + real (selectable) text in DejaVu Sans Bold + QR + photo
+async function _certBuildPdf(kind, recs, photos){
+  await _certEnsureJsPDF();
+  var L=CERT_LAYOUT[kind], k=72/300, W=L.w*k, H=L.h*k;
+  var doc=new window.jspdf.jsPDF({unit:'pt', format:[W,H], orientation: W>H?'landscape':'portrait', compress:true});
+  doc.addFileToVFS('DejaVuSans-Bold.ttf', await _certFontBase64()); doc.addFont('DejaVuSans-Bold.ttf','DejaVu','bold');
+  doc.setProperties({title:(kind==='cert'?'Certificate':'ID Card')+' — '+recs.map(function(r){ return r.serial; }).join(', '), creator:'TrainFlow CRM — TUV Training Institute'});
+  for(var i=0;i<recs.length;i++){
+    if(i>0) doc.addPage([W,H], W>H?'landscape':'portrait');
+    var ph=photos ? photos[recs[i].serial] : null; var ops=[];
+    var painter={ image:function(d,x,y,w,h,f){ ops.push(['i',d,x,y,w,h,f]); }, text:function(s,x,b,size,maxW){ ops.push(['t',s,x,b,size,maxW]); }, photo:function(d,x,y,w,h,r){ ops.push(['p',d,x,y,w,h,r]); } };
+    await _certPaint(kind, recs[i], painter, ph);
+    for(var j=0;j<ops.length;j++){
+      var o=ops[j];
+      if(o[0]==='i') doc.addImage(o[1], o[6]||'JPEG', o[2]*k, o[3]*k, o[4]*k, o[5]*k, undefined, 'FAST');
+      else if(o[0]==='p') doc.addImage(await _certRoundedPng(o[1],o[4],o[5],o[6]), 'PNG', o[2]*k, o[3]*k, o[4]*k, o[5]*k, undefined, 'FAST');
+      else {
+        doc.setFont('DejaVu','bold'); doc.setTextColor(21,21,21); var size=o[4];
+        do { doc.setFontSize(size*k); if(doc.getTextWidth(o[1])<=o[5]*k || size<=o[4]*0.5) break; size-=1; } while(true);
+        doc.text(o[1], o[2]*k, o[3]*k, {baseline:'alphabetic'});
+      }
+    }
+  }
+  return doc;
+}
+function _certSafeName(s){ return String(s||'').replace(/[^\w؀-ۿ\- ]+/g,'').trim().replace(/\s+/g,'_').slice(0,60)||'document'; }
+async function _certDeliverPdf(doc, filename){
+  var blob=doc.output('blob');
+  try {
+    var file=new File([blob], filename, {type:'application/pdf'});
+    var standalone=(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone===true;
+    if(standalone && navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:filename}); return 'shared'; }
+  } catch(e){ if(e && e.name==='AbortError') return 'cancelled'; }
+  var url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 30000);
+  return 'downloaded';
+}
+
+// ── Firebase: records, serials, verification ─────────────────────────────────
+function _certToken(){ var b=new Uint8Array(18); crypto.getRandomValues(b); var s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function _certSeq6(n){ return String(n).padStart(6,'0'); }
+// signed-in Firebase account id (from the ID token itself — needed because the rules check «by === auth.uid»)
+function _certAuthUid(){ try { var p=String(FIREBASE_AUTH_TOKEN||'').split('.')[1]; if(!p) return ''; p=p.replace(/-/g,'+').replace(/_/g,'/'); while(p.length%4) p+='='; var j=JSON.parse(decodeURIComponent(escape(atob(p)))); return String(j.user_id||j.sub||''); } catch(e){ return ''; } }
+function _certSerial(year, seq){ return 'TUVTI-'+year+'-'+_certSeq6(seq); }
+function _certMaskId(id){ var s=String(id||'').replace(/\s+/g,''); if(!s) return ''; return s.length<=4 ? '****' : '*'.repeat(s.length-4)+s.slice(-4); }
+async function _certJson(resp){ var t=await resp.text(); try { return t?JSON.parse(t):null; } catch(e){ return null; } }
+// Serial claim: /certificates/counters/{year}/{n} can only be CREATED once (Firebase rule !data.exists()).
+// Two devices asking at the same moment: one create succeeds, the other is refused and moves on to n+1.
+// _65: next free number = highest claimed + 1. The claim, the record and the public entry are written in ONE atomic
+// multi-path update; the rules accept it only if the claim did not exist yet (create-once) and all three match.
+// Two devices at the same moment: one write succeeds, the other is refused as a whole and retries with the next number.
+async function _certNextSeq(year){
+  var r=await firebaseFetch('/certificates/counters/'+year+'.json?shallow=true');
+  if(!r || !r.ok) throw new Error('تعذّرت قراءة عدّاد الأرقام التسلسلية (HTTP '+(r?r.status:'?')+') — الإصدار لمدير التشغيل والمصدّرين المعتمدين فقط، ويتطلب نشر قواعد Firebase الخاصة بالشهادات');
+  var keys=Object.keys((await _certJson(r))||{}), max=0; keys.forEach(function(k){ var n=parseInt(k,10); if(n>max) max=n; });
+  return max+1;
+}
+function _certPublicFields(rec){
+  var p={ serial:rec.serial, year:rec.year, seq:rec.seq, name:rec.trainee.name, course:rec.course.name, certificateDate:rec.certificateDate,
+    expiryDate:rec.expiryDate, validityYears:rec.validityYears, idMasked:_certMaskId(rec.trainee.nationalId), institute:CERT_INSTITUTE };
+  if(rec.course.duration) p.duration=rec.course.duration;
+  if(rec.trainee.company) p.company=rec.trainee.company;
+  if(rec.hasPhotoAtIssue && rec.trainee.photoUrl) p.photoUrl=rec.trainee.photoUrl;
+  return p;
+}
+function _certPublicDoc(rec){ var d=Object.assign({}, rec.public||_certPublicFields(rec), {status:rec.status}); if(rec.revokedAt) d.revokedAt=rec.revokedAt; return d; }
+
+var _certRecords=null, _certRecordsErr='';
+async function _certLoadRecords(){
+  _certRecordsErr='';
+  if(!_certCanManage()){ _certRecords=[]; return _certRecords; }   // _65: register is ops-only (also enforced by the rules)
+  try {
+    var r=await firebaseFetch('/certificates/records.json');
+    if(!r || !r.ok){ _certRecordsErr='تعذّر تحميل سجل الشهادات (HTTP '+(r?r.status:'?')+'). إذا كانت هذه أول مرة، تأكد من نشر قواعد Firebase الخاصة بالشهادات.'; _certRecords=_certRecords||[]; return _certRecords; }
+    var v=(await _certJson(r))||{}, list=[];
+    Object.keys(v).forEach(function(y){ var ys=v[y]||{}; Object.keys(ys).forEach(function(q){ var x=ys[q]; if(x && x.serial) list.push(x); }); });
+    _certRecords=list.sort(function(a,b){ return String(b.serial).localeCompare(String(a.serial)); });
+  } catch(e){ _certRecordsErr='تعذّر تحميل سجل الشهادات: '+e.message; _certRecords=_certRecords||[]; }
+  return _certRecords;
+}
+var _certDupCache={}, _certDupPending={};
+function _certIssuedIndex(){
+  var m={};
+  if(_certCanManage()){ (_certRecords||[]).forEach(function(r){ if(r.status==='revoked') return; var key=r.dupKey||_certDupKey(r.trainee&&r.trainee.nationalId, r.trainee&&r.trainee.name, r.course&&r.course.name); (m[key]=m[key]||[]).push(r.serial); }); return m; }
+  Object.keys(_certDupCache).forEach(function(k){ if(_certDupCache[k].length) m[k]=_certDupCache[k]; });   // issuer: only the keys it asked for
+  return m;
+}
+// issuer (not ops): ask the server about the exact keys on screen only — no list of documents or trainees is ever read
+async function _certDupLookup(keys){
+  var todo=keys.filter(function(k){ return !(k in _certDupCache) && !_certDupPending[k]; }); if(!todo.length) return false;
+  todo.forEach(function(k){ _certDupPending[k]=1; });
+  await Promise.all(todo.map(async function(k){
+    var list=[];
+    try { var r=await firebaseFetch('/certificates/dupIndex/'+encodeURIComponent(k)+'.json'); if(r && r.ok){ var v=(await _certJson(r))||{}; Object.keys(v).forEach(function(y){ Object.keys(v[y]||{}).forEach(function(q){ list.push('TUVTI-'+y+'-'+q); }); }); } } catch(e){}
+    _certDupCache[k]=list.sort(); delete _certDupPending[k];
+  }));
+  return true;
+}
+function _certNormId(id){ return String(id==null?'':id).replace(/\s+/g,''); }
+function _certDupSan(x){ return String(x).replace(/[.#$\[\]\/]/g,'_'); }
+function _certDupKey(nid, name, course){ var n=_certNormId(nid); return (n!=='' ? 'I:'+_certDupSan(n.toUpperCase()) : 'N:'+_certDupSan(String(name||'').toLowerCase()))+'|'+_certDupSan(String(course||'').toLowerCase()); }
+function _certRowKey(row, course){ return _certDupKey(row.nationalId, row.name, course); }
+function _certCompact(o){ var r={}; Object.keys(o||{}).forEach(function(k){ var v=o[k]; if(v===''||v===null||v===undefined) return; r[k]=v; }); return r; }
+// ops: the frozen, approved copy of one import/session row (exactly the data the document will carry)
+var CERT_SV={'.sv':'timestamp'};   // Firebase fills in the SERVER time; the rules require it (== now)
+function _certIso(v){ if(typeof v==='number') return new Date(v).toISOString(); return String(v||''); }
+function _certUserName(uid){ try { var us=((typeof getDynUsers==='function') ? getDynUsers() : (typeof USERS!=='undefined'?USERS:[])) || []; var u=us.find(function(x){ return x && x.authUid===uid; }); return u?(u.name||u.id):(uid||''); } catch(e){ return uid||''; } }
+var CERT_PRIV_FIELDS=['extId','email','phone','dob','birthCity','excelRow','conflictsResolved'];
+// ops: the frozen, approved copy of one import/session row. pub = what is printed (issuer-readable); priv = contact data (ops only)
+function _certApprovedParts(row, ctx, uid){
+  var cd=row.certificateDate || ctx.defaultDate; if(!cd) throw new Error('تاريخ الشهادة مفقود');
+  var val=_certCourseValidity(ctx.courseName), course=_certFindCourse(ctx.courseName);
+  var duration = course ? String(course.duration || (course.hours ? course.hours+' Hrs' : '') || '').trim() : '';
+  var photo=String(row.photoUrl||'').trim(); if(!/^https:\/\//i.test(photo)) photo='';
+  var pub=_certCompact({ name:String(row.name||'').trim(), nationalId:_certNormId(row.nationalId), company:String(row.company||'').trim(), photoUrl:photo,
+    courseName:ctx.courseName, courseId:val.courseId||'', duration:duration, certificateDate:cd, validityYears:val.years, validityDefaulted:!!val.defaulted, catalogValid:val.raw||'',
+    expiryDate:_certAddYears(cd, val.years), source:ctx.source,
+    sessionId: ctx.session?ctx.session.id:'', sessionCourse: ctx.session?(ctx.session.course||''):'', sessionDate: ctx.session?(ctx.session.startDate||ctx.session.day||''):'',
+    approvedBy:uid, approvedAt:CERT_SV, revision:1 });
+  var priv=_certCompact({ extId:String(row.extId||'').trim(), email:String(row.email||'').trim(), phone:String(row.phone||'').trim(), dob:row.dob||'', birthCity:String(row.birthCity||'').trim() });
+  if(row.excel) priv.excelRow=row.excel;
+  if(row.resolved && Object.keys(row.resolved).length) priv.conflictsResolved=row.resolved;
+  return {pub:pub, priv:priv};
+}
+async function _certApproveBatch(rows, ctx, issuers, title){
+  if(!_certIsOps()) throw new Error('اعتماد الدفعات لمدير التشغيل فقط');
+  var uid=_certAuthUid(); if(!uid) throw new Error('تعذّر تحديد حساب الدخول — سجّل الدخول مجدداً');
+  var now=new Date(), b='B'+now.toISOString().replace(/[^0-9]/g,'').slice(0,14)+Math.random().toString(36).slice(2,6).toUpperCase();
+  var ids=[], patch={}, data={}, iss=issuers||{};
+  rows.forEach(function(row,i){
+    var rid='r'+String(i+1).padStart(3,'0'), parts=_certApprovedParts(row, ctx, uid); ids.push(rid);
+    patch['certificates/approved/'+b+'/rows/'+rid]=parts.pub;
+    if(Object.keys(parts.priv).length) patch['certificates/approvedPrivate/'+b+'/'+rid]=parts.priv;
+    patch['certificates/approvalLog/'+b+'/'+rid+'/1']={by:uid, byName:CU?CU.name:'', at:CERT_SV, action:'approved', fields:'*'};
+    data[rid]=Object.assign({}, parts.pub, {approvedAt:now.getTime()});
+  });
+  var meta={ title:String(title||((ctx.courseName||'')+' — '+_certFmt(_certToday())+' ('+rows.length+')')).slice(0,200), createdBy:uid, createdByName:CU?CU.name:'', createdAt:CERT_SV, course:ctx.courseName||'', source:ctx.source, count:rows.length };
+  if(Object.keys(iss).length) meta.issuers=iss;
+  patch['certificates/approved/'+b+'/meta']=meta;
+  Object.keys(iss).forEach(function(u){ patch['certificates/batchesFor/'+u+'/'+b]={title:meta.title, createdAt:CERT_SV, count:rows.length}; });
+  var w=await firebaseFetch('/.json',{method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)});
+  if(!w || !w.ok) throw new Error('فشل اعتماد الدفعة (HTTP '+(w?w.status:'?')+') — تأكد من نشر قواعد Firebase الخاصة بالشهادات');
+  return {batch:b, ids:ids, rows:data, meta:Object.assign({}, meta, {createdAt:now.getTime()})};
+}
+// ops: change a row that is NOT issued yet → new revision by this account, server time, and a log entry naming the changed fields
+async function _certEditApprovedRow(b, rid, changes){
+  if(!_certIsOps()) throw new Error('تعديل الصفوف المعتمدة لمدير التشغيل فقط');
+  var uid=_certAuthUid();
+  var r=await firebaseFetch('/certificates/approved/'+encodeURIComponent(b)+'/rows/'+rid+'.json'); var cur=r&&r.ok?await _certJson(r):null;
+  if(!cur) throw new Error('الصف غير موجود'); if(cur.issued) throw new Error('صدرت وثيقة هذا الصف — لا يمكن تعديله');
+  var q=await firebaseFetch('/certificates/approvedPrivate/'+encodeURIComponent(b)+'/'+rid+'.json'); var curP=(q&&q.ok?await _certJson(q):null)||{};
+  var pub=Object.assign({}, cur), priv=Object.assign({}, curP), changed=[];
+  Object.keys(changes||{}).forEach(function(k){
+    var v=changes[k]; if(k==='nationalId') v=_certNormId(v); else if(typeof v==='string') v=v.trim();
+    if(k==='photoUrl' && v && !/^https:\/\//i.test(v)) throw new Error('رابط الصورة يجب أن يبدأ بـ https://');
+    var tgt=CERT_PRIV_FIELDS.indexOf(k)>=0?priv:pub; if(String(tgt[k]==null?'':tgt[k])===String(v==null?'':v)) return;
+    tgt[k]=v; changed.push(k);
+  });
+  if(!changed.length) return {changed:[]};
+  if(changed.indexOf('certificateDate')>=0){ if(!/^\d{4}-\d{2}-\d{2}$/.test(pub.certificateDate)) throw new Error('تاريخ غير صالح'); pub.expiryDate=_certAddYears(pub.certificateDate, pub.validityYears); }
+  pub=_certCompact(pub); priv=_certCompact(priv);
+  pub.revision=(+cur.revision||1)+1; pub.approvedBy=uid; pub.approvedAt=CERT_SV;
+  var patch={};
+  patch['certificates/approved/'+b+'/rows/'+rid]=pub;
+  patch['certificates/approvedPrivate/'+b+'/'+rid]=Object.keys(priv).length?priv:null;
+  patch['certificates/approvalLog/'+b+'/'+rid+'/'+pub.revision]={by:uid, byName:CU?CU.name:'', at:CERT_SV, action:'edited', fields:changed.join(',').slice(0,2000)};
+  var w=await firebaseFetch('/.json',{method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)});
+  if(!w || !w.ok) throw new Error('فشل حفظ التعديل (HTTP '+(w?w.status:'?')+')');
+  return {changed:changed, revision:pub.revision};
+}
+async function _certDeleteApprovedRow(b, rid){
+  if(!_certIsOps()) throw new Error('لمدير التشغيل فقط');
+  var r=await firebaseFetch('/certificates/approved/'+encodeURIComponent(b)+'/rows/'+rid+'.json'); var cur=r&&r.ok?await _certJson(r):null;
+  if(!cur) throw new Error('الصف غير موجود'); if(cur.issued) throw new Error('صدرت وثيقة هذا الصف — لا يمكن حذفه');
+  var patch={}; patch['certificates/approved/'+b+'/rows/'+rid]=null; patch['certificates/approvedPrivate/'+b+'/'+rid]=null;
+  patch['certificates/approvalLog/'+b+'/'+rid+'/'+((+cur.revision||1)+1)]={by:_certAuthUid(), byName:CU?CU.name:'', at:CERT_SV, action:'deleted', fields:'*'};
+  var w=await firebaseFetch('/.json',{method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)});
+  if(!w || !w.ok) throw new Error('تعذّر الحذف (HTTP '+(w?w.status:'?')+')');
+}
+function _certRecordFromApproved(b, rid, ar, photo, uid, year, seq, token){
+  var rec={ serial:_certSerial(year,+seq), token:token, year:year, seq:seq, status:'valid', source:ar.source,
+    trainee:_certCompact({ name:ar.name, nationalId:ar.nationalId, company:ar.company, photoUrl:ar.photoUrl }),
+    course:_certCompact({ name:ar.courseName, id:ar.courseId, duration:ar.duration }),
+    certificateDate:ar.certificateDate, validityYears:ar.validityYears, validityDefaulted:ar.validityDefaulted, catalogValid:ar.catalogValid, expiryDate:ar.expiryDate,
+    hasPhotoAtIssue:!!(photo && photo.ok), photoNote: (ar.photoUrl && !(photo && photo.ok)) ? (String((photo&&photo.reason)||'').trim()||'تعذّر تحميل الصورة المعتمدة') : '',
+    issuedByUid:uid, issuedAt:Date.now(), approvedRef:{batch:b, row:rid}, approvedRevision:ar.revision||1 };
+  if(ar.sessionId) rec.session=_certCompact({ id:ar.sessionId, course:ar.sessionCourse, startDate:ar.sessionDate });
+  rec=_certCompact(rec);
+  rec.public=_certPublicFields(rec); rec.dupKey=_certDupKey(rec.trainee.nationalId, rec.trainee.name, rec.course.name);
+  return rec;
+}
+async function _certIssueApproved(b, rid, ar){
+  await _certCheckIssuer();
+  if(!_certServerCanIssue()) throw new Error('حسابك غير مدرج في قائمة المصدّرين المعتمدة — اطلب من مدير التشغيل إضافتك');
+  if(ar.issued) throw new Error('صدرت وثيقة هذا الصف سابقاً: '+_certSerial(ar.issued.year,+ar.issued.seq));
+  var uid=_certAuthUid(); if(!uid) throw new Error('تعذّر تحديد حساب الدخول — سجّل الدخول مجدداً');
+  var year=String(+String(ar.certificateDate).slice(0,4)), photo = ar.photoUrl ? await _certLoadPhoto(ar.photoUrl) : {ok:false, reason:'none'};
+  var lastSeq=-1, refused=0;
+  for(var attempt=0; attempt<40; attempt++){
+    var seqN=await _certNextSeq(year), seq=_certSeq6(seqN), token=_certToken();
+    var rec=_certRecordFromApproved(b, rid, ar, photo, uid, year, seq, token), serial=rec.serial;
+    var patch={};
+    patch['certificates/dupIndex/'+rec.dupKey+'/'+year+'/'+seq]=true;
+    patch['certificates/counters/'+year+'/'+seq]={serial:serial, by:uid, at:CERT_SV};
+    patch['certificates/records/'+year+'/'+seq]=Object.assign(JSON.parse(JSON.stringify(rec)), {issuedAt:CERT_SV});   // server time
+    patch['certVerify/'+token]=_certPublicDoc(rec);
+    patch['certificates/approved/'+b+'/rows/'+rid+'/issued']={year:year, seq:seq};
+    var w=await firebaseFetch('/.json',{method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)});
+    if(w && w.ok){ ar.issued={year:year, seq:seq}; if(_certDupCache[rec.dupKey]) _certDupCache[rec.dupKey].push(serial); else _certDupCache[rec.dupKey]=[serial]; return {rec:rec, photo:photo}; }
+    if(w && (w.status===401||w.status===403)){
+      try { var q=await firebaseFetch('/certificates/approved/'+encodeURIComponent(b)+'/rows/'+rid+'/issued.json'); var iv=q&&q.ok?await _certJson(q):null; if(iv&&iv.year){ ar.issued=iv; throw new Error('صدرت وثيقة هذا الصف من جهاز آخر: '+_certSerial(iv.year,+iv.seq)); } } catch(e){ if(/صدرت/.test(e.message)) throw e; }
+      if(seqN===lastSeq){ if(++refused>=3) throw new Error('رفض الخادم الإصدار (قواعد Firebase) — الصف غير معتمد أو غير مخصص لك، أو القواعد غير منشورة'); } else { lastSeq=seqN; refused=0; }
+      await new Promise(function(z){ setTimeout(z, 80+Math.random()*220); }); continue;   // number taken meanwhile → read again
+    }
+    throw new Error('فشل حفظ الإصدار (HTTP '+(w?w.status:'?')+')');
+  }
+  throw new Error('تعذّر حجز رقم تسلسلي بعد عدة محاولات');
+}
+// ops shortcut kept for compatibility: approve a one-row batch, then issue it
+async function _certIssueRow(row, ctx){
+  if(!_certIsOps()){ await _certCheckIssuer(); throw new Error(_certServerCanIssue() ? 'الإصدار للمصدّر يكون من «الدفعات المعتمدة» فقط' : 'حسابك غير مدرج في قائمة المصدّرين المعتمدة — اطلب من مدير التشغيل إضافتك'); }
+  var a=await _certApproveBatch([row], ctx, {}); return _certIssueApproved(a.batch, a.ids[0], a.rows[a.ids[0]]);
+}
+async function _certRevoke(serial, reason){
+  if(!_certCanRevoke()) throw new Error('الإلغاء متاح لمدير التشغيل فقط');
+  var rec=(_certRecords||[]).find(function(r){ return r.serial===serial; }); if(!rec) throw new Error('السجل غير موجود');
+  reason=String(reason||'').trim().slice(0,300); if(!reason) throw new Error('سبب الإلغاء مطلوب');
+  var now=new Date().toISOString(), base='certificates/records/'+rec.year+'/'+rec.seq+'/', patch={};
+  patch[base+'status']='revoked'; patch[base+'revokedAt']=now; patch[base+'revokedBy']=CU.name; patch[base+'revokedByUid']=_certAuthUid(); patch[base+'revokeReason']=reason;
+  patch['certVerify/'+rec.token+'/status']='revoked'; patch['certVerify/'+rec.token+'/revokedAt']=now;   // same atomic write
+  if(rec.dupKey) patch['certificates/dupIndex/'+rec.dupKey+'/'+rec.year+'/'+rec.seq]=null;
+  var a=await firebaseFetch('/.json',{method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)});
+  if(!a || !a.ok) throw new Error('فشل الإلغاء (HTTP '+(a?a.status:'?')+')');
+  Object.assign(rec, {status:'revoked', revokedAt:now, revokedBy:CU.name, revokeReason:reason});
+  return true;
+}
+// ── page UI ──────────────────────────────────────────────────────────────────
+var _certTab='records', _certState={ excel:null, rows:[], courseName:'', sessionId:'', defaultDate:'', filter:'', status:'all', busy:false };
+function renderCertsPage(){
+  var pg=document.getElementById('page-certs'); if(!pg) return;
+  if(!_certCanView()){ pg.innerHTML='<div class="denied"><div style="font-size:48px">🔒</div><h2>غير مصرح</h2><p>صفحة الشهادات والبطاقات تحتاج صلاحية «الشهادات والبطاقات».</p></div>'; return; }
+  var known=(_certIsOps() || (_certIssuerFlag!==null && _certIssuerFlagUid===_certAuthUid()));
+  if(!known){ _certCheckIssuer().then(function(){ var p=document.getElementById('page-certs'); if(p && p.classList.contains('active')) renderCertsPage(); }); }
+  var tabs=_certCanManage() ? [['records','📋 سجل الإصدارات'],['session','🗓️ إصدار من جلسة تدريبية'],['excel','📥 استيراد ملف Excel'],['batches','📦 الدفعات المعتمدة'],['issuers','👥 المصدّرون المعتمدون']]
+                             : [['batches','📦 الدفعات المعتمدة']];
+  if(!tabs.some(function(t){ return t[0]===_certTab; })) _certTab=tabs[0][0];
+  var note='';
+  if(!_certIsOps()){
+    if(!known) note='<div class="card" id="certIssuerNote" data-s="checking" style="font-size:12px;color:#6A85A5">⏳ جارٍ التحقق من صلاحية الإصدار لحسابك...</div>';
+    else if(_certServerCanIssue()) note='<div class="card" id="certIssuerNote" data-s="issuer" style="border-color:#3FBF7F;color:#7FD8A8;font-size:12px;line-height:1.9">✅ حسابك مدرج في قائمة المصدّرين: تُصدر <b>من الدفعات التي اعتمدها مدير التشغيل لك فقط</b>، دون تعديل بياناتها. سجل الإصدارات وإعادة الطباعة والإلغاء لمدير التشغيل.</div>';
+    else note='<div class="card" id="certBlockedNote" data-s="not-listed" style="border-color:#C9A84C;color:#E8C97A;font-size:12px;line-height:1.9">⏸️ حسابك <b>غير مدرج</b> في قائمة المصدّرين المعتمدة، فلا يمكنك الإصدار حتى يضيفك مدير التشغيل ويخصص لك دفعة معتمدة.</div>';
+  }
+  pg.innerHTML='<div class="page-header"><div><div class="page-title">🎓 الشهادات والبطاقات</div><div class="page-sub">إصدار شهادات وبطاقات المتدربين بالقوالب الرسمية، مع رقم تسلسلي وQR للتحقق</div></div></div>'
+    +'<div class="tab-bar" id="certTabs" style="flex-wrap:wrap;width:auto;max-width:100%;flex-shrink:0">'+tabs.map(function(t){ return '<button type="button" class="tab'+(_certTab===t[0]?' active':'')+'" data-t="'+t[0]+'">'+t[1]+'</button>'; }).join('')+'</div>'
+    +note+'<div id="certBody"></div>';
+  pg.querySelectorAll('#certTabs .tab').forEach(function(b){ b.onclick=function(){ _certTab=b.dataset.t; renderCertsPage(); }; });
+  var body=document.getElementById('certBody');
+  if(_certTab==='records') _certRenderRecords(body); else if(_certTab==='issuers') _certRenderIssuers(body); else if(_certTab==='batches') _certRenderBatches(body); else _certRenderIssue(body, _certTab);
+}
+// _65w: ops manages the issuer whitelist. Only accounts with a sign-in (authUid) can be listed. Also needs the page permission to open the page.
+async function _certRenderIssuers(body){
+  if(!_certCanManage()){ body.innerHTML='<div class="card">إدارة المصدّرين متاحة لمدير التشغيل فقط.</div>'; return; }
+  body.innerHTML='<div class="card">⏳ جارٍ التحميل...</div>';
+  var cur={}, err='';
+  try { var r=await firebaseFetch('/certIssuers.json'); if(r && r.ok) cur=(await _certJson(r))||{}; else err='تعذّر تحميل القائمة (HTTP '+(r?r.status:'?')+') — تأكد من نشر قواعد الشهادات.'; } catch(e){ err=e.message; }
+  var users=((typeof getDynUsers==='function') ? getDynUsers() : (typeof USERS!=='undefined'?USERS:[])) || [];
+  var rows=users.filter(function(u){ return u && u.dept!=='ops'; }).map(function(u){
+    var uid=u.authUid||'', on=!!(uid && cur[uid]===true);
+    var pp=null; try { pp=(typeof getUserPerms==='function') ? getUserPerms(u.id) : null; } catch(e){}
+    var hasPage=!!(pp && pp.pages && pp.pages.indexOf('training-certs')>=0);
+    return '<tr data-u="'+_certEsc(uid)+'"><td>'+_certEsc(u.name||u.id)+'</td><td style="color:#6A85A5">'+_certEsc(u.dept||'')+'</td>'
+      +'<td>'+(uid?(on?'<span style="color:#3FBF7F">✅ مصدّر معتمد</span>':'—'):'<span style="color:#6A85A5">لا يوجد حساب دخول مرتبط</span>')+(on && !hasPage?'<div style="color:#C9A84C;font-size:11px">يحتاج أيضاً صلاحية صفحة «الشهادات والبطاقات»</div>':'')+'</td>'
+      +'<td>'+(uid?'<button class="btn btn-sm '+(on?'btn-red':'btn-teal')+'" data-a="'+(on?'off':'on')+'">'+(on?'إزالة':'إضافة')+'</button>':'')+'</td></tr>';
+  }).join('');
+  var known={}; users.forEach(function(u){ if(u&&u.authUid) known[u.authUid]=1; });
+  var orphans=Object.keys(cur).filter(function(k){ return !known[k]; });
+  body.innerHTML=(err?'<div class="card" style="color:#E74C3C">'+_certEsc(err)+'</div>':'')
+    +'<div class="card" style="font-size:12px;line-height:1.9;color:#B8C7DB">المصدّر المعتمد يستطيع <b>إصدار</b> الشهادات والبطاقات فقط، ولا يرى سجل الإصدارات ولا يلغي. يتحقق خادم Firebase من هذه القائمة، ولا يستطيع أي موظف إضافة نفسه.</div>'
+    +'<div class="card" style="overflow-x:auto"><table class="tbl" id="certIssuersTbl" style="width:100%"><thead><tr><th>الموظف</th><th>القسم</th><th>الحالة</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +(orphans.length?'<div style="margin-top:8px;color:#C9A84C;font-size:12px">حسابات مدرجة غير مرتبطة بموظف حالي: '+orphans.map(function(k){ return '<span class="mono">'+_certEsc(k)+'</span> <button class="btn btn-sm btn-red" data-orphan="'+_certEsc(k)+'">إزالة</button>'; }).join(' ')+'</div>':'')+'</div>';
+  async function setFlag(uid, on){
+    var w=await firebaseFetch('/certIssuers/'+encodeURIComponent(uid)+'.json', on?{method:'PUT', headers:{'Content-Type':'application/json'}, body:'true'}:{method:'DELETE'});
+    if(!w || !w.ok) throw new Error('فشل الحفظ (HTTP '+(w?w.status:'?')+')');
+  }
+  body.querySelectorAll('#certIssuersTbl button[data-a]').forEach(function(b){ b.onclick=async function(){ var uid=b.closest('tr').dataset.u; b.disabled=true; try { await setFlag(uid, b.dataset.a==='on'); showSuccessToast(b.dataset.a==='on'?'✅ أُضيف إلى المصدّرين':'✅ أُزيل من المصدّرين'); } catch(e){ alert('⚠️ '+e.message); } _certRenderIssuers(body); }; });
+  body.querySelectorAll('button[data-orphan]').forEach(function(b){ b.onclick=async function(){ b.disabled=true; try { await setFlag(b.dataset.orphan, false); } catch(e){ alert('⚠️ '+e.message); } _certRenderIssuers(body); }; });
+}
+async function _certRenderRecords(body){
+  if(!_certCanManage()){ body.innerHTML='<div class="card">سجل الإصدارات متاح لمدير التشغيل فقط.</div>'; return; }
+  body.innerHTML='<div class="card" style="color:#6A85A5">⏳ جارٍ تحميل السجل...</div>';
+  await _certLoadRecords();
+  var q=_certState.filter.toLowerCase(), st=_certState.status;
+  var list=(_certRecords||[]).filter(function(r){
+    if(st!=='all' && r.status!==st) return false;
+    if(!q) return true;
+    return [r.serial, r.trainee&&r.trainee.name, r.trainee&&r.trainee.nationalId, r.course&&r.course.name, r.trainee&&r.trainee.company].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
+  });
+  var h=(_certRecordsErr?'<div class="card" style="border-color:#C0392B;color:#E74C3C">⚠️ '+_certEsc(_certRecordsErr)+'</div>':'')
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="fc" id="certSearch" placeholder="بحث: الرقم التسلسلي، الاسم، الهوية، الدورة، الشركة" style="flex:1;min-width:220px" value="'+_certEsc(_certState.filter)+'"/>'
+    +'<select class="fc" id="certStatus" style="width:auto"><option value="all">كل الحالات</option><option value="valid"'+(st==='valid'?' selected':'')+'>صالحة</option><option value="revoked"'+(st==='revoked'?' selected':'')+'>ملغاة</option></select>'
+    +'<span style="color:#6A85A5;font-size:11px">'+list.length+' سجل</span></div>'
+    +'<div class="tbl-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>المتدرب</th><th>الهوية</th><th>الدورة</th><th>تاريخ الشهادة</th><th>الصلاحية</th><th>الانتهاء</th><th>المصدر</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>'
+    +(list.length?list.map(function(r){
+      return '<tr data-s="'+_certEsc(r.serial)+'"><td style="font-family:monospace;color:#C9A84C">'+_certEsc(r.serial)+'</td><td>'+_certEsc(r.trainee&&r.trainee.name)+'<div style="color:#6A85A5;font-size:10px">'+_certEsc(r.trainee&&r.trainee.company)+'</div></td><td>'+_certEsc(r.trainee&&r.trainee.nationalId)+'</td><td>'+_certEsc(r.course&&r.course.name)+'</td>'
+        +'<td>'+_certEsc(_certFmt(r.certificateDate))+'</td><td>'+_certEsc(r.validityYears)+' '+(r.validityYears===1?'سنة':'سنوات')+(r.validityDefaulted?' <span title="القيمة الافتراضية — الصلاحية غير محددة في الكتالوج" style="color:#C9A84C">*</span>':'')+'</td><td>'+_certEsc(_certFmt(r.expiryDate))+'</td>'
+        +'<td>'+(r.source==='session'?'جلسة':'Excel')+'</td><td>'+(r.status==='revoked'?'<span class="pill" style="background:rgba(192,57,43,.15);color:#E74C3C">ملغاة</span>':'<span class="pill" style="background:rgba(26,138,90,.15);color:#3FBF7F">صالحة</span>')+'</td>'
+        +'<td style="white-space:nowrap"><button class="btn btn-sm btn-ghost" data-a="preview">👁️</button> <button class="btn btn-sm btn-teal" data-a="cert">📄 شهادة PDF</button> <button class="btn btn-sm btn-teal" data-a="card">🪪 بطاقة PDF</button>'
+        +(_certCanRevoke() && r.status!=='revoked'?' <button class="btn btn-sm btn-red" data-a="revoke">إلغاء</button>':'')+'</td></tr>';
+    }).join(''):'<tr><td colspan="10" style="text-align:center;color:#6A85A5;padding:24px">لا توجد إصدارات</td></tr>')
+    +'</tbody></table></div><div style="color:#6A85A5;font-size:10px">* مدة سنتين افتراضية لأن صلاحية الدورة غير محددة في الكتالوج. إعادة الطباعة تستخدم نفس الرقم التسلسلي دائماً.</div>';
+  body.innerHTML=h;
+  var s=document.getElementById('certSearch'); s.oninput=function(){ _certState.filter=s.value; clearTimeout(window._certSearchT); window._certSearchT=setTimeout(function(){ _certRenderRecords(body).then(function(){ var x=document.getElementById('certSearch'); if(x){ x.focus(); x.setSelectionRange(x.value.length,x.value.length); } }); },250); };
+  document.getElementById('certStatus').onchange=function(){ _certState.status=this.value; _certRenderRecords(body); };
+  body.querySelectorAll('tr[data-s] button').forEach(function(b){ b.onclick=function(){ var serial=b.closest('tr').dataset.s; var rec=(_certRecords||[]).find(function(r){ return r.serial===serial; }); _certRecordAction(b.dataset.a, rec, body); }; });
+}
+async function _certRecordAction(a, rec, body){
+  if(!rec || !_certCanManage()) return;
+  try {
+    if(a==='preview'){ var ph=rec.trainee.photoUrl?await _certLoadPhoto(rec.trainee.photoUrl, true):null; return _certShowPreview([{rec:rec, photo:ph}], 0); }
+    if(a==='cert'||a==='card'){
+      showSuccessToast('⏳ جارٍ إنشاء PDF...');
+      var photos={}; if(a==='card' && rec.trainee.photoUrl){ photos[rec.serial]=await _certLoadPhoto(rec.trainee.photoUrl, true); if(!photos[rec.serial].ok) showSuccessToast('⚠️ تعذّر تحميل صورة المتدرب — ستصدر البطاقة بالقالب الرسمي بدون صورة'); }
+      var doc=await _certBuildPdf(a, [rec], photos);
+      await _certDeliverPdf(doc, (a==='cert'?'Certificate_':'IDCard_')+rec.serial+'_'+_certSafeName(rec.trainee.name)+'.pdf'); return;
+    }
+    if(a==='revoke'){ _certRevokeDialog(rec, body); return; }
+  } catch(e){ alert('⚠️ '+e.message); }
+}
+function _certRevokeDialog(rec, body){
+  var ov=document.createElement('div'); ov.className='modal-overlay open'; ov.id='certRevokeOv';
+  ov.innerHTML='<div class="modal" style="width:440px"><div class="modal-title">إلغاء الوثيقة '+_certEsc(rec.serial)+'</div><p style="color:#6A85A5;font-size:12px;line-height:1.8">يبقى السجل محفوظاً، وتظهر الوثيقة في صفحة التحقق بحالة «ملغاة». لا يمكن التراجع من الواجهة.</p>'
+    +'<label>سبب الإلغاء</label><input class="fc" id="certRevReason" maxlength="300"/><div style="display:flex;gap:8px;margin-top:14px"><button class="btn btn-red" id="certRevGo">تأكيد الإلغاء</button><button class="btn btn-ghost" id="certRevNo">رجوع</button></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('certRevNo').onclick=function(){ ov.remove(); };
+  document.getElementById('certRevGo').onclick=async function(){ var reason=document.getElementById('certRevReason').value.trim(); if(!reason){ alert('أدخل سبب الإلغاء'); return; } this.disabled=true; try { await _certRevoke(rec.serial, reason); ov.remove(); showSuccessToast('✅ تم الإلغاء'); _certRenderRecords(body); } catch(e){ alert('⚠️ '+e.message); this.disabled=false; } };
+}
+
+// issue tabs (session / excel)
+function _certCourseOptions(selected){
+  var opts=[]; try { (getAllCourses()||[]).forEach(function(g){ (g.courses||[]).forEach(function(c){ if(c && c.name && opts.indexOf(c.name)<0) opts.push(c.name); }); }); } catch(e){}
+  opts.sort(function(a,b){ return a.localeCompare(b); });
+  return '<option value="">— اختر الدورة من الكتالوج —</option>'+opts.map(function(n){ return '<option value="'+_certEsc(n)+'"'+(n===selected?' selected':'')+'>'+_certEsc(n)+'</option>'; }).join('');
+}
+function _certSessions(){ return (DB.sessions||[]).filter(Boolean).slice().sort(function(a,b){ return String(b.startDate||b.day||'').localeCompare(String(a.startDate||a.day||'')); }); }
+function _certAttendees(session){
+  var d=getSessionData(session.id)||{}; var att=Array.isArray(d.attendance)?d.attendance:(d.attendance&&typeof d.attendance==='object'?Object.values(d.attendance):[]);
+  return att.filter(function(a){ return a && String(a.name||'').trim(); }).map(function(a){ return {name:String(a.name).trim(), nationalId:String(a.idNumber||'').replace(/\s+/g,''), company:String(a.company||'').trim()}; });
+}
+async function _certRenderIssue(body, mode){
+  if(!_certCanManage()){ body.innerHTML='<div class="card">الاستيراد والاعتماد لمدير التشغيل فقط — الإصدار يتم من «الدفعات المعتمدة».</div>'; return; }
+  if(_certRecords===null) await _certLoadRecords();
+  var S=_certState; if(S.mode!==mode){ S.mode=mode; S.rows=[]; S.excel=null; S.sessionId=''; S.courseName=''; }
+  if(!S.defaultDate) S.defaultDate=_certToday();
+  var top='';
+  if(mode==='session'){
+    var ss=_certSessions();
+    top='<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="form-row"><div class="form-group"><label>الجلسة التدريبية</label><select class="fc" id="certSess"><option value="">— اختر الجلسة —</option>'
+      +ss.map(function(s){ return '<option value="'+_certEsc(s.id)+'"'+(s.id===S.sessionId?' selected':'')+'>'+_certEsc((s.startDate||s.day||'')+' — '+(s.course||'')+' — '+(s.trainer||''))+'</option>'; }).join('')+'</select></div>'
+      +'<div class="form-group"><label>تاريخ الشهادة (لمن ليس له تاريخ في ملف Excel)</label><input type="date" class="fc" id="certDefDate" value="'+_certEsc(S.defaultDate)+'"/></div></div>'
+      +(S.sessionId?_certSessionInfo(S.sessionId):'')
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="certXlsBtn">📥 استكمال البيانات من ملف Excel (اختياري)</button><span style="color:#6A85A5;font-size:11px;align-self:center">يُطابَق ملف Excel مع كشف الحضور برقم الهوية ثم بالاسم، ولا يُعدَّل كشف الحضور.</span></div></div>';
+  } else {
+    top='<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="form-row"><div class="form-group"><label>الدورة (من كتالوج الدورات — منها تُقرأ مدة الصلاحية)</label><select class="fc" id="certCourse">'+_certCourseOptions(S.courseName)+'</select></div>'
+      +'<div class="form-group"><label>ملف Excel (أعمدة SAMPLE5)</label><button type="button" class="btn btn-teal" id="certXlsBtn">📥 استيراد ملف Excel</button></div></div>'
+      +(S.courseName?_certValidityNote(S.courseName):'')+'</div>';
+  }
+  body.innerHTML=top+'<div id="certImportInfo"></div><div id="certRowsBox"></div>';
+  if(mode==='session'){
+    document.getElementById('certSess').onchange=function(){ S.sessionId=this.value; S.excel=null; _certBuildSessionRows(); _certRenderIssue(body, mode); };
+    document.getElementById('certDefDate').onchange=function(){ S.defaultDate=this.value; _certRefreshRows(); };
+  } else {
+    document.getElementById('certCourse').onchange=function(){ S.courseName=this.value; _certRefreshRows(); _certRenderIssue(body, mode); };
+  }
+  document.getElementById('certXlsBtn').onclick=function(){ if(mode==='session' && !S.sessionId){ alert('اختر الجلسة أولاً'); return; } var inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xls,.csv'; inp.onchange=function(){ if(inp.files[0]) _certReadExcelFile(inp.files[0], body, mode); }; inp.click(); };
+  _certRenderImportInfo(); _certRenderRows();
+}
+function _certSessionInfo(id){
+  var s=(DB.sessions||[]).find(function(x){ return x && x.id===id; }); if(!s) return '';
+  var att=_certAttendees(s);
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;font-size:12px">'
+    +[['الدورة',s.course],['المدرب',s.trainer],['التاريخ',(s.startDate||s.day||'')+(s.endDate?' → '+s.endDate:'')],['الجهة',(s.companies||[]).map(function(c){ return c&&c.company; }).filter(Boolean).join('، ')],['المسجلون في كشف الحضور',att.length]]
+      .map(function(k){ return '<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:8px;padding:8px"><div style="color:#6A85A5;font-size:10px">'+k[0]+'</div><div>'+_certEsc(k[1]==null||k[1]===''?'—':k[1])+'</div></div>'; }).join('')+'</div>'+_certValidityNote(s.course||'');
+}
+function _certValidityNote(courseName){
+  var v=_certCourseValidity(courseName);
+  return '<div style="font-size:11px;color:'+(v.defaulted?'#C9A84C':'#3FBF7F')+'">🏅 صلاحية الشهادة: '+v.years+' '+(v.years===1?'سنة':'سنوات')
+    +(v.defaulted?' (افتراضية — '+(v.found?'الصلاحية غير محددة لهذه الدورة في الكتالوج':'الدورة غير موجودة في الكتالوج')+')':' (من الكتالوج: '+_certEsc(v.raw)+')')+'</div>';
+}
+function _certReadExcelFile(file, body, mode){
+  if(typeof XLSX==='undefined'){ alert('مكتبة Excel غير محمّلة'); return; }
+  var fr=new FileReader();
+  fr.onload=function(e){
+    try {
+      var wb=/\.csv$/i.test(file.name) ? XLSX.read(new TextDecoder('utf-8').decode(new Uint8Array(e.target.result)).replace(/^﻿/,''),{type:'string', raw:true}) : XLSX.read(new Uint8Array(e.target.result),{type:'array', cellNF:true, cellText:true});
+      var p=_certParseWorkbook(wb); p.file=file.name; _certState.excel=p;
+      if(mode==='session') _certBuildSessionRows(); else { _certState.rows=p.rows.map(function(r){ r.sel=true; return r; }); _certRefreshRows(); }
+      _certRenderIssue(body, mode);
+    } catch(err){ alert('تعذّرت قراءة الملف: '+err.message); }
+  };
+  fr.readAsArrayBuffer(file);
+}
+// session mode: attendees are the source; Excel only completes them (matched by ID, then by name). Conflicts are shown, never auto-applied.
+function _certBuildSessionRows(){
+  var S=_certState, s=(DB.sessions||[]).find(function(x){ return x && x.id===S.sessionId; }); S.rows=[]; if(!s) return;
+  S.courseName=s.course||'';
+  var xr=(S.excel&&S.excel.rows)||[], used={};
+  S.rows=_certAttendees(s).map(function(a){
+    var m=null;
+    if(a.nationalId) m=xr.find(function(x){ return x.nationalId && x.nationalId===a.nationalId; });
+    if(!m) m=xr.find(function(x){ return x.name && x.name.toLowerCase()===a.name.toLowerCase() && !(x.nationalId && a.nationalId && x.nationalId!==a.nationalId); });
+    var row={ name:a.name, nationalId:a.nationalId, company:a.company, extId:'', email:'', phone:'', dob:'', birthCity:'', photoUrl:'', certificateDate:'', certificateDateRaw:'', sel:true, fromSession:true, conflicts:{}, resolved:{} };
+    if(m){
+      used[m._row]=1; row._row=m._row; row.excel=m.excel;
+      ['extId','email','phone','dob','dobRaw','birthCity','photoUrl','certificateDate','certificateDateRaw'].forEach(function(k){ row[k]=m[k]||''; });
+      [['name','الاسم'],['nationalId','رقم الهوية'],['company','الشركة']].forEach(function(f){ var sv=row[f[0]], xv=m[f[0]]; if(xv && sv && String(sv).trim().toLowerCase()!==String(xv).trim().toLowerCase()){ row.conflicts[f[0]]={label:f[1], session:sv, excel:xv}; } else if(xv && !sv) row[f[0]]=xv; });
+    }
+    return row;
+  });
+  S.unmatched=xr.filter(function(x){ return !used[x._row]; });
+  _certRefreshRows();
+}
+function _certRefreshRows(){
+  var S=_certState; _certValidateRows(S.rows, {dateOptional: S.mode==='session'});
+  setTimeout(_certQueueDupLookup, 0);
+  var idx=_certIssuedIndex();
+  S.rows.forEach(function(r){
+    Object.keys(r.conflicts||{}).forEach(function(k){ if(!r.resolved[k]) r.errors.push({col:r.conflicts[k].label, msg:'تعارض بين الجلسة وExcel — اختر القيمة المعتمدة'}); });
+    if(S.mode==='session' && !r.certificateDate && !S.defaultDate) r.errors.push({col:'Certificate Date', msg:'حدد تاريخ الشهادة'});
+    if(S.mode==='excel' && !S.courseName) r.errors.push({col:'Course', msg:'اختر الدورة من الكتالوج'});
+    var prev=idx[_certRowKey(_certRowFinal(r), _certRowCourse(S))]; r.already=prev||null;
+    if(prev) r.warnings.push({col:'—', msg:'صدرت له شهادة لهذه الدورة سابقاً: '+prev.join('، ')+' — الإصدار الجديد يأخذ رقماً جديداً'});
+  });
+}
+function _certRowCourse(S){ if(S.mode==='session'){ var ss=(_certSessions()||[]).find(function(x){ return x.id===S.sessionId; }); return ss ? (ss.course||'') : (S.courseName||''); } return S.courseName||''; }
+function _certQueueDupLookup(){
+  if(_certCanManage() || !_certServerCanIssue()) return;
+  var S=_certState, c=_certRowCourse(S); if(!c) return;
+  var keys=S.rows.filter(function(r){ return !(r.errors&&r.errors.length) || r.sel; }).map(function(r){ return _certRowKey(_certRowFinal(r), c); });
+  _certDupLookup(keys).then(function(changed){ if(changed && _certState===S){ _certRefreshRows(); _certRenderRows(); } });
+}
+function _certRowFinal(r){ var o=Object.assign({}, r); Object.keys(r.resolved||{}).forEach(function(k){ o[k]=r.resolved[k]==='excel'?r.conflicts[k].excel:r.conflicts[k].session; }); return o; }
+function _certRenderImportInfo(){
+  var box=document.getElementById('certImportInfo'), x=_certState.excel; if(!box) return; if(!x){ box.innerHTML=''; return; }
+  var bad=_certState.rows.filter(function(r){ return r.errors&&r.errors.length; }).length;
+  box.innerHTML='<div class="card" style="font-size:12px;line-height:1.9">📄 <b>'+_certEsc(x.file||'')+'</b> — ورقة «'+_certEsc(x.sheet)+'»: صفوف مقروءة <b>'+x.read+'</b>'
+    +(_certState.mode==='excel'?' · صالحة <b style="color:#3FBF7F">'+(x.read-bad)+'</b> · غير صالحة <b style="color:#E74C3C">'+bad+'</b>':'')
+    +(x.errors.length?'<div style="color:#E74C3C">⛔ '+x.errors.map(_certEsc).join(' · ')+'</div>':'')
+    +(x.missing.length?'<div style="color:#C9A84C">أعمدة رسمية غير موجودة في الملف: '+x.missing.map(_certEsc).join('، ')+'</div>':'<div style="color:#3FBF7F">✅ الأعمدة الرسمية العشرة موجودة</div>')
+    +(x.unknown.length?'<div style="color:#C9A84C">أعمدة غير معروفة (لن تُستخدم): '+x.unknown.map(_certEsc).join('، ')+'</div>':'')
+    +(_certState.mode==='session' && _certState.unmatched && _certState.unmatched.length?'<div style="color:#C9A84C">صفوف في Excel غير موجودة في كشف حضور الجلسة (لن تُصدر من هنا): '+_certState.unmatched.map(function(u){ return _certEsc(u.name||('صف '+u._row)); }).join('، ')+'</div>':'')
+    +'</div>';
+}
+function _certRenderRows(){
+  var box=document.getElementById('certRowsBox'), S=_certState; if(!box) return;
+  if(!S.rows.length){ box.innerHTML='<div class="card" style="color:#6A85A5;text-align:center">'+(S.mode==='session'?(S.sessionId?'لا يوجد متدربون في كشف حضور هذه الجلسة':'اختر جلسة تدريبية'):'استورد ملف Excel لعرض المتدربين')+'</div>'; return; }
+  var selCount=S.rows.filter(function(r){ return r.sel && !(r.errors&&r.errors.length); }).length;
+  box.innerHTML='<div class="tbl-wrap"><table><thead><tr><th><input type="checkbox" id="certAll"/></th><th>#</th><th>الاسم</th><th>الهوية</th><th>الشركة</th><th>تاريخ الشهادة</th><th>الصورة</th><th>ملاحظات</th></tr></thead><tbody>'
+    +S.rows.map(function(r,i){
+      var f=_certRowFinal(r), blocked=r.errors&&r.errors.length;
+      var conf=Object.keys(r.conflicts||{}).map(function(k){ var c=r.conflicts[k]; return '<div style="margin-top:4px">⚖️ '+_certEsc(c.label)+': <select class="fc" data-c="'+k+'" data-i="'+i+'" style="width:auto;font-size:11px;padding:3px"><option value="">— اختر —</option><option value="session"'+(r.resolved[k]==='session'?' selected':'')+'>الجلسة: '+_certEsc(c.session)+'</option><option value="excel"'+(r.resolved[k]==='excel'?' selected':'')+'>Excel: '+_certEsc(c.excel)+'</option></select></div>'; }).join('');
+      return '<tr><td><input type="checkbox" data-i="'+i+'"'+(r.sel&&!blocked?' checked':'')+(blocked?' disabled':'')+'/></td><td style="color:#6A85A5">'+(r._row?('صف '+r._row):(i+1))+'</td><td>'+_certEsc(f.name)+'</td><td>'+_certEsc(f.nationalId)+'</td><td>'+_certEsc(f.company)+'</td>'
+        +'<td>'+_certEsc(_certFmt(r.certificateDate||(S.mode==='session'?S.defaultDate:'')))+'</td><td>'+(r.photoUrl?'🖼️':'—')+'</td>'
+        +'<td style="font-size:11px;max-width:320px">'+(r.errors||[]).map(function(e){ return '<div style="color:#E74C3C">⛔ ['+_certEsc(e.col)+'] '+_certEsc(e.msg)+'</div>'; }).join('')+(r.warnings||[]).map(function(e){ return '<div style="color:#C9A84C">⚠️ ['+_certEsc(e.col)+'] '+_certEsc(e.msg)+'</div>'; }).join('')+conf+'</td></tr>';
+    }).join('')+'</tbody></table></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="btn btn-ghost" id="certPrev">👁️ معاينة المحدد</button>'+(_certIsOps()?'<button type="button" class="btn btn-gold" id="certIssue">✅ اعتماد وإصدار ('+selCount+')</button><button type="button" class="btn btn-teal" id="certApprove">📦 اعتماد كدفعة لمصدّر ('+selCount+')</button>':'')+'<span style="color:#6A85A5;font-size:11px">الإصدار يتم من بيانات يعتمدها مدير التشغيل؛ يُخصَّص رقم تسلسلي فريد لكل متدرب ويُستخدم في الشهادة والبطاقة وQR.</span></div><div id="certIssueLog"></div>';
+  box.querySelectorAll('input[type=checkbox][data-i]').forEach(function(cb){ cb.onchange=function(){ S.rows[+cb.dataset.i].sel=cb.checked; _certRenderRows(); }; });
+  var all=document.getElementById('certAll'); all.onchange=function(){ S.rows.forEach(function(r){ if(!(r.errors&&r.errors.length)) r.sel=all.checked; }); _certRenderRows(); };
+  box.querySelectorAll('select[data-c]').forEach(function(sel){ sel.onchange=function(){ var r=S.rows[+sel.dataset.i]; if(sel.value) r.resolved[sel.dataset.c]=sel.value; else delete r.resolved[sel.dataset.c]; _certRefreshRows(); _certRenderRows(); _certRenderImportInfo(); }; });
+  document.getElementById('certPrev').onclick=function(){ _certPreviewSelected(); };
+  var bi=document.getElementById('certIssue'); if(bi) bi.onclick=function(){ _certIssueSelected(); };
+  var ba=document.getElementById('certApprove'); if(ba) ba.onclick=function(){ _certApproveSelected(); };
+}
+function _certSelectedRows(){ return _certState.rows.filter(function(r){ return r.sel && !(r.errors&&r.errors.length); }); }
+function _certCtx(){ var S=_certState; return { source:S.mode==='session'?'session':'excel', courseName:S.courseName, defaultDate:S.mode==='session'?S.defaultDate:'', session:S.mode==='session'?(DB.sessions||[]).find(function(x){ return x && x.id===S.sessionId; }):null }; }
+// preview BEFORE issuing: no serial is reserved; a clearly marked placeholder serial and token are used
+async function _certPreviewSelected(){
+  var rows=_certSelectedRows(); if(!rows.length){ alert('لا يوجد متدرب صالح محدد'); return; }
+  var ctx=_certCtx(), items=[];
+  for(var i=0;i<Math.min(rows.length,30);i++){
+    var f=_certRowFinal(rows[i]), cd=f.certificateDate||ctx.defaultDate, v=_certCourseValidity(ctx.courseName);
+    var rec={ serial:'TUVTI-'+(cd?cd.slice(0,4):'YYYY')+'-PREVIEW', token:'preview-not-issued', trainee:{name:f.name, nationalId:f.nationalId}, course:{name:ctx.courseName}, certificateDate:cd, expiryDate:_certAddYears(cd, v.years) };
+    items.push({rec:rec, photo: f.photoUrl ? await _certLoadPhoto(f.photoUrl) : null, preview:true});
+  }
+  _certShowPreview(items, 0);
+}
+async function _certShowPreview(items, idx){
+  var old=document.getElementById('certPrevOv'); if(old) old.remove();
+  var it=items[idx], ov=document.createElement('div'); ov.className='modal-overlay open'; ov.id='certPrevOv';
+  ov.innerHTML='<div class="modal" style="width:980px;max-width:98vw"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="modal-title" style="margin:0">معاينة — '+_certEsc(it.rec.trainee.name)+(items.length>1?' ('+(idx+1)+'/'+items.length+')':'')+'</div><div style="display:flex;gap:6px">'
+    +(items.length>1?'<button class="btn btn-sm btn-ghost" id="cpPrev">◀</button><button class="btn btn-sm btn-ghost" id="cpNext">▶</button>':'')+'<button class="btn btn-sm btn-red" id="cpClose">✕</button></div></div>'
+    +(it.preview?'<div style="color:#C9A84C;font-size:11px;margin:6px 0">معاينة قبل الإصدار — الرقم التسلسلي وQR النهائيان يُخصَّصان عند الاعتماد.</div>':'')
+    +(it.photo && !it.photo.ok && it.rec.trainee && (it.photo.reason||'')!=='none'?'<div style="color:#E74C3C;font-size:11px">⚠️ '+_certEsc(it.photo.reason)+' — ستصدر البطاقة بالقالب الرسمي بدون صورة.</div>':'')
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:10px" id="cpGrid"><div id="cpCert" style="text-align:center;color:#6A85A5">⏳</div><div id="cpCard" style="text-align:center;color:#6A85A5">⏳</div></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('cpClose').onclick=function(){ ov.remove(); };
+  if(items.length>1){ document.getElementById('cpPrev').onclick=function(){ _certShowPreview(items,(idx-1+items.length)%items.length); }; document.getElementById('cpNext').onclick=function(){ _certShowPreview(items,(idx+1)%items.length); }; }
+  try {
+    var c1=await _certRenderCanvas('cert', it.rec, null), c2=await _certRenderCanvas('card', it.rec, it.photo);
+    [[c1,'cpCert'],[c2,'cpCard']].forEach(function(p){ p[0].style.cssText='width:100%;height:auto;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.5);background:#fff'; var h=document.getElementById(p[1]); if(h){ h.innerHTML=''; h.appendChild(p[0]); } });
+  } catch(e){ var h=document.getElementById('cpCert'); if(h) h.textContent='⚠️ '+e.message; }
+}
+function _certShowIssueLog(lg, done, failed, photos){
+  window._certLastBatch={recs:done, photos:photos};
+  if(!lg) return;
+  lg.innerHTML='<div class="card" style="line-height:1.9">✅ صدر '+done.length+(failed.length?' · ⛔ فشل '+failed.length:'')
+    +(done.length?'<div style="font-family:monospace;color:#C9A84C">'+done.map(function(r){ return _certEsc(r.serial)+' — '+_certEsc(r.trainee.name)+(r.trainee.photoUrl && !r.hasPhotoAtIssue?' <span style="color:#E8A33C">⚠️ صدرت بدون الصورة المعتمدة — '+_certEsc(r.photoNote||'')+'</span>':''); }).join('<br/>')+'</div>':'')
+    +(failed.length?'<div style="color:#E74C3C">'+failed.map(function(f){ return _certEsc(f.name)+': '+_certEsc(f.msg); }).join('<br/>')+'</div>':'')
+    +(done.length?'<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-teal" id="certDlCerts">📄 تنزيل الشهادات PDF</button><button class="btn btn-teal" id="certDlCards">🪪 تنزيل البطاقات PDF</button></div>':'')+'</div>';
+  var b1=document.getElementById('certDlCerts'), b2=document.getElementById('certDlCards');
+  if(b1) b1.onclick=async function(){ try { var d=await _certBuildPdf('cert', window._certLastBatch.recs, null); await _certDeliverPdf(d, done.length===1?('Certificate_'+done[0].serial+'_'+_certSafeName(done[0].trainee.name)+'.pdf'):('Certificates_'+done[0].serial+'_to_'+done[done.length-1].serial+'.pdf')); } catch(e){ alert('⚠️ '+e.message); } };
+  if(b2) b2.onclick=async function(){ try { var d=await _certBuildPdf('card', window._certLastBatch.recs, window._certLastBatch.photos); await _certDeliverPdf(d, done.length===1?('IDCard_'+done[0].serial+'_'+_certSafeName(done[0].trainee.name)+'.pdf'):('IDCards_'+done[0].serial+'_to_'+done[done.length-1].serial+'.pdf')); } catch(e){ alert('⚠️ '+e.message); } };
+}
+async function _certIssueList(b, ids, rowsMap, lg){
+  var done=[], failed=[], photos={}, noPhoto=[];
+  for(var j=0;j<ids.length;j++){ var a=rowsMap[ids[j]]; if(a && a.photoUrl && !a.issued){ if(lg) lg.innerHTML='<div class="card">⏳ جارٍ التحقق من الصور المعتمدة '+(j+1)+' / '+ids.length+'...</div>'; var ph=await _certLoadPhoto(a.photoUrl); if(!ph.ok) noPhoto.push({id:ids[j], name:a.name, reason:ph.reason}); } }
+  var skip={};
+  if(noPhoto.length){
+    var msg='⚠️ تعذّر تحميل الصورة المعتمدة لـ '+noPhoto.length+' متدرب:\n'+noPhoto.map(function(x){ return '• '+x.name+' — '+String(x.reason||'').slice(0,120); }).join('\n')
+      +'\n\nموافق = إصدار بطاقاتهم بالقالب الرسمي بدون صورة (يُسجَّل ذلك وسببه في السجل).\nإلغاء = تأجيل هذه الصفوف وإصدار الباقي فقط.';
+    if(!confirm(msg)) noPhoto.forEach(function(x){ skip[x.id]=1; });
+  }
+  for(var i=0;i<ids.length;i++){
+    if(skip[ids[i]]){ failed.push({name:(rowsMap[ids[i]]||{}).name||ids[i], msg:'أُجّل: الصورة المعتمدة غير متاحة'}); continue; }
+    if(lg) lg.innerHTML='<div class="card">⏳ جارٍ الإصدار '+(i+1)+' / '+ids.length+'...</div>';
+    try { var res=await _certIssueApproved(b, ids[i], rowsMap[ids[i]]); done.push(res.rec); photos[res.rec.serial]=res.photo; }
+    catch(e){ failed.push({name:(rowsMap[ids[i]]||{}).name||ids[i], msg:e.message}); }
+  }
+  return {done:done, failed:failed, photos:photos};
+}
+async function _certIssueSelected(){
+  var S=_certState; if(S.busy || !_certIsOps()) return;
+  var rows=_certSelectedRows(); if(!rows.length){ alert('لا يوجد متدرب صالح محدد للإصدار'); return; }
+  var ctx=_certCtx(); if(!ctx.courseName){ alert('الدورة غير محددة'); return; }
+  if(!confirm('اعتماد وإصدار '+rows.length+' شهادة وبطاقة لدورة «'+ctx.courseName+'»؟ سيُخصَّص رقم تسلسلي لكل متدرب.')) return;
+  S.busy=true; var lg=document.getElementById('certIssueLog'), out={done:[],failed:[],photos:{}};
+  try {
+    var a=await _certApproveBatch(rows.map(_certRowFinal), ctx, {});
+    out=await _certIssueList(a.batch, a.ids, a.rows, lg);
+    rows.forEach(function(r,i){ var ar=a.rows[a.ids[i]]; if(ar && ar.issued){ r.sel=false; r.issuedSerial=_certSerial(ar.issued.year,+ar.issued.seq); } });
+  } catch(e){ out.failed.push({name:'—', msg:e.message}); }
+  S.busy=false; await _certLoadRecords(); _certRefreshRows(); _certRenderRows();
+  _certShowIssueLog(document.getElementById('certIssueLog'), out.done, out.failed, out.photos);
+}
+// ops, import tabs: approve the selected rows as a batch for chosen issuers (no document is issued here)
+async function _certApproveSelected(){
+  var S=_certState; if(S.busy || !_certIsOps()) return;
+  var rows=_certSelectedRows(); if(!rows.length){ alert('لا يوجد متدرب صالح محدد'); return; }
+  var ctx=_certCtx(); if(!ctx.courseName){ alert('الدورة غير محددة'); return; }
+  var cur={}; try { var r=await firebaseFetch('/certIssuers.json'); if(r && r.ok) cur=(await _certJson(r))||{}; } catch(e){}
+  var users=((typeof getDynUsers==='function') ? getDynUsers() : (typeof USERS!=='undefined'?USERS:[])) || [];
+  var list=Object.keys(cur).filter(function(k){ return cur[k]===true; }).map(function(k){ var u=users.find(function(x){ return x && x.authUid===k; }); return {uid:k, name:u?(u.name||u.id):k}; });
+  var ov=document.createElement('div'); ov.id='certApproveOv'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML='<div class="card" style="max-width:520px;width:100%;line-height:1.9"><h3 style="margin-bottom:8px">📦 اعتماد '+rows.length+' صف كدفعة</h3>'
+    +'<div style="font-size:12px;color:#B8C7DB">تُحفظ نسخة ثابتة من البيانات المعتمدة (الاسم، الهوية، الشركة، الدورة، المدة، التواريخ). لا يستطيع المصدّر تغيير أي منها، ويُصدر كل صف مرة واحدة.</div>'
+    +'<div class="form-group"><label>عنوان الدفعة</label><input class="fc" id="certApTitle" value="'+_certEsc((ctx.courseName||'')+' — '+_certFmt(_certToday())+' ('+rows.length+')')+'"/></div>'
+    +'<div class="form-group"><label>المصدّرون المسموح لهم بالإصدار من هذه الدفعة</label>'+(list.length?list.map(function(x){ return '<label style="display:block"><input type="checkbox" data-u="'+_certEsc(x.uid)+'"/> '+_certEsc(x.name)+'</label>'; }).join(''):'<div style="color:#C9A84C">لا يوجد مصدّرون معتمدون — أضفهم من تبويب «المصدّرون المعتمدون».</div>')+'</div>'
+    +'<div style="display:flex;gap:8px"><button class="btn btn-gold" id="certApGo">اعتماد الدفعة</button><button class="btn btn-ghost" id="certApCancel">إلغاء</button></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('certApCancel').onclick=function(){ ov.remove(); };
+  document.getElementById('certApGo').onclick=async function(){
+    var iss={}; ov.querySelectorAll('input[data-u]').forEach(function(c){ if(c.checked) iss[c.dataset.u]=true; });
+    if(!Object.keys(iss).length && !confirm('لم تختر أي مصدّر — ستكون الدفعة متاحة لمدير التشغيل فقط. متابعة؟')) return;
+    this.disabled=true; S.busy=true;
+    try { var a=await _certApproveBatch(rows.map(_certRowFinal), ctx, iss, document.getElementById('certApTitle').value); ov.remove(); rows.forEach(function(r){ r.sel=false; r.approvedIn=a.batch; }); _certRenderRows(); showSuccessToast('✅ اعتمدت الدفعة ('+a.ids.length+' صف)'); window._certLastApproved=a.batch; }
+    catch(e){ alert('⚠️ '+e.message); this.disabled=false; }
+    S.busy=false;
+  };
+}
+// _65x: approved batches. ops sees every batch (and can remove rows that are not issued yet, and change who may issue);
+// an issuer sees only the batches ops assigned to it, and issues rows exactly as approved.
+var _certBatchSel=null;
+async function _certRenderBatches(body){
+  await _certCheckIssuer();
+  if(!_certServerCanIssue()){ body.innerHTML='<div class="card" style="color:#6A85A5">لا توجد دفعات متاحة لحسابك.</div>'; return; }
+  if(_certBatchSel) return _certRenderBatch(body, _certBatchSel);
+  body.innerHTML='<div class="card">⏳ جارٍ التحميل...</div>';
+  var list=[], err='';
+  try {
+    if(_certIsOps()){
+      var r=await firebaseFetch('/certificates/approved.json');
+      if(r && r.ok){ var v=(await _certJson(r))||{}; Object.keys(v).forEach(function(b){ var m=(v[b]||{}).meta||{}, rows=(v[b]||{}).rows||{}; var ids=Object.keys(rows); list.push({batch:b, title:m.title||b, createdAt:_certIso(m.createdAt), count:ids.length, issued:ids.filter(function(k){ return rows[k]&&rows[k].issued; }).length, issuers:Object.keys(m.issuers||{}).length}); }); }
+      else err='تعذّر تحميل الدفعات (HTTP '+(r?r.status:'?')+')';
+    } else {
+      var q=await firebaseFetch('/certificates/batchesFor/'+encodeURIComponent(_certAuthUid())+'.json');
+      if(q && q.ok){ var w=(await _certJson(q))||{}; Object.keys(w).forEach(function(b){ list.push({batch:b, title:w[b].title||b, createdAt:_certIso(w[b].createdAt), count:w[b].count||''}); }); }
+      else err='تعذّر تحميل الدفعات (HTTP '+(q?q.status:'?')+')';
+    }
+  } catch(e){ err=e.message; }
+  list.sort(function(a,b){ return String(b.createdAt).localeCompare(String(a.createdAt)); });
+  body.innerHTML=(err?'<div class="card" style="color:#E74C3C">'+_certEsc(err)+'</div>':'')
+    +'<div class="card" style="overflow-x:auto"><table class="tbl" id="certBatchesTbl" style="width:100%"><thead><tr><th>الدفعة</th><th>تاريخ الاعتماد</th><th>الصفوف</th>'+(_certIsOps()?'<th>صدر</th><th>المصدّرون</th>':'')+'<th></th></tr></thead><tbody>'
+    +(list.length?list.map(function(x){ return '<tr data-b="'+_certEsc(x.batch)+'"><td>'+_certEsc(x.title)+'</td><td>'+_certEsc(_certFmt(String(x.createdAt).slice(0,10)))+'</td><td>'+_certEsc(String(x.count))+'</td>'+(_certIsOps()?'<td>'+x.issued+'</td><td>'+x.issuers+'</td>':'')+'<td><button class="btn btn-sm btn-teal" data-a="open">فتح</button></td></tr>'; }).join(''):'<tr><td colspan="6" style="color:#6A85A5;text-align:center">لا توجد دفعات معتمدة</td></tr>')
+    +'</tbody></table></div>';
+  body.querySelectorAll('#certBatchesTbl button[data-a="open"]').forEach(function(bt){ bt.onclick=function(){ _certBatchSel=bt.closest('tr').dataset.b; _certRenderBatch(body, _certBatchSel); }; });
+}
+async function _certRenderBatch(body, b){
+  body.innerHTML='<div class="card">⏳ جارٍ التحميل...</div>';
+  var data=null, err='';
+  try { var r=await firebaseFetch('/certificates/approved/'+encodeURIComponent(b)+'.json'); if(r && r.ok) data=await _certJson(r); else err='لا تملك صلاحية هذه الدفعة أو غير موجودة (HTTP '+(r?r.status:'?')+')'; } catch(e){ err=e.message; }
+  if(!data){ body.innerHTML='<div class="card" style="color:#E74C3C">'+_certEsc(err||'الدفعة غير موجودة')+'</div><button class="btn btn-ghost" id="certBatchBack">→ رجوع</button>'; document.getElementById('certBatchBack').onclick=function(){ _certBatchSel=null; _certRenderBatches(body); }; return; }
+  var meta=data.meta||{}, rows=data.rows||{}, ids=Object.keys(rows).sort();
+  var idx=_certCanManage()?(_certRecords===null?(await _certLoadRecords(), _certIssuedIndex()):_certIssuedIndex()):null;
+  if(!_certCanManage()){ await _certDupLookup(ids.filter(function(k){ return !rows[k].issued; }).map(function(k){ return _certDupKey(rows[k].nationalId, rows[k].name, rows[k].courseName); })); idx=_certIssuedIndex(); }
+  window._certBatchData={batch:b, meta:meta, rows:rows};
+  body.innerHTML='<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="certBatchBack">→ كل الدفعات</button><b>'+_certEsc(meta.title||b)+'</b><span style="color:#6A85A5;font-size:12px">اعتمدها '+_certEsc(meta.createdByName||'')+' · '+_certEsc(_certFmt(_certIso(meta.createdAt).slice(0,10)))+'</span></div>'
+    +'<div class="card" style="font-size:12px;color:#B8C7DB">البيانات أدناه معتمدة من مدير التشغيل وثابتة؛ يتحقق خادم Firebase من تطابق كل وثيقة معها حرفياً. كل صف يُصدر مرة واحدة.</div>'
+    +'<div class="card" style="overflow-x:auto"><table class="tbl" id="certBatchTbl" style="width:100%"><thead><tr><th><input type="checkbox" id="certBatchAll"/></th><th>الاسم</th><th>الهوية</th><th>الشركة</th><th>الدورة</th><th>المدة</th><th>تاريخ الإصدار</th><th>الانتهاء</th><th>الحالة</th>'+(_certIsOps()?'<th>آخر اعتماد</th><th></th>':'')+'</tr></thead><tbody>'
+    +ids.map(function(k){ var x=rows[k], done=!!x.issued, prev=idx?idx[_certDupKey(x.nationalId, x.name, x.courseName)]:null;
+      return '<tr data-r="'+k+'"><td>'+(done?'':'<input type="checkbox" data-r="'+k+'" checked/>')+'</td><td>'+_certEsc(x.name)+'</td><td>'+_certEsc(x.nationalId||'')+'</td><td>'+_certEsc(x.company||'')+'</td><td>'+_certEsc(x.courseName)+'</td><td>'+_certEsc(x.duration||'')+'</td><td>'+_certEsc(_certFmt(x.certificateDate))+'</td><td>'+_certEsc(_certFmt(x.expiryDate))+'</td>'
+        +'<td>'+(done?'<span style="color:#3FBF7F" class="mono">✅ '+_certEsc(_certSerial(x.issued.year,+x.issued.seq))+'</span>':'<span style="color:#C9A84C">بانتظار الإصدار</span>')+(!done&&prev&&prev.length?'<div style="color:#C9A84C;font-size:11px">⚠️ صدرت له شهادة لهذه الدورة سابقاً: '+_certEsc(prev.join('، '))+'</div>':'')+'</td>'
+        +(_certIsOps()?'<td style="font-size:11px;color:#6A85A5">مراجعة '+_certEsc(String(x.revision||1))+' · '+_certEsc(_certUserName(x.approvedBy))+'<br/>'+_certEsc(_certFmt(_certIso(x.approvedAt).slice(0,10)))+'</td><td>'+(done?'':'<button class="btn btn-sm btn-ghost" data-edit="'+k+'">✏️ تعديل</button> <button class="btn btn-sm btn-red" data-del="'+k+'">حذف الصف</button>')+'</td>':'')+'</tr>'; }).join('')
+    +'</tbody></table></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-gold" id="certBatchIssue">✅ إصدار المحدد</button>'+(_certIsOps()?'<button class="btn btn-ghost" id="certBatchIssuers">👥 المصدّرون لهذه الدفعة</button>':'')+'</div><div id="certIssueLog" style="margin-top:10px"></div>';
+  document.getElementById('certBatchBack').onclick=function(){ _certBatchSel=null; _certRenderBatches(body); };
+  var all=document.getElementById('certBatchAll'); all.onchange=function(){ body.querySelectorAll('#certBatchTbl input[data-r]').forEach(function(c){ c.checked=all.checked; }); };
+  document.getElementById('certBatchIssue').onclick=async function(){
+    var sel=[].slice.call(body.querySelectorAll('#certBatchTbl input[data-r]:checked')).map(function(c){ return c.dataset.r; });
+    if(!sel.length){ alert('لا يوجد صف محدد'); return; }
+    if(!confirm('إصدار '+sel.length+' شهادة وبطاقة من الدفعة المعتمدة؟')) return;
+    this.disabled=true; var lg=document.getElementById('certIssueLog');
+    var out=await _certIssueList(b, sel, rows, lg);
+    if(_certCanManage()) await _certLoadRecords();
+    await _certRenderBatch(body, b);
+    _certShowIssueLog(document.getElementById('certIssueLog'), out.done, out.failed, out.photos);
+  };
+  body.querySelectorAll('button[data-del]').forEach(function(bt){ bt.onclick=async function(){ if(!confirm('حذف هذا الصف من الدفعة المعتمدة؟ (يُسجَّل الحذف)')) return; try { await _certDeleteApprovedRow(b, bt.dataset.del); } catch(e){ alert('⚠️ '+e.message); } _certRenderBatch(body, b); }; });
+  body.querySelectorAll('button[data-edit]').forEach(function(bt){ bt.onclick=async function(){
+    var rid=bt.dataset.edit, x=rows[rid]; var q=await firebaseFetch('/certificates/approvedPrivate/'+encodeURIComponent(b)+'/'+rid+'.json'); var pv=(q&&q.ok?await _certJson(q):null)||{};
+    var F=[['name','الاسم',x.name],['nationalId','الهوية',x.nationalId],['company','الشركة',x.company],['certificateDate','تاريخ الإصدار (YYYY-MM-DD)',x.certificateDate],['photoUrl','رابط الصورة',x.photoUrl],['email','البريد',pv.email],['phone','الهاتف',pv.phone]];
+    var ov=document.createElement('div'); ov.id='certEditOv'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML='<div class="card" style="max-width:480px;width:100%;line-height:1.8"><h3>✏️ تعديل صف معتمد</h3><div style="font-size:12px;color:#B8C7DB">يُحفظ كاعتماد جديد باسمك ووقت الخادم، ويُسجَّل الحقل المتغير.</div>'
+      +F.map(function(f){ return '<div class="form-group"><label>'+f[1]+'</label><input class="fc" data-f="'+f[0]+'" value="'+_certEsc(f[2]||'')+'"/></div>'; }).join('')
+      +'<div style="display:flex;gap:8px"><button class="btn btn-gold" id="certEditGo">حفظ الاعتماد الجديد</button><button class="btn btn-ghost" id="certEditX">إلغاء</button></div></div>';
+    document.body.appendChild(ov); document.getElementById('certEditX').onclick=function(){ ov.remove(); };
+    document.getElementById('certEditGo').onclick=async function(){ var ch={}; ov.querySelectorAll('input[data-f]').forEach(function(i){ ch[i.dataset.f]=i.value; }); this.disabled=true;
+      try { var res=await _certEditApprovedRow(b, rid, ch); ov.remove(); showSuccessToast(res.changed.length?('✅ اعتماد جديد (مراجعة '+res.revision+'): '+res.changed.join('، ')):'لا تغيير'); _certRenderBatch(body, b); } catch(e){ alert('⚠️ '+e.message); this.disabled=false; } };
+  }; });
+  var bi=document.getElementById('certBatchIssuers'); if(bi) bi.onclick=async function(){
+    var cur={}; try { var r=await firebaseFetch('/certIssuers.json'); if(r&&r.ok) cur=(await _certJson(r))||{}; } catch(e){}
+    var users=((typeof getDynUsers==='function') ? getDynUsers() : (typeof USERS!=='undefined'?USERS:[])) || [];
+    var on=meta.issuers||{}, keys=Object.keys(cur).filter(function(k){ return cur[k]===true; }).concat(Object.keys(on).filter(function(k){ return !cur[k]; }));
+    var ov=document.createElement('div'); ov.id='certBatchIssOv'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML='<div class="card" style="max-width:460px;width:100%;line-height:1.9"><h3>👥 المصدّرون لهذه الدفعة</h3>'+keys.map(function(k){ var u=users.find(function(x){ return x&&x.authUid===k; }); return '<label style="display:block"><input type="checkbox" data-u="'+_certEsc(k)+'"'+(on[k]?' checked':'')+'/> '+_certEsc(u?(u.name||u.id):k)+(cur[k]?'':' <span style="color:#C9A84C">(غير مدرج حالياً)</span>')+'</label>'; }).join('')
+      +'<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-gold" id="certBiGo">حفظ</button><button class="btn btn-ghost" id="certBiX">إلغاء</button></div></div>';
+    document.body.appendChild(ov); document.getElementById('certBiX').onclick=function(){ ov.remove(); };
+    document.getElementById('certBiGo').onclick=async function(){
+      var patch={}; ov.querySelectorAll('input[data-u]').forEach(function(c){ var u=c.dataset.u; patch['certificates/approved/'+b+'/meta/issuers/'+u]=c.checked?true:null; patch['certificates/batchesFor/'+u+'/'+b]=c.checked?{title:meta.title||b, createdAt:meta.createdAt||'', count:ids.length}:null; });
+      var w=await firebaseFetch('/.json',{method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)});
+      if(!w||!w.ok){ alert('⚠️ تعذّر الحفظ (HTTP '+(w?w.status:'?')+')'); return; } ov.remove(); showSuccessToast('✅ حُفظ المصدّرون لهذه الدفعة'); _certRenderBatch(body, b);
+    };
+  };
+}
 
 </script>
 </body>

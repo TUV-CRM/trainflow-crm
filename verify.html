@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: https:; connect-src https://trainflow-crm1-default-rtdb.asia-southeast1.firebasedatabase.app; base-uri 'none'; form-action 'none'"/>
+<meta name="referrer" content="no-referrer"/>
+<meta name="robots" content="noindex"/>
+<title>التحقق من الشهادة — TUV Training Institute</title>
+<link rel="icon" type="image/png" href="icons/favicon-32.png"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#EEF3F9;color:#16243A;font-family:Tahoma,'Segoe UI',Arial,sans-serif;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px}
+.card{background:#fff;border-radius:18px;box-shadow:0 8px 30px rgba(20,40,80,.12);max-width:560px;width:100%;overflow:hidden}
+.head{background:linear-gradient(135deg,#1A3570,#2D63A8);color:#fff;padding:22px 24px}
+.head h1{font-size:19px;margin-bottom:4px}.head p{font-size:12px;opacity:.85}
+.status{margin:20px 24px 6px;border-radius:12px;padding:14px 16px;font-weight:800;font-size:17px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ok{background:#E7F6EE;color:#13804C;border:1px solid #9ED8B8}.bad{background:#FDECEA;color:#B42318;border:1px solid #F3B2AB}.warn{background:#FFF6E0;color:#9A6700;border:1px solid #F0D48A}.na{background:#F1F3F6;color:#4A5568;border:1px solid #D5DAE1}
+.sec{margin:14px 24px 0;font-size:13px;font-weight:800;color:#1A3570;border-bottom:2px solid #DCE6F3;padding-bottom:6px;display:flex;justify-content:space-between;gap:8px}
+.sec .en{font-size:12px;font-weight:700;color:#1A3570}
+.wrap{display:flex;gap:14px;margin:0 24px;align-items:flex-start}
+.wrap table{margin:6px 0 4px;width:100%}
+.photo{width:96px;height:115px;object-fit:cover;border-radius:10px;border:1px solid #DCE6F3;margin-top:10px;flex-shrink:0;background:#F1F3F6}
+table{width:calc(100% - 48px);margin:6px 24px 4px;border-collapse:collapse;font-size:14px}
+td{padding:9px 6px;border-bottom:1px solid #EDF1F6;vertical-align:top}td:first-child{color:#6A7C95;width:40%}
+td:last-child{font-weight:700;word-break:break-word}
+.lbl{direction:ltr;unicode-bidi:isolate;font-size:13px;color:#4A5568;font-weight:700}
+.ar{font-size:11px;color:#8A99AE;font-weight:400}
+.en{direction:ltr;unicode-bidi:isolate;font-size:11px;color:#6A7C95;font-weight:400}
+.ltr{direction:ltr;unicode-bidi:isolate}
+.mono{font-family:Consolas,monospace;letter-spacing:.5px}
+.foot{margin-top:16px;padding:14px 24px 20px;font-size:11px;color:#6A7C95;line-height:1.8;border-top:1px solid #EDF1F6}
+@media (max-width:420px){ .wrap{flex-direction:column-reverse;align-items:center} .photo{margin-top:12px} }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="head"><h1>التحقق من الشهادة والبطاقة</h1><p>TUV Training Institute — Certificate &amp; ID Card Verification</p></div>
+  <div id="out"><div class="status na">⏳ جارٍ التحقق...</div></div>
+  <div class="foot">تعرض هذه الصفحة بيانات التحقق الضرورية فقط للوثيقة المرتبطة برمز QR. لا تُعرض البيانات الشخصية الكاملة.<br/>This page shows only the data needed to verify the document linked to this QR code.</div>
+</div>
+<script>
+(function(){
+  var DB='https://trainflow-crm1-default-rtdb.asia-southeast1.firebasedatabase.app';
+  var out=document.getElementById('out');
+  function el(tag, cls, text){ var e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
+  function isDate(s){ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(s||''))) return false; var d=new Date(s+'T00:00:00Z'); return !isNaN(d) && d.toISOString().slice(0,10)===s; }
+  function fmt(iso){ var p=String(iso||'').split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : '—'; }
+  function today(){ var d=new Date(Date.now()+3*3600*1000); return d.toISOString().slice(0,10); } // Riyadh calendar day
+  function str(v){ return typeof v==='string' ? v.trim() : ''; }
+  function status(cls, ar, en){ var s=el('div','status '+cls); s.id='vStatus'; s.setAttribute('data-state', cls); s.appendChild(el('span',null,ar)); var e=el('span','en',en); e.style.marginInlineStart='auto'; s.appendChild(e); return s; }
+  function show(nodes){ out.innerHTML=''; nodes.forEach(function(n){ out.appendChild(n); }); }
+  function section(ar, en){ var h=el('div','sec'); h.appendChild(el('span',null,ar)); h.appendChild(el('span','en',en)); return h; }
+  function table(rows){
+    var tb=el('table');
+    rows.forEach(function(r){
+      var tr=el('tr'), a=el('td'), b=el('td', r[3]||null); a.appendChild(el('div','lbl',r[0])); a.appendChild(el('div','ar',r[1]));
+      var v=(r[2]==null||r[2]==='') ? '—' : String(r[2]); var bd=document.createElement('bdi'); if(r[4]) bd.setAttribute('dir','ltr'); bd.textContent=v; b.appendChild(bd);
+      if(r[5]) b.id=r[5]; tr.appendChild(a); tr.appendChild(b); tb.appendChild(tr);
+    });
+    return tb;
+  }
+  function photoSrc(u){
+    u=str(u); if(!/^https:\/\//i.test(u)) return '';
+    var m=u.match(/\/d\/([A-Za-z0-9_-]{10,})/) || u.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+    if(m && /(^https:\/\/(drive|docs)\.google\.com\/)/i.test(u)) return 'https://drive.google.com/thumbnail?id='+m[1]+'&sz=w400';
+    return u;
+  }
+  // every field the issuer writes must be present and consistent, otherwise the page never says «صالحة»
+  function check(d){
+    var p=[];
+    if(!/^TUVTI-20\d{2}-\d{6}$/.test(str(d.serial))) p.push('serial');
+    if(str(d.year) && str(d.seq) && d.serial!=='TUVTI-'+d.year+'-'+d.seq) p.push('serial/year/seq');
+    if(!str(d.name)) p.push('name');
+    if(!str(d.course)) p.push('course');
+    if(!isDate(d.certificateDate)) p.push('certificateDate');
+    if(!isDate(d.expiryDate)) p.push('expiryDate');
+    if(isDate(d.certificateDate) && isDate(d.expiryDate) && !(d.expiryDate > d.certificateDate)) p.push('expiry<=issue');
+    if(!/^\*+[^*]{0,4}$/.test(str(d.idMasked))) p.push('idMasked');
+    if(d.status!=='valid' && d.status!=='revoked') p.push('status');
+    if(d.status==='valid' && d.revokedAt) p.push('revokedAt');
+    return p;
+  }
+  var t=''; try { t=new URLSearchParams(location.search).get('t')||''; } catch(e){}
+  if(!/^[A-Za-z0-9_-]{20,64}$/.test(t)){ show([status('na','❔ رابط تحقق غير صالح','Invalid verification link')]); return; }
+  fetch(DB+'/certVerify/'+encodeURIComponent(t)+'.json',{cache:'no-store', credentials:'omit', referrerPolicy:'no-referrer'})
+    .then(function(r){ if(r.status===401||r.status===403) throw new Error('denied'); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(d){
+      if(!d || typeof d!=='object' || Array.isArray(d)){ show([status('na','❔ الوثيقة غير موجودة','Not found')]); return; }
+      var problems=check(d), st;
+      if(d.status==='revoked') st=status('bad','⛔ وثيقة ملغاة','Revoked');
+      else if(problems.length) st=status('na','⚠️ تعذّر التحقق — بيانات الوثيقة غير مكتملة أو غير متسقة','Unable to verify — incomplete or inconsistent data');
+      else if(d.expiryDate < today()) st=status('warn','⌛ وثيقة منتهية الصلاحية','Expired');
+      else st=status('ok','✅ وثيقة صالحة','Valid');
+      if(problems.length) st.setAttribute('data-problems', problems.join(','));
+      var nodes=[st];
+      var pers=table([
+        ['C. No','الرقم التسلسلي', d.serial, 'mono', true, 'vSerial'],
+        ['Name','الاسم', d.name, null, false, 'vName'],
+        ['ID/PP No','رقم الهوية / الجواز', d.idMasked, 'mono', true, 'vId']
+      ]);
+      nodes.push(section('البيانات الشخصية','Personal Details'));
+      var src=photoSrc(d.photoUrl);
+      if(src){
+        var w=el('div','wrap'), img=el('img','photo'); img.id='vPhoto'; img.alt='Photo'; img.referrerPolicy='no-referrer'; img.loading='lazy';
+        img.onerror=function(){ img.remove(); }; img.src=src; w.appendChild(pers); w.appendChild(img); nodes.push(w);
+      } else nodes.push(pers);
+      nodes.push(section('بيانات الدورة','Course Details'));
+      var crow=[['Course Title','اسم الدورة', d.course, null, false, 'vCourse']];
+      crow.push(['Duration','المدة', str(d.duration), null, false, 'vDuration']);
+      crow.push(['Issue Date','تاريخ الإصدار', isDate(d.certificateDate)?fmt(d.certificateDate):'', 'mono', true, 'vIssue']);
+      crow.push(['Expiry Date','تاريخ الانتهاء', isDate(d.expiryDate)?fmt(d.expiryDate):'', 'mono', true, 'vExpiry']);
+      if(d.status==='revoked' && isDate(String(d.revokedAt||'').slice(0,10))) crow.push(['Revoked On','تاريخ الإلغاء', fmt(String(d.revokedAt).slice(0,10)), 'mono', true, 'vRevoked']);
+      nodes.push(table(crow));
+      nodes.push(section('بيانات أخرى','Other Details'));
+      nodes.push(table([['Company','الشركة', str(d.company), null, false, 'vCompany'],['Training Provider','الجهة التدريبية', str(d.institute)||'TUV Training Institute', null, false, 'vInst']]));
+      show(nodes);
+    })
+    .catch(function(e){ show([status('na', e.message==='denied' ? '❔ الوثيقة غير موجودة' : '⚠️ تعذّر الاتصال — حاول مرة أخرى', e.message==='denied' ? 'Not found' : 'Connection problem — try again')]); });
+})();
+</script>
+</body>
+</html>
