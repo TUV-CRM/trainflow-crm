@@ -2351,7 +2351,7 @@ function buildSidebar(){
     // Check if user can access any child in this section
     const accessibleChildren = section.children.filter(ch=>{
       if(ch._sec) return _secUserCanView(); // _38: added course section — inherits the Trainees unit permission
-      if(ch._cert) return _certCanView();   // _64: certificates & ID cards — ops, or the explicit «training-certs» permission
+      if(ch._cert) return (typeof _certCanView==='function') ? _certCanView() : !!(CU && CU.dept==='ops');   // _64 (+_66: module may load after session restore)
       // Check old page-level permission
       if(!CU.pages.includes(ch.page)) return false;
       // Check granular sub-page permission (if configured)
@@ -2466,7 +2466,7 @@ function navigate(page){
 }
 function navigatePage(page){
   const _isSecPage = _secIsCustom(page);
-  if(page==='certs'){ if(!CU || !_certCanView()){ showDenied('ops'); return; } } else // _64
+  if(page==='certs'){ if(!CU || typeof _certCanView!=='function' || !_certCanView()){ showDenied('ops'); return; } } else // _64 (+_66 guard)
   if(!CU || (_isSecPage ? !_secUserCanView() : !CU.pages.includes(page))){showDenied(page);return;}
   if(_isSecPage) _secEnsurePageEl(page);
   activePage = page;
@@ -2494,7 +2494,7 @@ function renderPage(p){
   else if(p==='finance')  renderFinanceSystem();
   else if(p==='trainees') renderTrainees();
   else if(p==='catalog')  renderCatalog();
-  else if(p==='certs')    renderCertsPage(); // _64
+  else if(p==='certs')    { if(typeof renderCertsPage==='function') renderCertsPage(); } // _64 (+_66 guard)
   else if(p==='users')    renderUsers();
   else if(p==='salesperf') renderSalesPerf();
   else if(p==='daily')     renderDailyActivity();
@@ -20960,6 +20960,9 @@ async function _certRenderBatch(body, b){
   };
 }
 
+
+// _66: the app may already be running (session restored on F5 before this script loaded) → refresh the sidebar once
+try { if(typeof CU!=='undefined' && CU && typeof buildSidebar==='function') buildSidebar(); } catch(_e66){ console.warn('cert sidebar refresh:', _e66 && _e66.message); }
 </script>
 </body>
 </html>
