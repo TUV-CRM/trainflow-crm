@@ -21729,5 +21729,76 @@ async function _certRenderBatch(body, b){
 // _66: the app may already be running (session restored on F5 before this script loaded) → refresh the sidebar once
 try { if(typeof CU!=='undefined' && CU && typeof buildSidebar==='function') buildSidebar(); } catch(_e66){ console.warn('cert sidebar refresh:', _e66 && _e66.message); }
 </script>
+<script>
+/* ── _68: course filter on the invoices page (independent layer) ──────────────────────────────────
+   renderInvoicesTab() is protected and is NOT modified. This layer replaces only the global name with a
+   wrapper that:
+     1. narrows DB.invoices to the invoices that contain the chosen course, ONLY while the original
+        (fully synchronous, no ss()/save()) renderInvoicesTab draws the page, and restores the full list
+        in `finally` — so the table, the counts, the totals and window._invLastFiltered (Excel export)
+        all come from the same filtered set, and the stored data is never touched;
+     2. adds a «كل الدورات» dropdown next to the existing filters (search / staff / status / month keep
+        working exactly as before and combine with it);
+     3. rebuilds the staff dropdown from the full list, so a staff filter chosen before the course filter
+        stays visible and selected.
+   An invoice matches when any of its courses equals the chosen course (items[].course; legacy invoices
+   without items: inv.course split on «|»). Totals use the full invoice amount. */
+(function(){
+  if(typeof renderInvoicesTab !== 'function' || window._invCourseLayer) return;
+  var _orig = renderInvoicesTab;
+  window._invCourseLayer = true;
+  function norm(s){ return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+  function coursesOf(inv){
+    var out = [];
+    if(inv && Array.isArray(inv.items) && inv.items.length){
+      inv.items.forEach(function(it){ var c = norm(it && it.course); if(c && out.indexOf(c) < 0) out.push(c); });
+    }
+    if(!out.length && inv && inv.course){
+      String(inv.course).split('|').forEach(function(p){ var c = norm(p); if(c && out.indexOf(c) < 0) out.push(c); });
+    }
+    return out;
+  }
+  window._invCoursesOf = coursesOf;
+  function visible(all){
+    var isOps = CU && CU.dept === 'ops';
+    return isOps ? all : all.filter(function(inv){ return inv.createdBy === CU.name || inv.salesPerson === CU.name; });
+  }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function inject(sc, all){
+    try {
+      var t = function(ar, en){ return isAR() ? ar : en; };
+      var fc = window._invFilterCourse || 'all';
+      var monthSel = sc.querySelector('select[onchange*="_invFilterMonth"]');
+      if(!monthSel) return;
+      var list = [];
+      visible(all).forEach(function(inv){ coursesOf(inv).forEach(function(c){ if(list.indexOf(c) < 0) list.push(c); }); });
+      list.sort(function(a, b){ return a.localeCompare(b, 'ar'); });
+      if(fc !== 'all' && list.indexOf(fc) < 0) list.unshift(fc);
+      var sel = document.createElement('select');
+      sel.className = 'fc'; sel.setAttribute('data-inv-course', '1'); sel.style.cssText = 'min-width:120px;max-width:220px';
+      sel.setAttribute('onchange', "window._invFilterCourse=this.value;renderInvoicesTab(this.closest('[id]')||document.getElementById('salesContent'))");
+      sel.innerHTML = '<option value="all">' + t('كل الدورات', 'All Courses') + '</option>' + list.map(function(c){ return '<option value="' + esc(c) + '"' + (fc === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('');
+      monthSel.parentNode.insertBefore(sel, monthSel.nextSibling);
+      // staff dropdown: rebuilt from the full list (the original builds it from the list it was given)
+      var empSel = sc.querySelector('select[onchange*="_invFilterEmployee"]');
+      if(empSel && fc !== 'all'){
+        var fe = window._invFilterEmployee || 'all', emps = [];
+        all.forEach(function(inv){ var n = inv.createdBy || inv.salesPerson; if(n && emps.indexOf(n) < 0) emps.push(n); });
+        empSel.innerHTML = '<option value="all">' + t('كل الموظفين', 'All Staff') + '</option>' + emps.map(function(e){ return '<option value="' + e + '"' + (fe === e ? ' selected' : '') + '>' + e + '</option>'; }).join('');
+      }
+    } catch(e){ console.warn('_68 course filter UI:', e && e.message); }
+  }
+  renderInvoicesTab = function(sc){
+    var all = DB.invoices || [];
+    var fc = window._invFilterCourse || 'all';
+    if(fc === 'all'){ _orig(sc); inject(sc, DB.invoices || all); return; }
+    var keep = all.filter(function(inv){ return coursesOf(inv).indexOf(fc) >= 0; });
+    var saved = DB.invoices;
+    DB.invoices = keep;                       // only for the synchronous draw below
+    try { _orig(sc); } finally { DB.invoices = saved; }
+    inject(sc, saved || all);
+  };
+})();
+</script>
 </body>
 </html>
