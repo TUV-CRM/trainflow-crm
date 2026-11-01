@@ -21196,10 +21196,10 @@ function _certApprovedParts(row, ctx, uid){
   if(row.resolved && Object.keys(row.resolved).length) priv.conflictsResolved=row.resolved;
   return {pub:pub, priv:priv};
 }
-async function _certApproveBatch(rows, ctx, issuers, title){
+async function _certApproveBatch(rows, ctx, issuers, title, opts){
   if(!_certIsOps()) throw new Error('اعتماد الدفعات لمدير التشغيل فقط');
   var uid=_certAuthUid(); if(!uid) throw new Error('تعذّر تحديد حساب الدخول — سجّل الدخول مجدداً');
-  var now=new Date(), b='B'+now.toISOString().replace(/[^0-9]/g,'').slice(0,14)+Math.random().toString(36).slice(2,6).toUpperCase();
+  var now=new Date(), b=(opts&&opts.batchId) || ('B'+now.toISOString().replace(/[^0-9]/g,'').slice(0,14)+Math.random().toString(36).slice(2,6).toUpperCase());   // _69: fixed key for a correction
   var ids=[], patch={}, data={}, iss=issuers||{};
   rows.forEach(function(row,i){
     var rid='r'+String(i+1).padStart(3,'0'), parts=_certApprovedParts(row, ctx, uid); ids.push(rid);
@@ -21246,6 +21246,7 @@ async function _certDeleteApprovedRow(b, rid){
   if(!_certIsOps()) throw new Error('لمدير التشغيل فقط');
   var r=await firebaseFetch('/certificates/approved/'+encodeURIComponent(b)+'/rows/'+rid+'.json'); var cur=r&&r.ok?await _certJson(r):null;
   if(!cur) throw new Error('الصف غير موجود'); if(cur.issued) throw new Error('صدرت وثيقة هذا الصف — لا يمكن حذفه');
+  if(_certFixOldSerial(b)) throw new Error('هذا صف تصحيح شهادة — لا يُحذف. تابع التصحيح من «سجل الإصدارات»');   // _69
   var patch={}; patch['certificates/approved/'+b+'/rows/'+rid]=null; patch['certificates/approvedPrivate/'+b+'/'+rid]=null;
   patch['certificates/approvalLog/'+b+'/'+rid+'/'+((+cur.revision||1)+1)]={by:_certAuthUid(), byName:CU?CU.name:'', at:CERT_SV, action:'deleted', fields:'*'};
   var w=await firebaseFetch('/.json',{method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)});
@@ -21308,6 +21309,218 @@ async function _certRevoke(serial, reason){
   Object.assign(rec, {status:'revoked', revokedAt:now, revokedBy:CU.name, revokeReason:reason});
   return true;
 }
+// ── _69: correct an issued certificate = approve corrected data → issue a replacement (new serial + QR) → verify → revoke the old one ──
+// No Firebase rules change and no new data paths: the replacement goes through the existing approval (_certApproveBatch) and issuance
+// (_certIssueApproved) paths, in a one-row batch whose key is derived from the old serial («BFIX-<year>-<seq>»). Because the server
+// accepts the approval log entry /approvalLog/<batch>/r001/1 only once and «issued» only once, at most ONE replacement can ever exist
+// for an old certificate, even with two devices or a double click. The state of a correction is read from the server, never kept on a device.
+// Contact data (e-mail, phone, birth data, external ID, Excel copy) is copied unchanged from the old row and is not shown in the form.
+var CERT_FIX_ROW='r001', _certFixBusy=false, _certFixBatches=null;
+function _certFixBatchId(rec){ return 'BFIX-'+rec.year+'-'+rec.seq; }
+function _certFixOldSerial(batch){ var m=/^BFIX-(\d{4})-(\d{6})$/.exec(String(batch||'')); return m ? 'TUVTI-'+m[1]+'-'+m[2] : ''; }
+function _certFixReason(meta){ var t=String(meta&&meta.title||''), i=t.indexOf(' — '); return i>=0 ? t.slice(i+3) : ''; }
+async function _certGetJson(path){
+  var r=await firebaseFetch(path); if(!r || !r.ok) throw new Error('تعذّرت القراءة من الخادم (HTTP '+(r?r.status:'?')+')');
+  return await _certJson(r);
+}
+async function _certFetchRecord(serial){
+  var m=/^TUVTI-(\d{4})-(\d{6})$/.exec(String(serial||'')); if(!m) throw new Error('رقم تسلسلي غير صالح');
+  return await _certGetJson('/certificates/records/'+m[1]+'/'+m[2]+'.json');
+}
+// state of the correction of «old», read from the server:
+//   none · approved (approved, replacement not issued yet) · pending-revoke (replacement valid, old still valid) · done · replacement-revoked
+async function _certReplacementOf(old){
+  var b=_certFixBatchId(old), bt=await _certGetJson('/certificates/approved/'+encodeURIComponent(b)+'.json');
+  if(!bt || !bt.meta) return {state:'none', batch:b};
+  var row=bt.rows && bt.rows[CERT_FIX_ROW], reason=_certFixReason(bt.meta);
+  if(!row) return {state:'blocked', batch:b, reason:reason};
+  if(!row.issued) return {state:'approved', batch:b, row:row, meta:bt.meta, reason:reason};
+  var nr=await _certFetchRecord(_certSerial(row.issued.year, +row.issued.seq));
+  if(!nr) return {state:'approved', batch:b, row:row, meta:bt.meta, reason:reason};
+  if(nr.status==='revoked') return {state:'replacement-revoked', batch:b, row:row, rec:nr, reason:reason};
+  return {state: old.status==='revoked' ? 'done' : 'pending-revoke', batch:b, row:row, rec:nr, reason:reason};
+}
+function _certFixTarget(old, ch){
+  var t={ name:String(ch&&ch.name!=null?ch.name:(old.trainee.name||'')).trim(), nationalId:_certNormId(ch&&ch.nationalId!=null?ch.nationalId:(old.trainee.nationalId||'')),
+          company:String(ch&&ch.company!=null?ch.company:(old.trainee.company||'')).trim(), photoUrl:String(ch&&ch.photoUrl!=null?ch.photoUrl:(old.trainee.photoUrl||'')).trim() };
+  if(!t.name) throw new Error('الاسم مطلوب');
+  if(t.photoUrl && !/^https:\/\//i.test(t.photoUrl)) throw new Error('رابط الصورة يجب أن يبدأ بـ https://');
+  return t;
+}
+// server read-back of the replacement: record, public verification entry and the printed values must all carry the corrected data
+async function _certVerifyReplacement(old, nrSerial, tgt){
+  var rec=await _certFetchRecord(nrSerial), bad=[];
+  if(!rec) return {ok:false, bad:['السجل الجديد غير موجود على الخادم']};
+  var cv=await _certGetJson('/certVerify/'+encodeURIComponent(rec.token)+'.json');
+  function eq(k,a,b){ if(String(a==null?'':a)!==String(b==null?'':b)) bad.push(k+': «'+(a==null?'':a)+'» ≠ «'+(b==null?'':b)+'»'); }
+  var tr=rec.trainee||{}, co=rec.course||{}, oc=old.course||{};
+  eq('الحالة',rec.status,'valid'); eq('الاسم',tr.name,tgt.name); eq('الهوية',tr.nationalId,tgt.nationalId); eq('الشركة',tr.company,tgt.company); eq('الصورة',tr.photoUrl,tgt.photoUrl);
+  eq('الدورة',co.name,oc.name); eq('المدة',co.duration,oc.duration); eq('تاريخ الشهادة',rec.certificateDate,old.certificateDate); eq('الصلاحية',rec.validityYears,old.validityYears); eq('الانتهاء',rec.expiryDate,old.expiryDate);
+  if(!cv) bad.push('صفحة التحقق غير موجودة');
+  else { eq('تحقق: الحالة',cv.status,'valid'); eq('تحقق: الرقم',cv.serial,rec.serial); eq('تحقق: الاسم',cv.name,tgt.name); eq('تحقق: الهوية',cv.idMasked,_certMaskId(tgt.nationalId));
+         eq('تحقق: الشركة',cv.company,tgt.company); eq('تحقق: الدورة',cv.course,oc.name); eq('تحقق: تاريخ الشهادة',cv.certificateDate,old.certificateDate); eq('تحقق: الانتهاء',cv.expiryDate,old.expiryDate); }
+  var dv=_certDocValues(rec); eq('الطباعة: الاسم',dv.name,tgt.name.toUpperCase()); eq('الطباعة: الهوية',dv.id,tgt.nationalId); eq('الطباعة: الرقم',dv.serial,rec.serial);
+  eq('الطباعة: الإصدار',dv.issue,_certFmt(old.certificateDate)); eq('الطباعة: الانتهاء',dv.expiry,_certFmt(old.expiryDate));
+  return {ok:!bad.length, bad:bad, rec:rec};
+}
+async function _certRevokeReplaced(old, newSerial, reason){
+  var why=('تصحيح بيانات — استُبدلت بالشهادة '+newSerial+(reason?': '+reason:'')).slice(0,300);
+  if(!(_certRecords||[]).some(function(r){ return r.serial===old.serial; })) (_certRecords=_certRecords||[]).push(old);
+  try { await _certRevoke(old.serial, why); return true; }
+  catch(e){
+    var cur=null; try { cur=await _certFetchRecord(old.serial); } catch(e2){}
+    if(cur && cur.status==='revoked'){ var lr=(_certRecords||[]).find(function(r){ return r.serial===old.serial; }); if(lr) Object.assign(lr, {status:'revoked', revokedAt:cur.revokedAt, revokeReason:cur.revokeReason}); return true; }   // already revoked (other device / lost answer)
+    throw e;
+  }
+}
+// the whole correction. step(msg) reports progress. Returns {state:'done'|'pending-revoke'|'unverified', newSerial, bad?, error?}
+async function _certCorrectRecord(serial, changes, reason, step){
+  if(!_certIsOps()) throw new Error('تصحيح الشهادات لمدير التشغيل فقط');
+  if(_certFixBusy) throw new Error('يوجد تصحيح قيد التنفيذ — انتظر انتهاءه');
+  reason=String(reason||'').trim(); if(!reason) throw new Error('سبب التصحيح مطلوب');
+  var say=step||function(){};
+  _certFixBusy=true;
+  try {
+    var uid=_certAuthUid(); if(!uid) throw new Error('تعذّر تحديد حساب الدخول — سجّل الدخول مجدداً');
+    say('قراءة الشهادة الحالية من الخادم...');
+    var old=await _certFetchRecord(serial); if(!old) throw new Error('الشهادة غير موجودة');
+    if(old.status==='revoked') throw new Error('الشهادة ملغاة — لا يمكن تصحيحها');
+    var tgt=_certFixTarget(old, changes);
+    var st=await _certReplacementOf(old);
+    if(st.state==='pending-revoke' || st.state==='done') throw new Error('صدرت لهذه الشهادة بديلة سابقاً: '+st.rec.serial+' — استخدم «إعادة محاولة الإلغاء» إن كانت القديمة ما زالت صالحة');
+    if(st.state==='replacement-revoked' || st.state==='blocked') throw new Error('سُجّل لهذه الشهادة تصحيح سابق لم يكتمل بشكل طبيعي — لا يمكن تصحيحها تلقائياً');
+    var same=['name','nationalId','company','photoUrl'].every(function(k){ return String(tgt[k]||'')===String((k==='nationalId'?_certNormId(old.trainee[k]):String(old.trainee[k]||'').trim())||''); });
+    if(same && st.state==='none') throw new Error('لا يوجد تغيير في البيانات');
+    var b=_certFixBatchId(old), ctx={ courseName:old.course.name, source:old.source, defaultDate:old.certificateDate,
+      session: old.session ? {id:old.session.id||'', course:old.session.course||'', startDate:old.session.startDate||''} : null };
+    if(st.state==='none'){
+      var ref=old.approvedRef||{}, pv={};
+      if(ref.batch && ref.row){ pv=(await _certGetJson('/certificates/approvedPrivate/'+encodeURIComponent(ref.batch)+'/'+ref.row+'.json'))||{}; }
+      var row={ name:tgt.name, nationalId:tgt.nationalId, company:tgt.company, photoUrl:tgt.photoUrl, certificateDate:old.certificateDate,
+        extId:pv.extId||'', email:pv.email||'', phone:pv.phone||'', dob:pv.dob||'', birthCity:pv.birthCity||'' };
+      if(pv.excelRow) row.excel=pv.excelRow; if(pv.conflictsResolved) row.resolved=pv.conflictsResolved;
+      // printed course data must be exactly what the old certificate carries (catalog may have changed since) — checked before any write
+      var parts=_certApprovedParts(row, ctx, uid), p=parts.pub, oc=old.course||{}, diff=[];
+      [['courseName',oc.name],['duration',oc.duration],['certificateDate',old.certificateDate],['validityYears',old.validityYears],['expiryDate',old.expiryDate]].forEach(function(x){ if(String(p[x[0]]==null?'':p[x[0]])!==String(x[1]==null?'':x[1])) diff.push(x[0]); });
+      if(diff.length) throw new Error('تغيّرت بيانات الدورة في الكتالوج منذ إصدار الشهادة ('+diff.join('، ')+') — لم يُكتب شيء. التصحيح يحافظ على بيانات الدورة والتواريخ كما هي');
+      say('اعتماد البيانات المصححة...');
+      try { await _certApproveBatch([row], ctx, {}, 'تصحيح '+old.serial+' — '+reason, {batchId:b}); }
+      catch(e){
+        var s2=null; try { s2=await _certReplacementOf(old); } catch(e3){}
+        if(s2 && s2.state!=='none') throw new Error('بدأ تصحيح هذه الشهادة من جهاز آخر — أعد فتح السجل');
+        throw e;
+      }
+    } else {
+      // approved earlier but not issued (interrupted): reuse that approval; bring it to the values in the form (new revision) — never a second batch
+      var ch={}; ['name','nationalId','company','photoUrl'].forEach(function(k){ if(String(st.row[k]||'')!==String(tgt[k]||'')) ch[k]=tgt[k]; });
+      if(Object.keys(ch).length){ say('تحديث الاعتماد المحفوظ...'); await _certEditApprovedRow(b, CERT_FIX_ROW, ch); }
+    }
+    say('إصدار الشهادة البديلة...');
+    var ar=await _certGetJson('/certificates/approved/'+encodeURIComponent(b)+'/rows/'+CERT_FIX_ROW+'.json');
+    if(!ar) throw new Error('تعذّرت قراءة الاعتماد');
+    var res=await _certIssueApproved(b, CERT_FIX_ROW, ar), ns=res.rec.serial;
+    say('التحقق من الشهادة البديلة على الخادم...');
+    var v=await _certVerifyReplacement(old, ns, tgt);
+    if(!v.ok) return {state:'unverified', newSerial:ns, bad:v.bad};
+    say('إلغاء الشهادة القديمة...');
+    try { await _certRevokeReplaced(old, ns, reason); }
+    catch(e){ return {state:'pending-revoke', newSerial:ns, error:e.message}; }
+    return {state:'done', newSerial:ns};
+  } finally { _certFixBusy=false; }
+}
+// separate action: revoke the old certificate of a correction whose replacement was issued — never issues anything
+async function _certRetryFixRevoke(serial){
+  if(!_certIsOps()) throw new Error('لمدير التشغيل فقط');
+  if(_certFixBusy) throw new Error('يوجد تصحيح قيد التنفيذ — انتظر انتهاءه');
+  _certFixBusy=true;
+  try {
+    var old=await _certFetchRecord(serial); if(!old) throw new Error('الشهادة غير موجودة');
+    var st=await _certReplacementOf(old);
+    if(st.state==='done') return {state:'done', newSerial:st.rec.serial};
+    if(st.state!=='pending-revoke') throw new Error('لا توجد شهادة بديلة صالحة لهذه الشهادة — لم يُلغَ شيء');
+    var tgt={ name:st.rec.trainee.name||'', nationalId:st.rec.trainee.nationalId||'', company:st.rec.trainee.company||'', photoUrl:st.rec.trainee.photoUrl||'' };
+    var v=await _certVerifyReplacement(old, st.rec.serial, tgt);
+    if(!v.ok) return {state:'unverified', newSerial:st.rec.serial, bad:v.bad};
+    await _certRevokeReplaced(old, st.rec.serial, st.reason);
+    return {state:'done', newSerial:st.rec.serial};
+  } finally { _certFixBusy=false; }
+}
+// records tab: which batches are corrections (shallow key list, ops only)
+async function _certLoadFixBatches(){
+  _certFixBatches={};
+  try { var r=await firebaseFetch('/certificates/approved.json?shallow=true'); if(r && r.ok){ var v=(await _certJson(r))||{}; Object.keys(v).forEach(function(k){ var s=_certFixOldSerial(k); if(s) _certFixBatches[s]=k; }); } } catch(e){}
+  return _certFixBatches;
+}
+function _certFixIndex(){
+  var by={}, of={};
+  (_certRecords||[]).forEach(function(r){ var s=_certFixOldSerial(r.approvedRef&&r.approvedRef.batch); if(s){ by[s]=r; of[r.serial]=s; } });
+  return {replacementOf:by, replaces:of};
+}
+function _certFixStateOf(r, fx){
+  var nr=fx.replacementOf[r.serial];
+  if(nr){ if(nr.status==='revoked') return 'replacement-revoked'; return r.status==='revoked' ? 'done' : 'pending-revoke'; }
+  if(r.status!=='revoked' && _certFixBatches && _certFixBatches[r.serial]) return 'approved';
+  return 'none';
+}
+function _certCorrectDialog(rec, body, resume){
+  if(document.getElementById('certFixOv')) return;
+  var t=rec.trainee||{}, c=rec.course||{}, ov=document.createElement('div'); ov.id='certFixOv';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  var F=[['name','الاسم',t.name],['nationalId','رقم الهوية / الجواز',t.nationalId],['company','الشركة',t.company],['photoUrl','رابط الصورة (https://)',t.photoUrl]];
+  var RO=[['الدورة',c.name],['المدة',c.duration||'—'],['تاريخ الشهادة',_certFmt(rec.certificateDate)],['الصلاحية',rec.validityYears],['الانتهاء',_certFmt(rec.expiryDate)]];
+  ov.innerHTML='<div class="card" style="max-width:520px;width:100%;line-height:1.8;max-height:92vh;overflow:auto"><h3>🛠️ تصحيح الشهادة '+_certEsc(rec.serial)+'</h3>'
+    +'<div style="font-size:12px;color:#B8C7DB">تُصدر شهادة بديلة برقم ورمز QR جديدين بالبيانات المصححة، ثم تُلغى هذه الشهادة بعد التحقق من البديلة. تبقى الشهادة القديمة محفوظة وتظهر «ملغاة» عند التحقق. بيانات الدورة والتواريخ لا تتغير، وبيانات التواصل تُنسخ كما هي.</div>'
+    +(resume?'<div style="margin-top:6px;color:#C9A84C;font-size:12px">⚠️ اعتماد التصحيح محفوظ — الإصدار لم يكتمل. المتابعة تستخدم الاعتماد نفسه، ولا تنشئ اعتماداً جديداً.</div>':'')
+    +F.map(function(f){ return '<div class="form-group"><label>'+f[1]+'</label><input class="fc" data-f="'+f[0]+'" value="'+_certEsc(f[2]||'')+'"/></div>'; }).join('')
+    +'<div style="font-size:12px;color:#6A85A5;margin:6px 0">'+RO.map(function(x){ return _certEsc(x[0])+': <b>'+_certEsc(x[1]==null?'':x[1])+'</b>'; }).join(' · ')+'</div>'
+    +'<div class="form-group"><label>سبب التصحيح</label><input class="fc" id="certFixReason" maxlength="150" value="'+_certEsc(resume&&resume.reason||'')+'"/></div>'
+    +'<div id="certFixStep" style="font-size:12px;color:#C9A84C;min-height:18px"></div>'
+    +'<div style="display:flex;gap:8px"><button class="btn btn-gold" id="certFixGo">'+(resume?'متابعة الإصدار':'إصدار البديلة وإلغاء القديمة')+'</button><button class="btn btn-ghost" id="certFixX">رجوع</button></div></div>';
+  if(resume && resume.row){ ['name','nationalId','company','photoUrl'].forEach(function(k){ var i=ov.querySelector('input[data-f="'+k+'"]'); if(i) i.value=resume.row[k]||''; }); }
+  document.body.appendChild(ov);
+  var x=document.getElementById('certFixX'); x.onclick=function(){ if(!_certFixBusy) ov.remove(); };
+  document.getElementById('certFixGo').onclick=async function(){
+    var go=this; if(go.disabled || _certFixBusy) return; go.disabled=true; x.disabled=true;
+    var ch={}; ov.querySelectorAll('input[data-f]').forEach(function(i){ ch[i.dataset.f]=i.value; });
+    var stepEl=document.getElementById('certFixStep'), res=null;
+    try { res=await _certCorrectRecord(rec.serial, ch, document.getElementById('certFixReason').value, function(m){ stepEl.textContent='⏳ '+m; }); }
+    catch(e){ stepEl.textContent=''; alert('⚠️ '+e.message); go.disabled=false; x.disabled=false; return; }
+    ov.remove();
+    if(res.state==='done') showSuccessToast('✅ صدرت الشهادة البديلة '+res.newSerial+' وأُلغيت '+rec.serial);
+    else if(res.state==='pending-revoke') alert('⚠️ إصدار بديل ناجح ('+res.newSerial+') — إلغاء القديمة معلّق: '+(res.error||'')+'\nاستخدم زر «إعادة محاولة الإلغاء» في السجل. لن تُصدر شهادة أخرى.');
+    else alert('⚠️ صدرت البديلة '+res.newSerial+' لكن التحقق من بياناتها على الخادم لم يتطابق، فلم تُلغَ القديمة:\n'+(res.bad||[]).join('\n'));
+    _certRenderRecords(body);
+  };
+}
+function _certFixCell(r, fx){
+  if(!_certIsOps()) return '';
+  var st=_certFixStateOf(r, fx), nr=fx.replacementOf[r.serial], h='', dis=_certFixBusy?' disabled':'';
+  if(st==='none' && r.status!=='revoked') h+=' <button class="btn btn-sm btn-gold" data-a="fix"'+dis+'>🛠️ تصحيح الشهادة</button>';
+  if(st==='approved') h+='<div data-fix="approved" style="color:#C9A84C;font-size:11px;white-space:normal">⚠️ اعتماد التصحيح محفوظ — الإصدار لم يكتمل</div><button class="btn btn-sm btn-gold" data-a="fixcontinue"'+dis+'>متابعة التصحيح</button>';
+  if(st==='pending-revoke') h+='<div data-fix="pending-revoke" style="color:#E8C97A;font-size:11px;white-space:normal">⚠️ إصدار بديل ناجح ('+_certEsc(nr.serial)+') — إلغاء القديمة معلّق</div><button class="btn btn-sm btn-red" data-a="fixretry"'+dis+'>إعادة محاولة الإلغاء</button>';
+  if(st==='done') h+='<div data-fix="done" style="color:#6A85A5;font-size:11px">استُبدلت بالشهادة '+_certEsc(nr.serial)+'</div>';
+  if(st==='replacement-revoked') h+='<div data-fix="replacement-revoked" style="color:#E74C3C;font-size:11px">البديلة '+_certEsc(nr.serial)+' ملغاة</div>';
+  if(fx.replaces[r.serial]) h+='<div data-fix="replacement" style="color:#6A85A5;font-size:11px">بديلة عن '+_certEsc(fx.replaces[r.serial])+'</div>';
+  return h;
+}
+async function _certFixAction(a, rec, body, btn){
+  if(_certFixBusy) return;
+  if(a==='fix'){ _certCorrectDialog(rec, body); return; }
+  if(a==='fixcontinue'){
+    var st=await _certReplacementOf(rec);
+    if(st.state!=='approved'){ alert('⚠️ تغيّرت حالة التصحيح — أُعيد تحميل السجل'); _certRenderRecords(body); return; }
+    _certCorrectDialog(rec, body, st); return;
+  }
+  if(a==='fixretry'){
+    if(btn) btn.disabled=true;
+    var res;
+    try { res=await _certRetryFixRevoke(rec.serial); }
+    catch(e){ alert('⚠️ إلغاء القديمة ما زال معلّقاً: '+e.message); _certRenderRecords(body); return; }
+    if(res.state==='done') showSuccessToast('✅ أُلغيت '+rec.serial+' — البديلة '+res.newSerial);
+    else alert('⚠️ لم تُلغَ القديمة لأن بيانات البديلة على الخادم لم تتطابق:\n'+(res.bad||[]).join('\n'));
+    _certRenderRecords(body);
+  }
+}
 // ── page UI ──────────────────────────────────────────────────────────────────
 var _certTab='records', _certState={ excel:null, rows:[], courseName:'', sessionId:'', defaultDate:'', filter:'', status:'all', busy:false };
 function renderCertsPage(){
@@ -21362,7 +21575,7 @@ async function _certRenderIssuers(body){
 async function _certRenderRecords(body){
   if(!_certCanManage()){ body.innerHTML='<div class="card">سجل الإصدارات متاح لمدير التشغيل فقط.</div>'; return; }
   body.innerHTML='<div class="card" style="color:#6A85A5">⏳ جارٍ تحميل السجل...</div>';
-  await _certLoadRecords();
+  await _certLoadRecords(); await _certLoadFixBatches(); var fx=_certFixIndex();   // _69
   var q=_certState.filter.toLowerCase(), st=_certState.status;
   var list=(_certRecords||[]).filter(function(r){
     if(st!=='all' && r.status!==st) return false;
@@ -21379,13 +21592,13 @@ async function _certRenderRecords(body){
         +'<td>'+_certEsc(_certFmt(r.certificateDate))+'</td><td>'+_certEsc(r.validityYears)+' '+(r.validityYears===1?'سنة':'سنوات')+(r.validityDefaulted?' <span title="القيمة الافتراضية — الصلاحية غير محددة في الكتالوج" style="color:#C9A84C">*</span>':'')+'</td><td>'+_certEsc(_certFmt(r.expiryDate))+'</td>'
         +'<td>'+(r.source==='session'?'جلسة':'Excel')+'</td><td>'+(r.status==='revoked'?'<span class="pill" style="background:rgba(192,57,43,.15);color:#E74C3C">ملغاة</span>':'<span class="pill" style="background:rgba(26,138,90,.15);color:#3FBF7F">صالحة</span>')+'</td>'
         +'<td style="white-space:nowrap"><button class="btn btn-sm btn-ghost" data-a="preview">👁️</button> <button class="btn btn-sm btn-teal" data-a="cert">📄 شهادة PDF</button> <button class="btn btn-sm btn-teal" data-a="card">🪪 بطاقة PDF</button>'
-        +(_certCanRevoke() && r.status!=='revoked'?' <button class="btn btn-sm btn-red" data-a="revoke">إلغاء</button>':'')+'</td></tr>';
+        +(_certCanRevoke() && r.status!=='revoked'?' <button class="btn btn-sm btn-red" data-a="revoke">إلغاء</button>':'')+_certFixCell(r, fx)+'</td></tr>';
     }).join(''):'<tr><td colspan="10" style="text-align:center;color:#6A85A5;padding:24px">لا توجد إصدارات</td></tr>')
     +'</tbody></table></div><div style="color:#6A85A5;font-size:10px">* مدة سنتين افتراضية لأن صلاحية الدورة غير محددة في الكتالوج. إعادة الطباعة تستخدم نفس الرقم التسلسلي دائماً.</div>';
   body.innerHTML=h;
   var s=document.getElementById('certSearch'); s.oninput=function(){ _certState.filter=s.value; clearTimeout(window._certSearchT); window._certSearchT=setTimeout(function(){ _certRenderRecords(body).then(function(){ var x=document.getElementById('certSearch'); if(x){ x.focus(); x.setSelectionRange(x.value.length,x.value.length); } }); },250); };
   document.getElementById('certStatus').onchange=function(){ _certState.status=this.value; _certRenderRecords(body); };
-  body.querySelectorAll('tr[data-s] button').forEach(function(b){ b.onclick=function(){ var serial=b.closest('tr').dataset.s; var rec=(_certRecords||[]).find(function(r){ return r.serial===serial; }); _certRecordAction(b.dataset.a, rec, body); }; });
+  body.querySelectorAll('tr[data-s] button').forEach(function(b){ b.onclick=function(){ var serial=b.closest('tr').dataset.s; var rec=(_certRecords||[]).find(function(r){ return r.serial===serial; }); if(/^fix/.test(b.dataset.a)) _certFixAction(b.dataset.a, rec, body, b); else _certRecordAction(b.dataset.a, rec, body); }; });
 }
 async function _certRecordAction(a, rec, body){
   if(!rec || !_certCanManage()) return;
