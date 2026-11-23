@@ -8918,7 +8918,7 @@ var BI_REPORTS = {
     var byCity={}; all.forEach(function(c2){ if(c2.city) byCity[c2.city]=(byCity[c2.city]||0)+1; });
     return {key:key, range:r,
       kpis:[[t('إجمالي العملاء','Total Clients'),all.length],[t('جدد بالفترة','New This Period'),all.filter(function(c2){return repIn(c2.createdAt,r);}).length,'#1A8A5A'],[t('نشطون (90 يوم)','Active (90d)'),active.length,'#23A0B5'],[t('غير نشطين','Inactive'),all.length-active.length,'#C0392B']],
-      charts:[[t('📈 نمو العملاء ','📈 Client Growth ')+yr, execBars(growth,'#23A0B5',95)],[t('🏙️ حسب المدينة','🏙️ By City'), Object.keys(byCity).length?execDonut(byCity,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6']):'<div style="color:#3A5070;font-size:10px">حقل المدينة غير مسجل في بيانات العملاء الحالية</div>'],[t('💎 أعلى العملاء مبيعاتٍ','💎 Top Clients by Sales'), topSales.slice(0,8).map(function(x){ var mx=topSales[0][1]||1; return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:120px;color:#F5F7FA;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:4px;height:11px"><div style="background:#C9A84C;height:100%;border-radius:4px;width:'+(x[1]/mx*100)+'%"></div></div><div style="color:#C9A84C;font-size:9px;font-family:monospace">'+fmt(x[1])+'</div></div>';}).join('')||'—']],
+      charts:[[t('📈 نمو العملاء ','📈 Client Growth ')+yr, execBars(growth,'#23A0B5',95,true)],[t('🏙️ حسب المدينة','🏙️ By City'), Object.keys(byCity).length?execDonut(byCity,['#23A0B5','#C9A84C','#1A8A5A','#9B59B6']):'<div style="color:#3A5070;font-size:10px">حقل المدينة غير مسجل في بيانات العملاء الحالية</div>'],[t('💎 أعلى العملاء مبيعاتٍ','💎 Top Clients by Sales'), topSales.slice(0,8).map(function(x){ var mx=topSales[0][1]||1; return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:120px;color:#F5F7FA;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+x[0]+'</div><div style="flex:1;background:#0B1E3D;border-radius:4px;height:11px"><div style="background:#C9A84C;height:100%;border-radius:4px;width:'+(x[1]/mx*100)+'%"></div></div><div style="color:#C9A84C;font-size:9px;font-family:monospace">'+fmt(x[1])+'</div></div>';}).join('')||'—']],
       tables:[['t1',t('🆕 آخر العملاء','🆕 Recent Clients'),[t('الاسم','Name'),t('تاريخ الإضافة','Date Added'),t('المبيعات','Sales')], all.slice().sort(function(a,b){return (b.createdAt||'').localeCompare(a.createdAt||'');}).map(function(c2){return [c2.name||'',(c2.createdAt||'').slice(0,10),'SAR '+fmt(salesBy[c2.name]||0)];})],
         ['t2',t('💤 العملاء غير النشطين','💤 Inactive Clients'),[t('الاسم','Name'),t('إجمالي مبيعاته السابقة','Total Past Sales')], all.filter(function(c2){return !activeNames[c2.name];}).map(function(c2){return [c2.name||'','SAR '+fmt(salesBy[c2.name]||0)];})]]}; } },
   sales: { label:t('💼 المبيعات','💼 Sales'), build: function(){
@@ -9196,12 +9196,12 @@ function buildExecData(){
   window._execCache = {key:key, data:D};
   return D;
 }
-function execBars(arr, color, h){
+function execBars(arr, color, h, exactCounts){
   var mx = Math.max.apply(null, arr.concat([1]));
   var mN=[t('ينا','Jan'),t('فبر','Feb'),t('مار','Mar'),t('أبر','Apr'),t('ماي','May'),t('يون','Jun'),t('يول','Jul'),t('أغس','Aug'),t('سبت','Sep'),t('أكت','Oct'),t('نوف','Nov'),t('ديس','Dec')];
   return '<div style="display:flex;align-items:flex-end;gap:4px;height:'+h+'px">'+arr.map(function(v,i){
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;justify-content:flex-end">'
-      +'<div style="color:#8BABC9;font-size:7px;font-family:monospace">'+(v?fmt(Math.round(v/1000))+'k':'')+'</div>'
+      +'<div style="color:#8BABC9;font-size:7px;font-family:monospace">'+(v?(exactCounts?fmt(v):fmt(Math.round(v/1000))+'k'):'')+'</div>'
       +'<div title="'+fmt(v)+'" style="width:100%;background:'+color+';border-radius:3px 3px 0 0;height:'+Math.max(v/mx*100,1)+'%;min-height:2px;opacity:.85"></div>'
       +'<div style="color:#3A5070;font-size:7px">'+mN[i]+'</div></div>';
   }).join('')+'</div>';
