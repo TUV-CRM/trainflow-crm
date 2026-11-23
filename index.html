@@ -4668,8 +4668,11 @@ function getLeadScoreLabel(score){
 
 // ── Close Probability ──
 function getCloseProbability(lead){
-  const probs = {'جديد':10,'اتصال أولي':25,'عرض سعر':50,'تفاوض':70,'مُنجَز':100,'خسارة':0};
-  return probs[lead.stage] || 10;
+    const raw = lead.closeProbability;
+  const explicit = raw!==null && raw!==undefined && String(raw).trim()!=='' ? Number(raw) : NaN;
+  if(Number.isFinite(explicit) && explicit>=0 && explicit<=100) return explicit;
+   const probs = {'جديد':10,'اتصال أولي':25,'عرض سعر':50,'تفاوض':70,'مُنجَز':100,'خسارة':0};
+    return Object.prototype.hasOwnProperty.call(probs,lead.stage) ? probs[lead.stage] : 10;
 }
 
 // ── Forecast ──
@@ -4747,7 +4750,8 @@ function openLeadModal(idx){
   set('f-phone',    lead?.phone    || '');
   set('f-notes',    lead?.notes    || '');
   set('f-followup', lead?.nextFollowup || '');
-  set('f-probability', lead?.closeProbability || '');
+    const probabilityEl = document.getElementById('f-probability');
+  if(probabilityEl) probabilityEl.value = lead?.closeProbability ?? '';   
 
   // Populate assignee dropdown with sales users
   const assigneeSel = document.getElementById('f-assignee');
@@ -4775,7 +4779,13 @@ function saveLead(){
   if(!name){ alert(t('أدخل اسم العميل','Enter client name')); return; }
 
   const get = (id) => document.getElementById(id)?.value.trim()||'';
-  const obj = {
+    const probabilityText = get('f-probability');
+  const probability = probabilityText==='' ? null : Number(probabilityText);
+  if(probability!==null && (!Number.isInteger(probability) || probability<0 || probability>100)){
+    alert(t('أدخل احتمال إغلاق من 0 إلى 100 أو اتركه فارغاً للحساب التلقائي','Enter a close probability from 0 to 100, or leave blank for automatic calculation'));
+    return;
+   }
+   const obj = {
     id:       _editLeadIdx!==null ? DB.leads[_editLeadIdx].id : 'L-'+Date.now(),
     name:     name,
     company:  get('f-company'),
@@ -4788,7 +4798,7 @@ function saveLead(){
     phone:    get('f-phone'),
     notes:           get('f-notes'),
     nextFollowup:    get('f-followup'),
-    closeProbability: parseInt(get('f-probability'))||0,
+    closeProbability: probability,
     activityLog:     _editLeadIdx!==null ? (DB.leads[_editLeadIdx].activityLog||[]) : [],
     lastActivity:    _editLeadIdx!==null ? (DB.leads[_editLeadIdx].lastActivity||'') : new Date().toISOString().slice(0,10),
     date:            _editLeadIdx!==null ? DB.leads[_editLeadIdx].date : new Date().toISOString().slice(0,10),
@@ -4990,7 +5000,7 @@ function deleteLead(leadId){
       stageLeads.forEach(lead=>{
         const idx = DB.leads.indexOf(lead);
         const score = calcLeadScore(lead);
-        const prob  = lead.closeProbability || getCloseProbability(lead);
+        const prob  = getCloseProbability(lead);
         const card  = document.createElement('div');
         card.draggable = true;
         card.dataset.id = lead.id;
@@ -5043,7 +5053,7 @@ function deleteLead(leadId){
     filtered.forEach((lead,i)=>{
       const idx   = DB.leads.indexOf(lead);
       const score = calcLeadScore(lead);
-      const prob  = lead.closeProbability || getCloseProbability(lead);
+      const prob  = getCloseProbability(lead);
       const stageColor = {'جديد':'#23A0B5','اتصال أولي':'#9B59B6','عرض سعر':'#C9A84C','تفاوض':'#E67E22','مُنجَز':'#1A8A5A','خسارة':'#C0392B'}[lead.stage]||'#6A85A5';
       html += '<tr style="border-bottom:1px solid rgba(26,46,74,.3)" >'
         +'<td style="padding:9px 12px;color:#3A5070;font-size:10px;font-family:monospace">'+(i+1)+'</td>'
