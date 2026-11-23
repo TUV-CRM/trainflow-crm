@@ -14919,31 +14919,41 @@ function mergeDynUsers(local, remote, delIds){
   local.forEach(function(l){ if(l && l.id && !seen[l.id]){ seen[l.id]=1; out.push(l); if(del.indexOf(l.id)<0) window._dynUsersAhead = true; } });
   return out.filter(function(u){ return del.indexOf(u.id)<0; }).map(_stripPw); // _23: lockdown complete → legacy plaintext pw fields are purged from Firebase and local storage
 }
-function _mergeModalPages(checked, existing, dept){
-  var base = ALL_PAGES.map(function(p){ return p.key; });
-  var extras;
-  if(Array.isArray(existing)) extras = existing.filter(function(k){ return base.indexOf(k)<0; });
-  else { var tpl = USERS.find(function(u){ return u.dept===dept; }); extras = tpl ? (tpl.pages||[]).filter(function(k){ return base.indexOf(k)<0; }) : []; }
-  var out = checked.slice();
-  extras.forEach(function(k){ if(out.indexOf(k)<0) out.push(k); });
-  return out;
-}
-// _22 one-time repair: restore the sub-page permissions of the built-in users that were dropped by the
-// old modal bug (edits of 24-Sep-2026). Adds ONLY missing non-base pages from the user's built-in template;
-// never removes anything; runs once per user (marker pagesRepairV1).
-function _repairUserPages(users){
-  var base = ALL_PAGES.map(function(p){ return p.key; }), now = new Date().toISOString(), changed = false;
-  (users||[]).forEach(function(u){
-    if(!u || u.pagesRepairV1) return;
-    var tpl = USERS.find(function(x){ return x.id===u.id; });
-    if(!tpl) return;
-    var cur = Array.isArray(u.pages) ? u.pages.slice() : [];
-    (tpl.pages||[]).forEach(function(k){ if(base.indexOf(k)<0 && cur.indexOf(k)<0) cur.push(k); });
-    u.pages = cur; u.pagesRepairV1 = true; u.updatedAt = now; changed = true;
-  });
-  return changed;
-}
-function saveDynUsers(users){ localStorage.setItem('tf4_dyn_users', JSON.stringify((users||[]).map(_stripPw))); return saveOrQueue(); } // _20: saveOrQueue — a click during an in-flight save is no longer dropped // FIX: was never synced to Firebase — edits (email/phone/etc.) only ever persisted on the editing device's own browser
+//// Generic permission defaults, separate from the staff directory.
+   const DEFAULT_PAGES_BY_DEPT = {
+     "ops": ["ops","users","sales","trainers","training","finance","trainees","catalog","salesperf","clients","daily","reports","perms","prom_test","prom_training","prom_safety","prom_wpr","prom_firstaid","prom_osha","prom_dev","saleskpi","newclients","salescalls","recovery","lostclients","quarterlytargets","quarterlyeval"],
+     "sales": ["sales","catalog","trainees","clients","daily","saleskpi","newclients","salescalls","lostclients"],
+     "trainers": ["training","trainees","catalog","prom_test","prom_training","prom_safety","prom_wpr","prom_firstaid","prom_osha","prom_dev"],
+     "training": ["training","trainees","catalog","prom_test","prom_training","prom_safety","prom_wpr","prom_firstaid","prom_osha","prom_dev"]
+   };
+   // Preserve the original one-time repair scope, never apply it to newly added accounts.
+   const LEGACY_REPAIR_DEPT_BY_ID = {"u1":"ops","u2":"sales","u3":"sales","u4":"trainers","u5":"training"};
+   function _mergeModalPages(checked, existing, dept){
+     var base = ALL_PAGES.map(function(p){ return p.key; });
+     var extras;
+        if(Array.isArray(existing)) extras = existing.filter(function(k){ return base.indexOf(k)<0; });
+     else { var defaults = Object.prototype.hasOwnProperty.call(DEFAULT_PAGES_BY_DEPT, dept) ? DEFAULT_PAGES_BY_DEPT[dept] : []; extras = defaults.filter(function(k){ return base.indexOf(k)<0; }); }
+     var out = checked.slice();
+        extras.forEach(function(k){ if(out.indexOf(k)<0) out.push(k); });
+     return out;
+   }
+   // _22 one-time repair: restore the sub-page permissions of the built-in users that were dropped by the
+   // old modal bug (edits of 24-Sep-2026). Adds ONLY missing non-base pages from the user's built-in template;
+   // never removes anything; runs once per user (marker pagesRepairV1).
+   function _repairUserPages(users){
+     var base = ALL_PAGES.map(function(p){ return p.key; }), now = new Date().toISOString(), changed = false;
+     (users||[]).forEach(function(u){
+       if(!u || u.pagesRepairV1) return;
+       var repairDept = Object.prototype.hasOwnProperty.call(LEGACY_REPAIR_DEPT_BY_ID, u.id) ? LEGACY_REPAIR_DEPT_BY_ID[u.id] : null;
+       if(!repairDept) return;
+       var defaults = DEFAULT_PAGES_BY_DEPT[repairDept] || [];
+       var cur = Array.isArray(u.pages) ? u.pages.slice() : [];
+            defaults.forEach(function(k){ if(base.indexOf(k)<0 && cur.indexOf(k)<0) cur.push(k); });
+       u.pages = cur; u.pagesRepairV1 = true; u.updatedAt = now; changed = true;
+     });
+     return changed;
+   }
+   function saveDynUsers(users){ localStorage.setItem('tf4_dyn_users', JSON.stringify((users||[]).map(_stripPw))); return saveOrQueue(); } // _20: saveOrQueue — a click during an in-flight save is no longer dropped // FIX: was never synced to Firebase — edits (email/phone/etc.) only ever persisted on the editing device's own browser
 
 function renderUsers(){
   const pg  = document.getElementById('page-users');
