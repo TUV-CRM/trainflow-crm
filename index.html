@@ -13435,7 +13435,7 @@ function renderQuarterlyEvaluationPage(){
     return;
   }
 
-  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var salesUsers = (typeof getDynUsers==='function'?getDynUsers():[]).filter(function(u){ return u.dept==='sales'; });
   var selEmployee = window._qeSelEmployee || (salesUsers[0] ? salesUsers[0].name : '');
   var selYear = window._qeSelYear || new Date().getFullYear();
   var selQuarter = window._qeSelQuarter || (Math.floor(new Date().getMonth()/3)+1);
@@ -13514,7 +13514,7 @@ function renderQuarterlyTargetsPage(){
     pg.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted,#6A85A5)">🔒 '+(isAR()?'هذه الصفحة متاحة حصراً لمدير التشغيل':'This page is restricted to Operations Manager')+'</div>';
     return;
   }
-  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var salesUsers = (typeof getDynUsers==='function'?getDynUsers():[]).filter(function(u){ return u.dept==='sales'; });
   var selYear = window._qtSelYear || new Date().getFullYear();
   var selQuarter = window._qtSelQuarter || ('Q'+(Math.floor(new Date().getMonth()/3)+1));
   var selEmployee = window._qtSelEmployee || (salesUsers[0] ? salesUsers[0].name : '');
@@ -13739,7 +13739,7 @@ function renderSalesKPIPage(){
   // PERMISSION ISOLATION: a sales rep sees ONLY their own KPIs; ops sees the whole team.
   // Previously every sales user's revenue/performance was visible to every other rep.
   var isOps = CU && CU.dept==='ops';
-  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){
+  var salesUsers = (typeof getDynUsers==='function'?getDynUsers():[]).filter(function(u){
     if(u.dept!=='sales') return false;
     return isOps ? true : (CU && u.name===CU.name);
   });
@@ -13869,7 +13869,7 @@ function generateKPIExpertCommentary(k){
 }
 
 function openSalesKPIExportDialog(){
-  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var salesUsers = (typeof getDynUsers==='function'?getDynUsers():[]).filter(function(u){ return u.dept==='sales'; });
   var overlay = document.createElement('div');
   overlay.id = 'kpiExportOverlay';
   overlay.className = 'modal-overlay open';
@@ -13902,7 +13902,7 @@ function runSalesKPIExport(){
   var overlay = document.getElementById('kpiExportOverlay');
   if(overlay) overlay.remove();
 
-  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var salesUsers = (typeof getDynUsers==='function'?getDynUsers():[]).filter(function(u){ return u.dept==='sales'; });
   var results = salesUsers.map(function(u){ return computeSalesEmployeeKPIs(u.name, fromDate, toDate); });
   _renderSalesKPIPDF(results, fromDate, toDate);
 }
@@ -13948,7 +13948,7 @@ function _renderSalesKPIPDF(results, fromDate, toDate){
 }
 
 function openDailyActivityExportDialog(){
-  var salesUsers = (typeof USERS!=='undefined'?USERS:[]).filter(function(u){ return u.dept==='sales'; });
+  var salesUsers = (typeof getDynUsers==='function'?getDynUsers():[]).filter(function(u){ return u.dept==='sales'; });
   var overlay = document.createElement('div');
   overlay.className = 'modal-overlay open'; // FIX: this app's modal CSS only triggers visibility via .open (display:none -> flex), not .active — the dialog was rendering correctly but staying invisible
   overlay.id = 'dailyExportOverlay';
@@ -19079,9 +19079,9 @@ function _tgSum(rows){ return rows.reduce(function(o,r){ ['target','invoiced','c
 function computeTargetRows(monthKey){
   var emps = [];
   // Sales staff + ops manager (he also closes sales) — ops listed first
-  (typeof USERS!=='undefined'?USERS:[]).forEach(function(u){ if(u.dept==='ops') emps.push(u.name); });
-  (typeof USERS!=='undefined'?USERS:[]).forEach(function(u){ if(u.dept==='sales' && emps.indexOf(u.name)<0) emps.push(u.name); });
-  (DB.invoices||[]).forEach(function(inv){ var n=inv.salesPerson||inv.createdBy; if(n && emps.indexOf(n)<0) emps.push(n); });
+  (typeof getDynUsers==='function'?getDynUsers():[]).forEach(function(u){ if(u.dept==='ops') emps.push(u.name); });
+     (typeof getDynUsers==='function'?getDynUsers():[]).forEach(function(u){ if(u.dept==='sales' && emps.indexOf(u.name)<0) emps.push(u.name); });
+   (DB.invoices||[]).forEach(function(inv){ var n=inv.salesPerson||inv.createdBy; if(n && emps.indexOf(n)<0) emps.push(n); });
   var P = _tgPeriod(); if(!P.range) P = {range:false, months:[monthKey], inP:function(d){ return (d||'').slice(0,7)===monthKey; }};
   var allT = getSalesTargets();
   var quotes = lsQuotes();
