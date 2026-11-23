@@ -1536,34 +1536,13 @@ function ss(k,v){localStorage.setItem('tf4_'+k,JSON.stringify(v));}
 let DB = {
   leads:    ls('leads',   []),
   invoices: ls('invoices',[]),
-  sessions: ls('sessions',[{id:'ses1',course:'OSHA 30 Hrs. General Industry',trainer:'م. أحمد عبد السلام',type:'حضوري',day:'الأحد',start:'08:00',end:'13:00',color:'#1A7A8A',zoom:''},{id:'ses2',course:'BLS – Saudi Heart Association',trainer:'م. أحمد عبد السلام',type:'أونلاين',day:'الاثنين',start:'09:00',end:'12:00',color:'#C0392B',zoom:'https://zoom.us/j/example'},{id:'ses3',course:'Fire Watch Training (5 Cards + 1 Certificate)',trainer:'م. أحمد عبد السلام',type:'حضوري',day:'الثلاثاء',start:'08:00',end:'16:00',color:'#E67E22',zoom:''}]),
-  trainers: ls('trainers',[
-    {id:'tr1',name:'Ahmed Abdel Salam',specialty:'السلامة والصحة المهنية / Occupational Health & Safety',phone:'0554012516',email:'ahmed.abdelsalam@tuvti.com.sa',sessions:12,rating:4.8,location:'https://maps.app.goo.gl/PhYHnG3znh7vqQCv5'},
-    {id:'tr2',name:'Rawnak Training Center',specialty:'دورات صحية',phone:'0500066600',email:'MR@RAWNAQ.COM',sessions:0,rating:0,location:'https://maps.app.goo.gl/zDeyjFeMr2omDGbh6'},
-    {id:'tr3',name:'TECHNICAL HIGHER INSTITUTE FOR ENGINEERING & PETROLEUM (THEIP)',specialty:'WPR',phone:'0500003300',email:'WPR@THEIP.COM',sessions:0,rating:0,location:'https://maps.app.goo.gl/7ZFGKzTJLfkhAkRc8'},
-  ]),
-  trainees: ls('trainees',[{id:'tn1',name:'سعد المطيري',company:'أرامكو',course:'OSHA 30 Hrs. General Industry',phone:'+966502222222',start:'2025-06-01',status:'نشط'},{id:'tn2',name:'نورة العتيبي',company:'سابك',course:'BLS – Saudi Heart Association',phone:'+966503333333',start:'2025-05-15',status:'خريج'},{id:'tn3',name:'محمد الغامدي',company:'NEOM',course:'Fire Watch Training (5 Cards + 1 Certificate)',phone:'+966504444444',start:'2025-06-10',status:'نشط'}]),
+  sessions: ls('sessions',[]),
+     trainers: ls('trainers',[]),
+   trainees: ls('trainees',[{id:'tn1',name:'سعد المطيري',company:'أرامكو',course:'OSHA 30 Hrs. General Industry',phone:'+966502222222',start:'2025-06-01',status:'نشط'},{id:'tn2',name:'نورة العتيبي',company:'سابك',course:'BLS – Saudi Heart Association',phone:'+966503333333',start:'2025-05-15',status:'خريج'},{id:'tn3',name:'محمد الغامدي',company:'NEOM',course:'Fire Watch Training (5 Cards + 1 Certificate)',phone:'+966504444444',start:'2025-06-10',status:'نشط'}]),
 };
 
-// ── Ensure trainers are always available ──
-(function(){
-  const DEFAULT_TRAINERS = [
-    {id:'tr1',name:'Ahmed Abdel Salam',specialty:'السلامة والصحة المهنية / Occupational Health & Safety',phone:'0554012516',email:'ahmed.abdelsalam@tuvti.com.sa',sessions:12,rating:4.8,location:'https://maps.app.goo.gl/PhYHnG3znh7vqQCv5'},
-    {id:'tr2',name:'Rawnak Training Center',specialty:'دورات صحية',phone:'0500066600',email:'MR@RAWNAQ.COM',sessions:0,rating:0,location:'https://maps.app.goo.gl/zDeyjFeMr2omDGbh6'},
-    {id:'tr3',name:'TECHNICAL HIGHER INSTITUTE FOR ENGINEERING & PETROLEUM (THEIP)',specialty:'WPR',phone:'0500003300',email:'WPR@THEIP.COM',sessions:0,rating:0,location:'https://maps.app.goo.gl/7ZFGKzTJLfkhAkRc8'},
-  ];
-  if(!DB.trainers || DB.trainers.length === 0){
-    DB.trainers = DEFAULT_TRAINERS;
-  } else {
-    // Ensure defaults exist
-    DEFAULT_TRAINERS.forEach(dt=>{
-      if(!DB.trainers.find(t=>t.id===dt.id)){
-        DB.trainers.push(dt);
-      }
-    });
-  }
-})();
-
+// Trainer records come from local cache and authenticated server sync.
+   
 
 
 function saveLocal(){
