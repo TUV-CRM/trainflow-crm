@@ -1425,19 +1425,8 @@ const TUV_TERMS = {
 // ════════════════════════════════════════════
 //  USERS & PERMISSIONS
 // ════════════════════════════════════════════
-const USERS = [
-  {id:'u1',name:'حسين القصبي',role:'مدير التشغيل',dept:'ops',avatar:'حق',color:'#C9A84C',phone:'+966500000001',email:'husseinelkasaby@tuvti.com.sa',
-   pages:['ops','users','sales','trainers','training','finance','trainees','catalog','salesperf','clients','daily','reports','perms','prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev','saleskpi','newclients','salescalls','recovery','lostclients','quarterlytargets','quarterlyeval']},
-  {id:'u2',name:'محمد الوضاح',role:'مستشار مبيعات',dept:'sales',avatar:'مو',color:'#1A7A8A',phone:'+966500000002',email:'mohammed.alwadah@tuvti.com.sa',
-   pages:['sales','catalog','trainees','clients','daily','saleskpi','newclients','salescalls','lostclients']},
-  {id:'u3',name:'محمد أسد',role:'مستشار مبيعات',dept:'sales',avatar:'مأ',color:'#23A0B5',phone:'+966500000003',email:'muhammad.assad@tuvti.com.sa',
-   pages:['sales','catalog','trainees','clients','daily','saleskpi','newclients','salescalls','lostclients']},
-  {id:'u4',name:'Ahmed Abdel Salam',role:'مدرب / Trainer',dept:'trainers',avatar:'أح',color:'#1A8A5A',email:'ahmed.abdelsalam@tuvti.com.sa',
-   pages:['training','trainees','catalog','prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev']},
-  {id:'u5',name:'محمد رسام',role:'منسق دورات',dept:'training',avatar:'مر',color:'#9B59B6',email:'mohammed@tuvti.com.sa',
-   pages:['training','trainees','catalog','prom_test','prom_training','prom_safety','prom_wpr','prom_firstaid','prom_osha','prom_dev']},
-];
-
+// Staff records come from the authenticated runtime directory.
+   
 // ════════════════════════════════════════════
 //  NAV STRUCTURE
 // ════════════════════════════════════════════
@@ -2406,8 +2395,8 @@ async function forgotPassword(){
 function loadTargetSettings(){
   const grid  = document.getElementById('personTargetsGrid');
   if(!grid) return;
-  const users = (typeof getDynUsers==='function') ? getDynUsers() : USERS;
-  const sales = users.filter(u=>u.dept==='sales'||(u.pages||[]).includes('sales'));
+  const users = (typeof getDynUsers==='function') ? getDynUsers() : [];
+   const sales = users.filter(u=>u.dept==='sales'||(u.pages||[]).includes('sales'));
   const all   = getPersonTargets();
 
   grid.innerHTML = sales.map(u=>{
@@ -3602,8 +3591,8 @@ async function renderFirebaseAudit(el){
     //    not a generic guess: auto-sync fires every 2 minutes per open tab (see the
     //    setInterval in this file), each cycle downloads the full /data.json tree.
     var SYNC_INTERVAL_MIN = 2;               // real value: setInterval(..., 120000)
-    var REGISTERED_USERS = (typeof USERS!=='undefined' ? USERS.length : 5);
-    var activeSessionsGuess = REGISTERED_USERS; // assume ~1 open tab per registered user during work hours
+    var REGISTERED_USERS = (typeof getDynUsers==='function' ? getDynUsers().length : 0);
+   var activeSessionsGuess = REGISTERED_USERS; // assume ~1 open tab per registered user during work hours
     var workHoursPerDay = 9;                  // rough work-day window
     var cyclesPerUserPerDay = Math.round((workHoursPerDay*60)/SYNC_INTERVAL_MIN);
     var loginsPerUserPerDay = 1;               // + one full loadFromGist at login
@@ -6996,8 +6985,8 @@ function getClientContact(clientName){
   return clients.find(c=>(c.company||'').toLowerCase()===(clientName||'').toLowerCase())||null;
 }
 function getSalespersonContact(name){
-  const all=(typeof getDynUsers==='function')?getDynUsers():USERS;
-  return all.find(u=>u.name===name)||null;
+  const all=(typeof getDynUsers==='function')?getDynUsers():[];
+   return all.find(u=>u.name===name)||null;
 }
 
 function buildWhatsAppMessage(q){
@@ -10213,8 +10202,8 @@ function saveSession(){
 }
 
 function sendSessionEmailNotification(session){
-  const dynUsers = (typeof getDynUsers==='function') ? getDynUsers() : USERS;
-  const trainer  = dynUsers.find(u=>u.name===session.trainer);
+  const dynUsers = (typeof getDynUsers==='function') ? getDynUsers() : [];
+   const trainer  = dynUsers.find(u=>u.name===session.trainer);
   const coord    = dynUsers.find(u=>u.dept==='training'||u.role?.includes('منسق'));
 
   const subject = encodeURIComponent('📅 '+(isAR()?'جلسة تدريبية جديدة':'New Training Session')+' — '+session.course);
@@ -11092,8 +11081,8 @@ function checkDueDateReminders(){
   if(!dueSoon.length) return;
 
   const t = (ar,en) => isAR() ? ar : en;
-  const dynUsers = typeof getDynUsers==='function' ? getDynUsers() : USERS;
-
+  const dynUsers = typeof getDynUsers==='function' ? getDynUsers() : [];
+   
   dueSoon.forEach(inv=>{
     // Find salesperson email
     const sp   = dynUsers.find(u=>u.name===inv.salesperson);
@@ -11598,8 +11587,8 @@ function savePersonTargets(t){ localStorage.setItem('tf4_person_targets', JSON.s
 
 function getPersonTarget(userName){
   const all   = getPersonTargets();
-  const users = (typeof getDynUsers==='function') ? getDynUsers() : USERS;
-  const u     = users.find(x=>x.name===userName);
+  const users = (typeof getDynUsers==='function') ? getDynUsers() : [];
+   const u     = users.find(x=>x.name===userName);
   const uid   = u ? u.id : userName;
   // Default: 100K monthly
   return all[uid] || { monthly:100000, quarterly:300000, type:'monthly' };
@@ -18513,8 +18502,8 @@ function savePersonTargets(t){ localStorage.setItem('tf4_person_targets', JSON.s
 
 function getPersonTarget(userName){
   const all   = getPersonTargets();
-  const users = (typeof getDynUsers==='function') ? getDynUsers() : USERS;
-  const u     = users.find(x=>x.name===userName);
+  const users = (typeof getDynUsers==='function') ? getDynUsers() : [];
+   const u     = users.find(x=>x.name===userName);
   const uid   = u ? u.id : userName;
   // Default: 100K monthly
   return all[uid] || { monthly:100000, quarterly:300000, type:'monthly' };
@@ -21150,8 +21139,8 @@ function _certCompact(o){ var r={}; Object.keys(o||{}).forEach(function(k){ var 
 // ops: the frozen, approved copy of one import/session row (exactly the data the document will carry)
 var CERT_SV={'.sv':'timestamp'};   // Firebase fills in the SERVER time; the rules require it (== now)
 function _certIso(v){ if(typeof v==='number') return new Date(v).toISOString(); return String(v||''); }
-function _certUserName(uid){ try { var us=((typeof getDynUsers==='function') ? getDynUsers() : (typeof USERS!=='undefined'?USERS:[])) || []; var u=us.find(function(x){ return x && x.authUid===uid; }); return u?(u.name||u.id):(uid||''); } catch(e){ return uid||''; } }
-var CERT_PRIV_FIELDS=['extId','email','phone','dob','birthCity','excelRow','conflictsResolved'];
+function _certUserName(uid){ try { var us=((typeof getDynUsers==='function') ? getDynUsers() : []) || []; var u=us.find(function(x){ return x && x.authUid===uid; }); return u?(u.name||u.id):(uid||''); } catch(e){ return uid||''; } }
+   var CERT_PRIV_FIELDS=['extId','email','phone','dob','birthCity','excelRow','conflictsResolved'];
 // ops: the frozen, approved copy of one import/session row. pub = what is printed (issuer-readable); priv = contact data (ops only)
 function _certApprovedParts(row, ctx, uid){
   var cd=row.certificateDate || ctx.defaultDate; if(!cd) throw new Error('تاريخ الشهادة مفقود');
@@ -21522,8 +21511,8 @@ async function _certRenderIssuers(body){
   body.innerHTML='<div class="card">⏳ جارٍ التحميل...</div>';
   var cur={}, err='';
   try { var r=await firebaseFetch('/certIssuers.json'); if(r && r.ok) cur=(await _certJson(r))||{}; else err='تعذّر تحميل القائمة (HTTP '+(r?r.status:'?')+') — تأكد من نشر قواعد الشهادات.'; } catch(e){ err=e.message; }
-  var users=((typeof getDynUsers==='function') ? getDynUsers() : (typeof USERS!=='undefined'?USERS:[])) || [];
-  var rows=users.filter(function(u){ return u && u.dept!=='ops'; }).map(function(u){
+    var users=((typeof getDynUsers==='function') ? getDynUsers() : []) || [];
+   var rows=users.filter(function(u){ return u && u.dept!=='ops'; }).map(function(u){
     var uid=u.authUid||'', on=!!(uid && cur[uid]===true);
     var pp=null; try { pp=(typeof getUserPerms==='function') ? getUserPerms(u.id) : null; } catch(e){}
     var hasPage=!!(pp && pp.pages && pp.pages.indexOf('training-certs')>=0);
@@ -21806,8 +21795,8 @@ async function _certApproveSelected(){
   var rows=_certSelectedRows(); if(!rows.length){ alert('لا يوجد متدرب صالح محدد'); return; }
   var ctx=_certCtx(); if(!ctx.courseName){ alert('الدورة غير محددة'); return; }
   var cur={}; try { var r=await firebaseFetch('/certIssuers.json'); if(r && r.ok) cur=(await _certJson(r))||{}; } catch(e){}
-  var users=((typeof getDynUsers==='function') ? getDynUsers() : (typeof USERS!=='undefined'?USERS:[])) || [];
-  var list=Object.keys(cur).filter(function(k){ return cur[k]===true; }).map(function(k){ var u=users.find(function(x){ return x && x.authUid===k; }); return {uid:k, name:u?(u.name||u.id):k}; });
+  var users=((typeof getDynUsers==='function') ? getDynUsers() : []) || [];
+   var list=Object.keys(cur).filter(function(k){ return cur[k]===true; }).map(function(k){ var u=users.find(function(x){ return x && x.authUid===k; }); return {uid:k, name:u?(u.name||u.id):k}; });
   var ov=document.createElement('div'); ov.id='certApproveOv'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML='<div class="card" style="max-width:520px;width:100%;line-height:1.9"><h3 style="margin-bottom:8px">📦 اعتماد '+rows.length+' صف كدفعة</h3>'
     +'<div style="font-size:12px;color:#B8C7DB">تُحفظ نسخة ثابتة من البيانات المعتمدة (الاسم، الهوية، الشركة، الدورة، المدة، التواريخ). لا يستطيع المصدّر تغيير أي منها، ويُصدر كل صف مرة واحدة.</div>'
@@ -21896,8 +21885,8 @@ async function _certRenderBatch(body, b){
   }; });
   var bi=document.getElementById('certBatchIssuers'); if(bi) bi.onclick=async function(){
     var cur={}; try { var r=await firebaseFetch('/certIssuers.json'); if(r&&r.ok) cur=(await _certJson(r))||{}; } catch(e){}
-    var users=((typeof getDynUsers==='function') ? getDynUsers() : (typeof USERS!=='undefined'?USERS:[])) || [];
-    var on=meta.issuers||{}, keys=Object.keys(cur).filter(function(k){ return cur[k]===true; }).concat(Object.keys(on).filter(function(k){ return !cur[k]; }));
+    var users=((typeof getDynUsers==='function') ? getDynUsers() : []) || [];
+     var on=meta.issuers||{}, keys=Object.keys(cur).filter(function(k){ return cur[k]===true; }).concat(Object.keys(on).filter(function(k){ return !cur[k]; }));
     var ov=document.createElement('div'); ov.id='certBatchIssOv'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
     ov.innerHTML='<div class="card" style="max-width:460px;width:100%;line-height:1.9"><h3>👥 المصدّرون لهذه الدفعة</h3>'+keys.map(function(k){ var u=users.find(function(x){ return x&&x.authUid===k; }); return '<label style="display:block"><input type="checkbox" data-u="'+_certEsc(k)+'"'+(on[k]?' checked':'')+'/> '+_certEsc(u?(u.name||u.id):k)+(cur[k]?'':' <span style="color:#C9A84C">(غير مدرج حالياً)</span>')+'</label>'; }).join('')
       +'<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-gold" id="certBiGo">حفظ</button><button class="btn btn-ghost" id="certBiX">إلغاء</button></div></div>';
