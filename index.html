@@ -14763,9 +14763,8 @@ function openDailyLogModal(){
         <div class="form-group">
           <label>المستشار</label>
           <select class="fc" id="dl-user">
-            <option value="محمد الوضاح">محمد الوضاح</option>
-            <option value="محمد أسد">محمد أسد</option>
-          </select>
+            <option value="">-- اختر المستشار --</option>
+   </select>
         </div>
         <div class="form-group">
           <label>📞 عدد المكالمات</label>
@@ -14815,15 +14814,18 @@ function openDailyLogModal(){
   `;
   document.body.appendChild(overlay);
 
-  // Pre-select current user if sales team
-  if(CU && (CU.name==='محمد الوضاح'||CU.name==='محمد أسد')){
-    document.getElementById('dl-user').value = CU.name;
-  }
-}
+  // Use the authenticated runtime sales directory, never built-in names.
+     const userSelect = document.getElementById('dl-user');
+     const salesUsers = (typeof getDynUsers==='function' ? getDynUsers() : [])
+    .filter(u=>u && u.dept==='sales' && u.name);
+     salesUsers.forEach(u=>userSelect.add(new Option(u.name,u.name)));
+   if(CU && salesUsers.some(u=>u.name===CU.name)) userSelect.value = CU.name;
+   }
 
 function saveDailyLog(){
   const user      = document.getElementById('dl-user').value;
-  const calls     = parseInt(document.getElementById('dl-calls').value)||0;
+     if(!user){ alert(isAR()?'اختر المستشار أولاً':'Select a consultant first'); return; }
+   const calls     = parseInt(document.getElementById('dl-calls').value)||0;
   const meetings  = parseInt(document.getElementById('dl-meetings').value)||0;
   const followups = parseInt(document.getElementById('dl-followups').value)||0;
   const proposals = parseInt(document.getElementById('dl-proposals').value)||0;
