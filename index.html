@@ -14532,9 +14532,10 @@ function renderPerfDaily(){
           ${acts.length===0
             ? `<tr><td colspan="8" style="text-align:center;padding:30px;color:#6A85A5">لا توجد سجلات بعد — اضغط "تسجيل نشاط اليوم"</td></tr>`
             : acts.slice(0,30).map(a=>{
-              const salesTeamColors = {'محمد الوضاح':'#1A7A8A','محمد أسد':'#23A0B5'};
-              const uc = salesTeamColors[a.user]||'#6A85A5';
-              return `<tr>
+              const users = typeof getDynUsers==='function' ? getDynUsers() : [];
+                 const staff = users.find(u=>u && u.name===a.user);
+                 const uc = staff && /^#[0-9a-f]{6}$/i.test(staff.color||'') ? staff.color : '#6A85A5';
+   return `<tr>
                 <td style="color:#6A85A5;font-size:11px;font-family:monospace">${a.date}</td>
                 <td>
                   <div style="display:flex;align-items:center;gap:8px">
@@ -14662,8 +14663,10 @@ function renderPerfAlerts(){
   const today = todayStr();
 
   // Check who hasn't logged today
-  const salesTeam = ['محمد الوضاح','محمد أسد'];
-  const noLogToday = salesTeam.filter(name=>!acts.some(a=>a.user===name&&a.date===today));
+  const salesTeam = (typeof getDynUsers==='function' ? getDynUsers() : [])
+       .filter(u=>u && u.dept==='sales' && u.name).map(u=>u.name);
+     const staffText = name=>String(name).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+   const noLogToday = salesTeam.filter(name=>!acts.some(a=>a.user===name&&a.date===today));
 
   // Overdue invoices
   const overdue = DB.invoices.filter(i=>i.status==='متأخر');
@@ -14680,7 +14683,7 @@ function renderPerfAlerts(){
         </div>
       </div>
       ${noLogToday.map(name=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#060F1E;border-radius:8px;margin-bottom:6px">
-        <span style="color:#F5F7FA;font-size:13px;font-weight:600">${name}</span>
+        <span style="color:#F5F7FA;font-size:13px;font-weight:600">${staffText(name)}</span>
         <span style="background:rgba(201,168,76,.2);color:#C9A84C;border:1px solid rgba(201,168,76,.3);border-radius:6px;padding:3px 10px;font-size:10px;font-weight:700">لم يسجل اليوم</span>
       </div>`).join('')}
     </div>`:''}
