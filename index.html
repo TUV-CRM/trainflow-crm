@@ -447,7 +447,7 @@ input[type=date].fc{color-scheme:dark}
       </div>
       <div class="form-group"><label>المسؤول</label>
         <select class="fc" id="f-assignee">
-          <option>محمد الوضاح</option><option>محمد أسد</option>
+          <option value="">-- بدون مسؤول --</option>
         </select>
       </div>
       <div class="form-group"><label>المصدر</label>
@@ -4732,8 +4732,8 @@ function openLeadModal(idx){
   set('f-course',   lead?.course   || '');
   set('f-value',    lead?.value    || '');
   set('f-stage',    lead?.stage    || 'جديد');
-  set('f-assignee', lead?.assignee || 'محمد الوضاح');
-  set('f-source',   lead?.source   || '');
+
+   set('f-source',   lead?.source   || '');
   set('f-phone',    lead?.phone    || '');
   set('f-notes',    lead?.notes    || '');
   set('f-followup', lead?.nextFollowup || '');
@@ -4741,17 +4741,21 @@ function openLeadModal(idx){
 
   // Populate assignee dropdown with sales users
   const assigneeSel = document.getElementById('f-assignee');
-  if(assigneeSel){
-    const salesUsers = getDynUsers().filter(u=>u.dept==='sales');
-    if(salesUsers.length){
-      const current = assigneeSel.value || (lead?.assignee||'');
-      assigneeSel.innerHTML = salesUsers.map(u=>
-        '<option value="'+u.name+'"'+(u.name===current?' selected':'')+'>'+u.name+'</option>'
-      ).join('');
-    }
-  }
-
-  openModal('modalLead');
+     if(assigneeSel){
+       const salesUsers = (typeof getDynUsers==='function' ? getDynUsers() : [])
+         .filter(u=>u && u.dept==='sales' && u.name);
+            const current = lead ? (lead.assignee||'')
+         : (CU && salesUsers.some(u=>u.name===CU.name) ? CU.name : '');
+       assigneeSel.innerHTML = '';
+       assigneeSel.add(new Option(t('-- بدون مسؤول --','-- Unassigned --'),''));
+            salesUsers.forEach(u=>assigneeSel.add(new Option(u.name,u.name)));
+       if(current && !salesUsers.some(u=>u.name===current)){
+         assigneeSel.add(new Option(current+t(' (خارج القائمة)',' (unlisted)'),current));
+   }
+       assigneeSel.value = current;
+     }
+   
+   openModal('modalLead');
   setTimeout(()=>document.getElementById('f-name')?.focus(), 100);
 }
 
