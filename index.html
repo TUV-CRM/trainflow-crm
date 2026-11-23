@@ -3808,10 +3808,10 @@ function renderOps(){
 
     <!-- ── Employee Performance ── -->
     <div class="card">
-      <div class="section-title" style="margin-bottom:14px">أداء فريق المبيعات</div>
+      <div class="section-title" style="margin-bottom:14px">أداء فريق المبيعات (مثال توضيحي ببيانات افتراضية)</div>
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
-        ${[{n:'محمد الوضاح',t:150000,a:127500},{n:'محمد أسد',t:150000,a:189000}].map(e=>{
-          const pct=Math.min(Math.round(e.a/e.t*100),100);
+        ${[{n:'مستشار مبيعات 1',t:150000,a:127500},{n:'مستشار مبيعات 2',t:150000,a:189000}].map(e=>{
+           const pct=Math.min(Math.round(e.a/e.t*100),100);
           const col=pct>=100?'#1A8A5A':pct>=70?'#C9A84C':'#C0392B';
           return `<div style="background:#060F1E;border:1px solid #1A2E4A;border-radius:10px;padding:14px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -4002,7 +4002,7 @@ function renderOpsSettings(pg){
         <span id="gistStatusBadge" style="font-size:11px;padding:3px 10px;border-radius:6px;background:rgba(100,100,100,.2);color:#6A85A5">غير مفعّل</span>
       </div>
       <p style="color:#6A85A5;font-size:12px;margin-bottom:14px;line-height:1.7">
-        لمشاركة البيانات بين جميع المستخدمين (محمد الوضاح، محمد أسد، حسين القصبي...)
+        لمشاركة البيانات بين جميع المستخدمين
         يجب ربط النظام بـ GitHub Gist. كل تغيير يُحفظ تلقائياً ويظهر للجميع.
       </p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
@@ -20456,8 +20456,8 @@ if(!checkAttendanceMode()){ try { initApp(); } catch(e){
       </div>
     </div>
     <div style="background:#060F1E;border:1px solid rgba(201,168,76,.2);border-radius:9px;padding:12px;margin-bottom:14px">
-      <div style="color:#C9A84C;font-size:11px;font-weight:700;margin-bottom:6px">📋 اطلب من مدير النظام (حسين القصبي):</div>
-      <div style="color:#6A85A5;font-size:11px;line-height:1.9">
+      <div style="color:#C9A84C;font-size:11px;font-weight:700;margin-bottom:6px">📋 اطلب من مدير النظام:</div>
+       <div style="color:#6A85A5;font-size:11px;line-height:1.9">
         <div>• <strong style="color:#F5F7FA">Gist ID:</strong> <code id="shareGistId" style="background:#0D1A2E;padding:2px 8px;border-radius:4px;color:#C9A84C;cursor:pointer" onclick="navigator.clipboard.writeText(localStorage.getItem('tf4_gist_id')||'').then(()=>showSuccessToast('✅ تم النسخ'))">${localStorage.getItem('tf4_gist_id')||'انتظر إعداد المدير أولاً'}</code></div>
         <div>• <strong style="color:#F5F7FA">Token:</strong> اطلبه منه مباشرة</div>
       </div>
