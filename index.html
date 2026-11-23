@@ -9116,7 +9116,8 @@ function execCourseCat(courseName){
 function buildExecData(){
   var r = execRange();
   var fTrainer = window._exTrainer||'all', fClient = window._exClient||'all', fCat = window._exCat||'all', fStatus = window._exStatus||'all';
-  var key = JSON.stringify([r, SYS_LANG, fTrainer, fClient, fCat, fStatus, (DB.sessions||[]).length, (DB.invoices||[]).length]);
+  var clients = getClients();
+   var key = JSON.stringify([r, SYS_LANG, fTrainer, fClient, fCat, fStatus, (DB.sessions||[]).length, (DB.invoices||[]).length, clients.map(function(c2){ return c2.addedAt||c2.createdAt||''; })]);
   if(window._execCache && window._execCache.key===key) return window._execCache.data; // CACHE: aggregate once per filter change
 
   var today = new Date().toISOString().slice(0,10);
@@ -9181,8 +9182,8 @@ function buildExecData(){
   var quotes = lsQuotes();
   var qIn = quotes.filter(function(q){ return execIn(q.createdAt||q.date, r); });
   var accepted = qIn.filter(function(q){ return q.status===t('مقبول','Accepted')||q.status==='accepted'; }).length;
-  var newClients = (DB.clients||[]).filter(function(c2){ return execIn(c2.createdAt, r); }).length;
-  D.sales = { clients:(DB.clients||[]).length, newClients:newClients, quotes:qIn.length, accepted:accepted,
+  var newClients = clients.filter(function(c2){ return execIn(c2.addedAt||c2.createdAt, r); }).length;
+  D.sales = { clients:clients.length, newClients:newClients, quotes:qIn.length, accepted:accepted,
     conversion: qIn.length? Math.round(accepted/qIn.length*100) : 0 };
 
   // ── Finance ──
