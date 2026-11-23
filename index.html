@@ -14428,11 +14428,15 @@ function renderPerfDashboard(){
   const el = document.getElementById('perfContent');
   const acts = getActivities();
   const today = todayStr();
-  const salesTeam = [
-    {name:'محمد الوضاح', avatar:'مو', color:'#1A7A8A', target:150000},
-    {name:'محمد أسد',    avatar:'مأ', color:'#23A0B5', target:150000},
-  ];
-
+  const staffText = value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+     const salesTeam = (typeof getDynUsers==='function' ? getDynUsers() : [])
+       .filter(u=>u && u.dept==='sales' && u.name).map(u=>({
+         name:String(u.name),
+         avatar:String(u.avatar||String(u.name).slice(0,2)),
+         color:/^#[0-9a-f]{6}$/i.test(u.color||'') ? u.color : '#6A85A5',
+         target:150000
+       }));
+   
   const teamHTML = salesTeam.map(rep => {
     const myLeads   = DB.leads.filter(l=>l.assignee===rep.name);
     const myWon     = myLeads.filter(l=>l.stage==='مُنجَز');
@@ -14450,10 +14454,10 @@ function renderPerfDashboard(){
 
     return `<div class="card" style="border-top:3px solid ${rep.color}">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <div style="width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,${rep.color},${rep.color}88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:16px">${rep.avatar}</div>
+        <div style="width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,${rep.color},${rep.color}88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:16px">${staffText(rep.avatar)}</div>
         <div style="flex:1">
-          <div style="color:#F5F7FA;font-weight:700;font-size:15px">${rep.name}</div>
-          <div style="color:#6A85A5;font-size:11px">مستشار مبيعات</div>
+                 <div style="color:#F5F7FA;font-weight:700;font-size:15px">${staffText(rep.name)}</div>
+   <div style="color:#6A85A5;font-size:11px">مستشار مبيعات</div>
         </div>
         <div style="text-align:center">
           <div style="color:${pctColor};font-size:26px;font-weight:800;font-family:monospace">${pct}%</div>
@@ -14505,7 +14509,9 @@ function renderPerfDashboard(){
     </div>`;
   }).join('');
 
-  el.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">${teamHTML}</div>`;
+  el.innerHTML = salesTeam.length
+       ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">${teamHTML}</div>`
+       : `<div class="card" style="color:#6A85A5;text-align:center;padding:30px">${isAR()?'لا يوجد موظفو مبيعات في دليل المستخدمين':'No sales staff in the user directory'}</div>`;
 }
 
 // ─── TAB 2: سجل النشاط اليومي ────────────────────────
