@@ -300,13 +300,8 @@ input[type=date].fc{color-scheme:dark}
       <div style="font-family:'Playfair Display',serif;font-size:21px;font-weight:800;color:#F5F7FA">TrainFlow CRM</div>
       <div style="color:#6A85A5;font-size:11px;margin-top:3px">معهد TUV التدريبي</div>
     </div>
-    <div class="login-step active" id="lstep1">
-      <div style="color:#6A85A5;font-size:12px;text-align:center;margin-bottom:14px">اختر حسابك</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="chipGrid"></div>
-    </div>
-    <div class="login-step" id="lstep2">
-      <button onclick="backLogin()" style="background:none;border:none;color:#6A85A5;font-size:12px;cursor:pointer;margin-bottom:14px;font-family:inherit">← رجوع</button>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+    <div class="login-step active" id="lstep2">
+       <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
         <div id="lAvatar" class="avatar" style="width:44px;height:44px;border-radius:12px;font-size:15px"></div>
         <div><div id="lName" style="color:#F5F7FA;font-weight:700;font-size:15px"></div><div id="lRole" style="color:#6A85A5;font-size:12px"></div></div>
       </div>
@@ -2330,54 +2325,25 @@ function initApp(){
   }
 }
 function buildChips(){
-  try {
-  const g=document.getElementById('chipGrid');
-  if(!g){ console.error('chipGrid not found'); return; }
-  g.innerHTML='';
-  const chipUsers = (typeof getDynUsers === 'function') ? getDynUsers() : USERS;
-  if(!chipUsers || !chipUsers.length){ g.innerHTML='<div style="color:#E74C3C;text-align:center;padding:20px">No users found</div>'; return; }
-  chipUsers.forEach(u=>{
-    const d=document.createElement('div');
-    d.className='user-chip';
-    d.innerHTML=`<div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,${u.color},${u.color}88);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:13px;margin:0 auto 6px">${u.avatar}</div><div style="color:#F5F7FA;font-size:12px;font-weight:700">${u.name}</div><div style="color:#6A85A5;font-size:10px">${u.role}</div>`;
-    d.onclick=()=>selectUser(u.id);
-    g.appendChild(d);
-  });
-  // _46: the chip list comes from THIS browser's saved copy (nothing can be read from the server before sign-in),
-  // so a user added later is missing on a browser that has not signed in since. This chip lets him sign in by email.
-  const de=document.createElement('div');
-  de.className='user-chip'; de.id='chipEmailLogin'; de.style.gridColumn='1 / -1';
-  de.innerHTML='<div style="color:#C9A84C;font-weight:700;font-size:13px">🔑 الدخول بالبريد الإلكتروني</div><div style="color:#6A85A5;font-size:11px;margin-top:3px">إذا لم يظهر اسمك في القائمة</div>';
-  de.onclick=()=>selectUser('__email__');
-  g.appendChild(de);
-  } catch(e){ console.error('buildChips error:',e); document.getElementById('chipGrid').innerHTML='<div style="color:#E74C3C;padding:20px;text-align:center">Error: '+e.message+'</div>'; }
-}
-let selUID=null;
-function selectUser(id){
-  selUID=id;
-  const u=(id==='__email__') ? {avatar:'🔑', color:'#C9A84C', name:'الدخول بالبريد الإلكتروني', role:'اكتب بريدك وكلمة المرور', email:''} // _46
-        : (getDynUsers().find(x=>x.id===id)||USERS.find(x=>x.id===id));
-  // _29: synced user list first; otherwise the email that last signed in successfully for this user on this device; otherwise the built-in default
-  let _rem=''; try{ _rem=localStorage.getItem('tf4_login_email_'+id)||''; }catch(e){}
-  const _synced=!!localStorage.getItem('tf4_dyn_users') && getDynUsers().some(x=>x.id===id&&x.email);
-  const _le=document.getElementById('lEmail'); if(_le) _le.value=(_synced?(u&&u.email):'') || _rem || (u&&u.email) || '';
-  const _li=document.getElementById('lInfo'); if(_li) _li.style.display='none';
+     selectUser('__email__');
+   }
+   let selUID=null;
+   function selectUser(id){
+     selUID='__email__';
+     const u={avatar:'🔑', color:'#C9A84C', name:'تسجيل الدخول', role:'اكتب بريدك وكلمة المرور'};
+     const _le=document.getElementById('lEmail'); if(_le) _le.value='';
+      const _li=document.getElementById('lInfo'); if(_li) _li.style.display='none';
   document.getElementById('lAvatar').textContent=u.avatar;
   document.getElementById('lAvatar').style.background=`linear-gradient(135deg,${u.color},${u.color}88)`;
   document.getElementById('lName').textContent=u.name;
   document.getElementById('lRole').textContent=u.role;
   document.getElementById('lPwd').value='';
   document.getElementById('lError').style.display='none';
-  document.getElementById('lstep1').classList.remove('active');
   document.getElementById('lstep2').classList.add('active');
-  setTimeout(()=>document.getElementById('lPwd').focus(),100);
-}
-function backLogin(){
-  document.getElementById('lstep2').classList.remove('active');
-  document.getElementById('lstep1').classList.add('active');
-  selUID=null;
-}
-function _loginErr(msg){
+     setTimeout(()=>document.getElementById('lEmail').focus(),100);
+   }
+   function backLogin(){ buildChips(); }
+   function _loginErr(msg){
   const el=document.getElementById('lError'); el.textContent=msg; el.style.display='block';
   document.getElementById('lPwd').value='';
 }
@@ -2636,8 +2602,6 @@ function doLogout(){
   localStorage.removeItem('tf4_fb_rt'); FIREBASE_AUTH_TOKEN=null; // _21
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').classList.remove('hidden');
-  document.getElementById('lstep2').classList.remove('active');
-  document.getElementById('lstep1').classList.add('active');
   buildChips();
 }
 
