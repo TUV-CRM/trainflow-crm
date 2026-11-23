@@ -14434,7 +14434,6 @@ function renderPerfDashboard(){
          name:String(u.name),
          avatar:String(u.avatar||String(u.name).slice(0,2)),
          color:/^#[0-9a-f]{6}$/i.test(u.color||'') ? u.color : '#6A85A5',
-         target:150000
        }));
    
   const teamHTML = salesTeam.map(rep => {
@@ -14442,7 +14441,7 @@ function renderPerfDashboard(){
     const myWon     = myLeads.filter(l=>l.stage==='مُنجَز');
     const myPending = myLeads.filter(l=>l.stage!=='مُنجَز'&&l.stage!=='خسارة');
     const myRevenue = myWon.reduce((a,l)=>a+l.value,0);
-    const sysTarget= getSalesTargets().monthly;
+    const sysTarget= (typeof getPersonTarget==='function' ? (Number(getPersonTarget(rep.name).monthly)||100000) : 100000);
     const pct       = Math.min(Math.round(myRevenue/sysTarget*100),100);
     const repTarget = sysTarget;
     const pctColor  = pct>=100?'#1A8A5A':pct>=70?'#C9A84C':'#E67E22';
@@ -14470,7 +14469,7 @@ function renderPerfDashboard(){
       </div>
       <div style="display:flex;justify-content:space-between;color:#6A85A5;font-size:10px;margin-bottom:16px">
         <span>SAR ${fmt(myRevenue)}</span>
-        <span>الهدف: SAR ${fmt(rep.target)}</span>
+        <span>الهدف: SAR ${fmt(repTarget)}</span>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
@@ -14574,7 +14573,6 @@ function renderPerfCompare(){
          name:String(u.name),
          avatar:String(u.avatar||String(u.name).slice(0,2)),
          color:/^#[0-9a-f]{6}$/i.test(u.color||'') ? u.color : '#6A85A5',
-         target:150000
        }));
   if(!reps.length){
        el.innerHTML = `<div class="card" style="color:#6A85A5;text-align:center;padding:30px">${isAR()?'لا يوجد موظفو مبيعات في دليل المستخدمين':'No sales staff in the user directory'}</div>`;
@@ -14595,7 +14593,8 @@ function renderPerfCompare(){
     const totalMeets= myActs.reduce((a,x)=>a+(parseInt(x.meetings)||0),0);
     const totalProps= myActs.reduce((a,x)=>a+(parseInt(x.proposals)||0),0);
     const quotes    = JSON.parse(localStorage.getItem('tf4_quotes')||'[]').filter(q=>q.salesperson===r.name);
-    return {...r, leads:myLeads.length, won:myWon.length, revenue, convRate, totalCalls, totalMeets, totalProps, quotes:quotes.length};
+    const sysTarget = (typeof getPersonTarget==='function' ? (Number(getPersonTarget(r.name).monthly)||100000) : 100000);
+    return {...r, leads:myLeads.length, won:myWon.length, revenue, convRate, totalCalls, totalMeets, totalProps, quotes:quotes.length, sysTarget};
   });
 
   const metrics = [
@@ -14647,7 +14646,7 @@ function renderPerfCompare(){
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
       ${stats.map(s=>{
-        const pct = Math.min(Math.round(s.revenue/getSalesTargets().monthly*100),100);
+        const pct = Math.min(Math.round(s.revenue/s.sysTarget*100),100);
         const pc  = pct>=100?'#1A8A5A':pct>=70?'#C9A84C':'#E67E22';
         return `<div class="card" style="border-top:3px solid ${s.color}">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -14660,7 +14659,7 @@ function renderPerfCompare(){
           </div>
           <div style="display:flex;justify-content:space-between;font-size:11px">
             <span style="color:${pc};font-weight:700">${pct}% مُحقَّق</span>
-            <span style="color:#6A85A5">SAR ${fmt(s.target-s.revenue)} متبقي</span>
+            <span style="color:#6A85A5">SAR ${fmt(Math.max(s.sysTarget-s.revenue,0))} متبقي</span>
           </div>
         </div>`;
       }).join('')}
