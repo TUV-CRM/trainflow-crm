@@ -8904,7 +8904,9 @@ var BI_REPORTS = {
         ['t4',t('🔻 أكبر المدينين','🔻 Top Debtors'),[t('العميل','Client'),t('إجمالي الدين','Total Debt')], topDebt.map(function(x){return [x[0],'SAR '+fmt(x[1])];})]]}; } },
   clients: { label:t('👥 العملاء','👥 Clients'), build: function(){
     var key='clients', r=repRange(key), today=new Date();
-    var all=DB.clients||[];
+    var all=getClients().map(function(c2){
+      return Object.assign({},c2,{name:c2.company||c2.name||'',createdAt:c2.addedAt||c2.createdAt||''});
+   });       
     var d90=new Date(today); d90.setDate(d90.getDate()-90); var d90s=d90.toISOString().slice(0,10);
     var salesBy={}; (DB.invoices||[]).forEach(function(i2){ if(i2.client) salesBy[i2.client]=(salesBy[i2.client]||0)+(i2.amount||0); });
     var activeNames={}; (DB.invoices||[]).forEach(function(i2){ if((i2.invoiceDate||i2.date||'')>=d90s && i2.client) activeNames[i2.client]=1; });
@@ -8990,7 +8992,8 @@ var BI_REPORTS = {
         ['t2',t('🔻 الأقل نشاطاً','🔻 Least Active'),[t('المدرب','Trainer'),t('جلسات','Sessions')], arr.slice().reverse().slice(0,10).map(function(t2){return [t2.name,t2.sessions];})]]}; } }
 };
 function biBuild(key){
-  var sig = key+'|'+SYS_LANG+'|'+(window._repP[key]||'month')+'|'+(DB.invoices||[]).length+'|'+(DB.sessions||[]).length;
+    if(key==='clients') return BI_REPORTS.clients.build();
+   var sig = key+'|'+SYS_LANG+'|'+(window._repP[key]||'month')+'|'+(DB.invoices||[]).length+'|'+(DB.sessions||[]).length;
   var c2 = window._repCache[key];
   if(c2 && c2.sig===sig) return c2.data; // lazy + cached: computed only when ITS page is open and inputs unchanged
   var data = BI_REPORTS[key].build();
