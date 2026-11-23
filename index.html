@@ -14888,19 +14888,14 @@ const ALL_PAGES = [
 ];
 
 function getDynUsers(){
-  // Check if stored users match current version
-  const PERM_VERSION = 'v6'; // increment when changing USERS
-  const storedVer = localStorage.getItem('tf4_perm_ver');
-  if(storedVer !== PERM_VERSION){
-    // Reset to latest USERS permissions
-    localStorage.removeItem('tf4_dyn_users');
-    localStorage.setItem('tf4_perm_ver', PERM_VERSION);
-  }
-  const stored = localStorage.getItem('tf4_dyn_users');
-  if(stored) return JSON.parse(stored).map(_stripPw);
-  return JSON.parse(JSON.stringify(USERS)); // clone defaults
-}
-// _20: per-user merge of dynamic users. Remote (Firebase) order is the base; a local record replaces
+     // The authenticated directory is cached locally; never recreate staff from public defaults.
+     // Preserve existing caches across upgrades instead of clearing them on a version mismatch.
+     try {
+            const stored = JSON.parse(localStorage.getItem('tf4_dyn_users') || 'null');
+       return Array.isArray(stored) ? stored.map(_stripPw) : [];
+     } catch(e){ return []; }
+   }
+   // _20: per-user merge of dynamic users. Remote (Firebase) order is the base; a local record replaces
 // the remote one ONLY if it carries a strictly newer updatedAt. Legacy records without updatedAt never
 // override a remote record, so a device holding a stale copy can no longer revert another device's edit.
 function mergeDynUsers(local, remote, delIds){
