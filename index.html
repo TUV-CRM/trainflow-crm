@@ -440,7 +440,7 @@ input[type=date].fc{color-scheme:dark}
       <div class="form-group"><label>القيمة (ريال)</label><input class="fc" id="f-value" type="number" placeholder="0"/></div>
       <div class="form-group"><label>المرحلة</label>
         <select class="fc" id="f-stage">
-          <option value="جديد">جديد</option><option value="مؤهل">مؤهل</option>
+          <option value="جديد">جديد</option><option value="اتصال أولي">اتصال أولي</option><option value="مؤهل">مؤهل</option>
           <option value="عرض سعر">عرض سعر</option><option value="تفاوض">تفاوض</option>
           <option value="مُنجَز">مُنجَز</option><option value="خسارة">خسارة</option>
         </select>
@@ -4731,7 +4731,17 @@ function openLeadModal(idx){
   set('f-company',  lead?.company  || '');
   set('f-course',   lead?.course   || '');
   set('f-value',    lead?.value    || '');
-  set('f-stage',    lead?.stage    || 'جديد');
+  const stageSel = document.getElementById('f-stage');
+     if(stageSel){
+       Array.from(stageSel.options).filter(o=>o.dataset.preservedStage==='1').forEach(o=>o.remove());
+       const currentStage = lead?.stage || 'جديد';
+       if(!Array.from(stageSel.options).some(o=>o.value===currentStage)){
+         const option = new Option(currentStage, currentStage);
+         option.dataset.preservedStage = '1';
+         stageSel.add(option);
+   }
+       stageSel.value = currentStage;
+   }
 
    set('f-source',   lead?.source   || '');
   set('f-phone',    lead?.phone    || '');
@@ -4771,7 +4781,7 @@ function saveLead(){
     company:  get('f-company'),
     course:   get('f-course'),
     value:    parseFloat(get('f-value'))||0,
-    stage:    get('f-stage')   || 'جديد',
+    stage:    get('f-stage') || (_editLeadIdx!==null ? DB.leads[_editLeadIdx].stage : '') || 'جديد',
     updatedAt: new Date().toISOString(), // same root-cause fix as the Kanban handler — this is the OTHER real entry point that changes a lead's stage
     assignee: get('f-assignee'),
     source:   get('f-source'),
