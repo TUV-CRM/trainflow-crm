@@ -22072,7 +22072,7 @@ async function saveTrainingRoom(){
     var before=await firebaseFetch(path,{headers:{'X-Firebase-ETag':'true'}});if(!before||!before.ok)throw Error('read');
     var existing=await before.json();
     if(existing&&JSON.stringify(existing)!==JSON.stringify(item)){say('اسم القاعة موجود بالفعل.','This room name already exists.');return;}
-    var w=existing?{ok:true}:await firebaseFetch(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(item)});
+    var w=existing?{ok:true}:await firebaseFetch(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':'null_etag'},body:JSON.stringify(item)});
     if(!w||!w.ok)throw Error('write');
     var check=await firebaseFetch('/trainingRooms/'+encodeURIComponent(item.id)+'.json');if(!check||!check.ok)throw Error('verify');
     var got=await check.json();if(!got||got.id!==item.id||got.name!==item.name||got.type!==item.type)throw Error('verify');
@@ -22100,6 +22100,104 @@ async function _trmRefreshSessionRooms(){
     if(el===document.getElementById('s-room'))_trmFillSessionRooms(el.value||initial);
   }catch(e){}
 }
+
+// Proposed room metadata editing. Original room key/name remain immutable.
+var _trmEditingId=null;
+var _trmEditBase=null;
+var _trmRefreshSeq=0;
+function _trmSame(a,b){function canon(v){if(Array.isArray(v))return v.map(canon);if(v&&typeof v==='object'){var o={};Object.keys(v).sort().forEach(function(k){o[k]=canon(v[k]);});return o;}return v;}return JSON.stringify(canon(a))===JSON.stringify(canon(b));}
+function _trmDisplay(r){return String(r.displayName||r.name||'');}
+function _trmCanChange(action){return _trmCan() && (CU.dept==='ops'||CU.dept==='training') && canAction('training-rooms',action);}
+var _trmRenderOriginal=renderTrainingRooms;
+renderTrainingRooms=function(noRefresh){
+  var editDraft=document.getElementById("trm-edit-box");if(editDraft)editDraft.remove();
+  _trmRenderOriginal(true);if(!_trmCan())return;
+  var host=document.getElementById('page-training'),body=host.querySelector('tbody'),ar=isAR();
+  var form=host.querySelector('#trm-form');
+  var editNote=document.createElement('div');editNote.style.cssText='color:#6A85A5;font-size:12px;line-height:1.8;margin:12px 0';
+  editNote.textContent=ar?'تعديل اسم العرض والنوع لا يغيّر اسم القاعة المحفوظ في الجلسات السابقة. إيقاف الاستخدام يخفي القاعة من الاختيارات الجديدة في النسخة المحدّثة، ولا يحذفها.':'Editing the display name and type does not change the stored name in existing sessions. Retirement hides the room from new choices in the updated app, without deleting it.';
+  host.insertBefore(editNote,body.closest('.tbl-wrap'));
+  body.innerHTML='';
+  var head=host.querySelector('thead tr');head.innerHTML='<th>'+(ar?'القاعة':'Room')+'</th><th>'+(ar?'النوع':'Type')+'</th><th>'+(ar?'الحالة':'Status')+'</th><th>'+(ar?'الإجراء':'Action')+'</th>';
+  _trmList().forEach(function(r){
+    var tr=document.createElement('tr'),n=document.createElement('td');n.style.color='#F5F7FA';n.textContent=_trmDisplay(r);if(r.displayName&&r.displayName!==r.name){var sub=document.createElement('div');sub.style.cssText='font-size:10px;color:#6A85A5;margin-top:5px';sub.textContent=(ar?'الاسم المحفوظ بالسجلات: ':'Stored record name: ')+r.name;n.appendChild(sub);}tr.appendChild(n);
+    var ty=document.createElement('td');ty.textContent=_trmTypeLabel(r.type);tr.appendChild(ty);
+    var st=document.createElement('td');st.textContent=r.retired?(ar?'موقوفة للاستخدام الجديد':'Retired from new use'):(ar?'متاحة':'Available');st.style.color=r.retired?'#C9A84C':'#23A0B5';tr.appendChild(st);
+    var act=document.createElement('td');
+    if(_trmCanChange('edit')){
+      var edit=document.createElement('button');edit.className='btn btn-sm';edit.style.cssText='background:#16283F;color:#F5F7FA;border:1px solid #3B5775';edit.textContent=ar?'تعديل':'Edit';edit.onclick=function(){_trmOpenEdit(r.id);};act.appendChild(edit);
+      var retire=document.createElement('button');retire.className='btn btn-sm';retire.style.cssText='margin:4px;background:#16283F;color:#C9A84C;border:1px solid #66552C';retire.textContent=r.retired?(ar?'إعادة التفعيل':'Reactivate'):(ar?'إيقاف الاستخدام':'Retire');retire.onclick=function(){_trmRetire(r.id,!r.retired);};act.appendChild(retire);
+    }
+    tr.appendChild(act);body.appendChild(tr);
+  });
+  if(!_trmList().length)body.innerHTML='<tr><td colspan="4">'+(ar?'لا توجد قاعات مضافة بعد.':'No rooms added yet.')+'</td></tr>';
+  if(editDraft&&_trmEditingId)host.insertBefore(editDraft,body.closest(".tbl-wrap"));
+  if(!noRefresh)_trmRefresh();
+};
+function _trmOpenEdit(id){
+  if(!_trmCanChange('edit')||_trmBusy)return;var r=_trmList().find(function(x){return x.id===id;});if(!r)return;
+  _trmEditingId=id;_trmEditBase=JSON.parse(JSON.stringify(r));var ar=isAR(),pg=document.getElementById('page-training');
+  var old=document.getElementById('trm-edit-box');if(old)old.remove();
+  var box=document.createElement('div');box.id='trm-edit-box';box.style.cssText='background:#0D1A2E;border:1px solid #23A0B5;border-radius:12px;padding:20px;margin:16px 0';
+  box.innerHTML='<h3 style="color:#F5F7FA;margin-top:0">'+(ar?'تعديل القاعة':'Edit Room')+'</h3><div class="form-row"><div class="form-group"><label>'+(ar?'اسم العرض':'Display name')+'</label><input class="fc" id="trm-edit-name" maxlength="120"></div><div class="form-group"><label>'+(ar?'نوع القاعة':'Room type')+'</label><select class="fc" id="trm-edit-type">'+_trmTypes.map(function(t){return '<option value="'+_trmEsc(t)+'">'+_trmTypeLabel(t)+'</option>';}).join('')+'</select></div></div><p style="color:#6A85A5;font-size:12px">'+(ar?'اسم القاعة في الجلسات السابقة لن يتغيّر.':'Existing session room names will not change.')+'</p><button class="btn btn-teal" id="trm-edit-save">'+(ar?'حفظ التعديل':'Save Changes')+'</button> <button class="btn" id="trm-edit-cancel">'+(ar?'إلغاء':'Cancel')+'</button>';
+  pg.insertBefore(box,pg.querySelector('.tbl-wrap'));document.getElementById('trm-edit-name').value=_trmDisplay(r);document.getElementById('trm-edit-type').value=r.type;
+  document.getElementById('trm-edit-cancel').onclick=function(){box.remove();_trmEditingId=null;_trmEditBase=null;};
+  document.getElementById('trm-edit-save').onclick=function(){_trmUpdate(id,{displayName:document.getElementById('trm-edit-name').value.trim(),type:document.getElementById('trm-edit-type').value},_trmEditBase);};
+}
+async function _trmUpdate(id,patch,baseline){
+  if(!_trmCanChange('edit')||_trmBusy)return false;
+  var ar=isAR();function say(a,b){var st=document.getElementById('trm-status');if(st)st.textContent=ar?a:b;}
+  if(patch.displayName!==undefined&&(!patch.displayName||patch.displayName.length>120)){say('أدخل اسم عرض حتى 120 حرفاً.','Enter a display name up to 120 characters.');return false;}
+  if(patch.type!==undefined&&_trmTypes.indexOf(patch.type)<0)return false;
+  var cached=baseline||_trmList().find(function(x){return x.id===id;});if(!cached)return false;
+  _trmBusy=true;++_trmRefreshSeq;
+  try{
+    var path='/trainingRooms/'+encodeURIComponent(id)+'.json';var rd=await firebaseFetch(path,{headers:{'X-Firebase-ETag':'true'}});if(!rd||!rd.ok)throw Error('read');
+    var cur=await rd.json(),etag=rd.headers.get('ETag');if(!cur||!etag)throw Error('read');
+    if(!_trmSame(cur,cached)){say('اتغيّرت القاعة من جهاز آخر. حدّث القائمة وراجع التعديل قبل الحفظ.','Room changed on another device. Refresh and review before saving.');return false;}
+    var next=Object.assign({},cur,patch,{id:cur.id,name:cur.name,createdAt:cur.createdAt,updatedAt:new Date().toISOString()});
+    if(next.displayName){var norm=next.displayName.normalize('NFKC').toLowerCase();if(_trmList().some(function(r){return r.id!==id&&(_trmDisplay(r).normalize('NFKC').toLowerCase()===norm||r.name.normalize('NFKC').toLowerCase()===norm);})){say('اسم العرض مستخدم لقاعة أخرى.','Display name is already used by another room.');return false;}}
+    var wr=await firebaseFetch(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':etag},body:JSON.stringify(next)});
+    if(wr&&wr.status===412){say('حصل تعديل متزامن. لم نستبدل أي بيانات، حدّث القائمة أولاً.','Concurrent edit detected. Nothing overwritten. Refresh the list first.');return false;}
+    if(!wr||!wr.ok)throw Error('write');
+    var verify=await firebaseFetch(path);if(!verify||!verify.ok)throw Error('verify');var got=await verify.json();
+    if(!_trmSame(got,next))throw Error('verify');
+    ss('training_rooms',_trmList().map(function(r){return r.id===id?got:r;}));_trmEditingId=null;_trmEditBase=null;var box=document.getElementById('trm-edit-box');if(box)box.remove();renderTrainingRooms(true);say('تم تأكيد التعديل على السيرفر.','Changes verified on server.');return true;
+  }catch(e){say('لم يتأكد التعديل. راجع آخر حالة من السيرفر قبل إعادة المحاولة.','Change is not confirmed. Check current server state before retrying.');return false;}
+  finally{_trmBusy=false;}
+}
+function _trmRetire(id,value){
+  if(!_trmCanChange('edit'))return;
+  var question=value?(isAR()?'إيقاف القاعة من الاختيارات الجديدة؟ ستبقى محفوظة ولن تتغيّر الجلسات السابقة.':'Retire this room from new choices? It stays stored and existing sessions do not change.'):(isAR()?'إعادة تفعيل القاعة للاختيارات الجديدة؟':'Reactivate this room for new choices?');
+  if(confirm(question))return _trmUpdate(id,{retired:value});
+}
+_trmFillSessionRooms=function(selected){
+  var el=document.getElementById('s-room');if(!el)return;
+  var rows=_trmList(),names=['قاعة 1','قاعة 2','قاعة 3','قاعة 4'];
+  (DB.sessions||[]).forEach(function(s){if(s&&s.room&&names.indexOf(s.room)<0)names.push(s.room);});
+  rows.forEach(function(r){if(!r.retired&&r.name&&names.indexOf(r.name)<0)names.push(r.name);});
+  names=names.filter(function(n){var r=rows.find(function(x){return x.name===n;});return !r||!r.retired||n===selected;});
+  if(selected&&names.indexOf(selected)<0)names.push(selected);
+  el.innerHTML='';var blank=document.createElement('option');blank.value='';blank.textContent=isAR()?'-- اختر القاعة --':'-- Select room --';el.appendChild(blank);
+  names.forEach(function(n){var r=rows.find(function(x){return x.name===n;}),o=document.createElement('option');o.value=n;o.textContent=r?_trmDisplay(r)+' · '+_trmTypeLabel(r.type)+(r.retired?(isAR()?' (موقوفة، جلسة محفوظة)':' (retired, existing session)'):''):n;el.appendChild(o);});el.value=selected||'';
+};
+
+// Discard refresh responses started before a mutation; preserve live form nodes.
+_trmRefresh=async function(){
+  if(_trmBusy)return false;var seq=++_trmRefreshSeq;
+  var st=document.getElementById('trm-status');if(st)st.textContent=isAR()?'جاري تحميل القاعات من السيرفر...':'Loading rooms from server...';
+  try{
+    var r=await firebaseFetch('/trainingRooms.json');if(!r||!r.ok)throw Error('read');var v=await r.json();
+    if(v!==null&&(typeof v!=='object'||Array.isArray(v)))throw Error('shape');
+    if(_trmBusy||seq!==_trmRefreshSeq)return false;
+    var a=Object.keys(v||{}).map(function(k){return v[k];}).filter(function(x){return x&&x.id&&x.name&&_trmTypes.indexOf(x.type)>=0;});
+    ss('training_rooms',a);_trmReady=true;
+    if(currentChildKey==='training-rooms'){
+      var n=document.getElementById('trm-name'),t=document.getElementById('trm-type'),dn=n?n.value:'',dt=t?t.value:'';
+      renderTrainingRooms(true);document.getElementById('trm-name').value=dn;document.getElementById('trm-type').value=dt;
+    }return true;
+  }catch(e){var status=document.getElementById('trm-status');if(status)status.textContent=isAR()?'تعذّر تحميل القاعات. المعروض نسخة هذا الجهاز إن وُجدت.':'Could not load rooms. Showing this device cache if available.';return false;}
+};
 
 </script>
 </body>
