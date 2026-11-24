@@ -1473,6 +1473,7 @@ const NAV = [
     children:[
       {key:'training-courses',   label:'الدورات',             icon:'📚', page:'training'},
       {key:'training-schedule',  label:'الجداول التدريبية',   icon:'📅', page:'training'},
+      {key:'training-rooms', label:'القاعات التدريبية', icon:'🏛️', page:'training'},
       {key:'training-certs',     label:'الشهادات والبطاقات',  icon:'🎓', page:'certs', _cert:true}, // _64
     ]
   },
@@ -2179,7 +2180,7 @@ const UI = {
       sales:{label:'إدارة المبيعات',children:{ops:'عملية البيع',leads:'متابعة العملاء',quotes:'عروض الأسعار',invoices:'الفواتير',daily:'نشاط اليوم',kpi:'مؤشرات قياس الأداء',newclients:'العملاء الجدد',calls:'الاتصالات',recovery:'العملاء المستعادون',lostclients:'العملاء المفقودون'}},
       daily:{label:'نشاط اليوم',children:{main:'تقرير اليوم'}},
       trainers:{label:'إدارة المدربين',children:{list:'قائمة المدربين',perf:'أداء المدربين'}},
-      training:{label:'إدارة التدريب',children:{courses:'الدورات',schedule:'الجداول التدريبية',certs:'الشهادات والبطاقات'}},
+      training:{label:'إدارة التدريب',children:{courses:'الدورات',schedule:'الجداول التدريبية',rooms:'القاعات التدريبية',certs:'الشهادات والبطاقات'}},
       finance:{label:'المالية',children:{invoices:'الفواتير',payments:'المدفوعات'}},
       trainees:{label:'المتدربون',children:{active:'المتدربون النشطون',grads:'الخريجون'}},
       catalog:{label:'كتالوج الدورات',children:{main:'الدورات والأسعار'}},
@@ -2218,7 +2219,7 @@ const UI = {
       sales:{label:'Sales Management',children:{ops:'Point of Sale',leads:'Leads',quotes:'Quotations',invoices:'Invoices',daily:'Daily Activity',kpi:'Performance KPIs',newclients:'New Clients',calls:'Calls',recovery:'Recovered Clients',lostclients:'Lost Clients'}},
       daily:{label:'Daily Activity',children:{main:"Today's Report"}},
       trainers:{label:'Trainers',children:{list:'Trainer List',perf:'Performance'}},
-      training:{label:'Training Management',children:{courses:'Courses',schedule:'Training Schedule',certs:'Certificates & ID Cards'}},
+      training:{label:'Training Management',children:{courses:'Courses',schedule:'Training Schedule',rooms:'Training Rooms',certs:'Certificates & ID Cards'}},
       finance:{label:'Finance',children:{invoices:'Invoices',payments:'Payments'}},
       trainees:{label:'Trainees',children:{active:'Active Trainees',grads:'Graduates'}},
       catalog:{label:'Course Catalog',children:{main:'Courses & Pricing'}},
@@ -7263,6 +7264,7 @@ function getTrainingTab(){
   return 'schedule';
 }
 function renderTraining(){
+  if(currentChildKey==='training-rooms'){renderTrainingRooms();return;}
   const pg  = document.getElementById('page-training');
   const tab = (typeof currentChildKey!=='undefined'&&currentChildKey==='training-courses')?'courses':'schedule';
 
@@ -9842,7 +9844,8 @@ function openSessionModal(editIdx){
   document.getElementById('s-end').value      = s ? s.end      : '13:00';
   document.getElementById('s-zoom').value     = s ? (s.zoom||'')     : '';
   const roomEl = document.getElementById('s-room');
-  if(roomEl) roomEl.value = s ? (s.room||'') : '';
+  _trmFillSessionRooms(s ? (s.room||'') : '');
+  _trmRefreshSessionRooms();
   const locEl = document.getElementById('s-location');
   if(locEl){ locEl.value = s ? (s.location||'') : ''; updateLocationPreview(); }
   const platEl = document.getElementById('s-platform');
@@ -21995,6 +21998,109 @@ try { if(typeof CU!=='undefined' && CU && typeof buildSidebar==='function') buil
     inject(sc, saved || all);
   };
 })();
+// Training rooms directory: additive records, no session or historical-data rewrites.
+var _trmBusy=false;
+var _trmReady=false;
+var _trmPending=null;
+var _trmTypes=['قاعة تدريب','معمل اختبارات','ورشة تدريبية'];
+function _trmCan(){
+  if(!CU) return false;
+  if(CU.dept==='ops') return true;
+  if(!Array.isArray(CU.pages)||CU.pages.indexOf('training')<0) return false;
+  var p=getUserPerms(CU.id);
+  return !(p&&p.pages&&p.pages.length)||p.pages.indexOf('training-rooms')>=0;
+}
+function _trmCanAdd(){return _trmCan() && (CU.dept==='ops'||CU.dept==='training') && canAction('training-rooms','add');}
+function _trmEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function _trmList(){var a=ls('training_rooms',[]);return Array.isArray(a)?a:[];}
+function _trmTypeLabel(v){var en=['Training room','Testing lab','Training workshop'];return isAR()?v:(en[_trmTypes.indexOf(v)]||v);}
+function renderTrainingRooms(noRefresh){
+  var pg=document.getElementById('page-training');if(!pg)return;
+  if(!_trmCan()){showDenied('training');return;}
+  var ar=isAR(),a=_trmList();
+  pg.innerHTML='<div class="page-title">'+(ar?'القاعات التدريبية':'Training Rooms')+'</div><div class="page-sub">'+(ar?'إدارة التدريب':'Training Management')+'</div>'
+  +'<div style="background:#0D1A2E;border:1px solid #1A2E4A;border-radius:12px;padding:20px;margin:18px 0">'
+  +'<h3 style="margin:0 0 16px;color:#F5F7FA">'+(ar?'إضافة قاعة تدريبية':'Add Training Room')+'</h3>'
+  +'<form id="trm-form"><div class="form-row"><div class="form-group"><label for="trm-name">'+(ar?'اسم القاعة *':'Room name *')+'</label><input class="fc" id="trm-name" required maxlength="120" placeholder="'+(ar?'مثال: قاعة 5':'e.g. Room 5')+'"></div>'
+  +'<div class="form-group"><label for="trm-type">'+(ar?'نوع القاعة *':'Room type *')+'</label><select class="fc" id="trm-type" required><option value="">'+(ar?'اختر النوع':'Choose type')+'</option>'
+  +_trmTypes.map(function(v){return '<option value="'+_trmEsc(v)+'">'+_trmTypeLabel(v)+'</option>';}).join('')+'</select></div></div>'
+  +'<div id="trm-status" role="status" aria-live="polite" style="font-size:12px;color:#C9A84C;margin:10px 0"></div>'
+  +'<button type="submit" class="btn btn-teal" id="trm-submit">'+(ar?'حفظ القاعة':'Save Room')+'</button></form></div>'
+  +'<div style="color:#6A85A5;margin-bottom:12px">'+(ar?'القاعات المضافة: ':'Added rooms: ')+a.length+'</div>'
+  +'<div class="tbl-wrap"><table><thead><tr><th>'+ (ar?'اسم القاعة':'Room name')+'</th><th>'+(ar?'نوع القاعة':'Room type')+'</th></tr></thead><tbody>'
+  +(a.length?a.map(function(r){return '<tr><td style="color:#F5F7FA">'+_trmEsc(r.name)+'</td><td><span class="tag" style="background:rgba(35,160,181,.15);color:#23A0B5">'+_trmEsc(_trmTypeLabel(r.type))+'</span></td></tr>';}).join(''):'<tr><td colspan="2" style="text-align:center;padding:28px;color:#6A85A5">'+(ar?'لا توجد قاعات مضافة بعد. أضف أول قاعة من النموذج أعلاه.':'No rooms added yet. Add the first room above.')+'</td></tr>')+'</tbody></table></div>';
+  document.getElementById('trm-submit').disabled=!_trmCanAdd();
+  document.getElementById('trm-form').onsubmit=function(e){e.preventDefault();saveTrainingRoom();};
+  if(!noRefresh) _trmRefresh();
+}
+async function _trmRefresh(){
+  _trmReady=false;
+  var st=document.getElementById('trm-status');if(st)st.textContent=isAR()?'جاري تحميل القاعات من السيرفر...':'Loading rooms from server...';
+  try{
+    var r=await firebaseFetch('/trainingRooms.json');if(!r||!r.ok)throw Error('read');
+    var v=await r.json();if(v!==null&&(typeof v!=='object'||Array.isArray(v)))throw Error('shape');
+    var a=Object.keys(v||{}).map(function(k){return v[k];}).filter(function(x){return x&&x.id&&x.name&&_trmTypes.indexOf(x.type)>=0;});
+    ss('training_rooms',a);_trmReady=true;
+    if(currentChildKey==='training-rooms'){var ni=document.getElementById('trm-name'),ti=document.getElementById('trm-type');var draftName=ni?ni.value:'',draftType=ti?ti.value:'';renderTrainingRooms(true);if(document.getElementById('trm-name'))document.getElementById('trm-name').value=draftName;if(document.getElementById('trm-type'))document.getElementById('trm-type').value=draftType;}
+    return true;
+  }catch(e){if(st)st.textContent=isAR()?'تعذّر تحميل القاعات. المعروض نسخة هذا الجهاز إن وُجدت. لم يتم تأكيد اتصال السيرفر.':'Could not load rooms. Showing this device cache if available. Server access is not confirmed.';return false;}
+}
+async function saveTrainingRoom(){
+  if(!_trmCan()||!_trmCanAdd()||_trmBusy)return;
+  var nameEl=document.getElementById('trm-name'),typeEl=document.getElementById('trm-type'),status=document.getElementById('trm-status');
+  if(!nameEl||!typeEl||!status)return;
+  var name=nameEl.value.trim(),type=typeEl.value,ar=isAR();
+  function say(a,b){status.textContent=ar?a:b;}
+  if(!name||name.length>120){say('أدخل اسم القاعة (حتى 120 حرفاً).','Enter a room name (up to 120 characters).');return;}
+  if(_trmTypes.indexOf(type)<0){say('اختر نوع القاعة من القائمة.','Choose a room type from the list.');return;}
+  _trmBusy=true;var btn=document.getElementById('trm-submit');btn.disabled=true;
+  try{
+    // Read only this directory. No full-data save and no production data migration.
+    var r=await firebaseFetch('/trainingRooms.json');if(!r||!r.ok)throw Error('read');var v=await r.json();
+    if(v!==null&&(typeof v!=='object'||Array.isArray(v)))throw Error('shape');
+    var a=Object.keys(v||{}).map(function(k){return v[k];}).filter(Boolean);
+    var dupe=a.find(function(x){return String(x.name||'').trim().toLowerCase()===name.toLowerCase();});
+    if(dupe&&(!_trmPending||dupe.id!==_trmPending.id)){say('اسم القاعة موجود بالفعل.','This room name already exists.');return;}
+    var now=new Date().toISOString();
+    if(!_trmPending||_trmPending.name!==name||_trmPending.type!==type){
+      var digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(name.normalize('NFKC').toLowerCase()));
+      var id='room-'+Array.from(new Uint8Array(digest)).map(function(n){return n.toString(16).padStart(2,'0');}).join('');
+      _trmPending={id:id,name:name,type:type,createdAt:now,updatedAt:now};
+    }
+    say('جاري الحفظ...','Saving...');var item=_trmPending;
+    var path='/trainingRooms/'+encodeURIComponent(item.id)+'.json';
+    var before=await firebaseFetch(path,{headers:{'X-Firebase-ETag':'true'}});if(!before||!before.ok)throw Error('read');
+    var existing=await before.json();
+    if(existing&&JSON.stringify(existing)!==JSON.stringify(item)){say('اسم القاعة موجود بالفعل.','This room name already exists.');return;}
+    var w=existing?{ok:true}:await firebaseFetch(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(item)});
+    if(!w||!w.ok)throw Error('write');
+    var check=await firebaseFetch('/trainingRooms/'+encodeURIComponent(item.id)+'.json');if(!check||!check.ok)throw Error('verify');
+    var got=await check.json();if(!got||got.id!==item.id||got.name!==item.name||got.type!==item.type)throw Error('verify');
+    a=a.filter(function(x){return x.id!==item.id;});a.push(got);ss('training_rooms',a);_trmPending=null;_trmReady=true;
+    if(currentChildKey==='training-rooms'){renderTrainingRooms(true);var st=document.getElementById('trm-status');if(st)st.textContent=ar?'تم حفظ القاعة وتأكيدها على السيرفر.':'Room saved and verified on server.';}
+  }catch(e){say('لم يتأكد الحفظ على السيرفر. احتفظنا بالنموذج، يمكنك إعادة المحاولة بنفس البيانات بدون تكرار الطلب.','Server save is not confirmed. Your form is kept. Retry the same details without duplicating the request.');}
+  finally{_trmBusy=false;var b=document.getElementById('trm-submit');if(b)b.disabled=!_trmCanAdd();}
+}
+function _trmFillSessionRooms(selected){
+  var el=document.getElementById('s-room');if(!el)return;
+  var names=['قاعة 1','قاعة 2','قاعة 3','قاعة 4'];
+  (DB.sessions||[]).forEach(function(s){if(s&&s.room&&names.indexOf(s.room)<0)names.push(s.room);});
+  _trmList().forEach(function(r){if(r.name&&names.indexOf(r.name)<0)names.push(r.name);});
+  if(selected&&names.indexOf(selected)<0)names.push(selected);
+  el.innerHTML='';var empty=document.createElement('option');empty.value='';empty.textContent=isAR()?'-- اختر القاعة --':'-- Select room --';el.appendChild(empty);
+  names.forEach(function(name){var opt=document.createElement('option');opt.value=name;var r=_trmList().find(function(x){return x.name===name;});opt.textContent=name+(r?' · '+_trmTypeLabel(r.type):'');el.appendChild(opt);});
+  el.value=selected||'';
+}
+
+async function _trmRefreshSessionRooms(){
+  var el=document.getElementById('s-room');if(!el)return;
+  var initial=el.value;
+  try{var r=await firebaseFetch('/trainingRooms.json');if(!r||!r.ok)return;var v=await r.json();if(v!==null&&(typeof v!=='object'||Array.isArray(v)))return;
+    var a=Object.keys(v||{}).map(function(k){return v[k];}).filter(function(x){return x&&x.id&&x.name&&_trmTypes.indexOf(x.type)>=0;});ss('training_rooms',a);
+    if(el===document.getElementById('s-room'))_trmFillSessionRooms(el.value||initial);
+  }catch(e){}
+}
+
 </script>
 </body>
 </html>
