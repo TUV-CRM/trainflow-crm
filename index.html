@@ -22131,6 +22131,7 @@ renderTrainingRooms=function(noRefresh){
     tr.appendChild(act);body.appendChild(tr);
   });
   if(!_trmList().length)body.innerHTML='<tr><td colspan="4">'+(ar?'لا توجد قاعات مضافة بعد.':'No rooms added yet.')+'</td></tr>';
+  Array.prototype.forEach.call(host.children,function(c){c.style.flexShrink='0';}); // .page is a flex column; keep the table from shrinking and clipping rows
   if(editDraft&&_trmEditingId)host.insertBefore(editDraft,body.closest(".tbl-wrap"));
   if(!noRefresh)_trmRefresh();
 };
@@ -22138,7 +22139,7 @@ function _trmOpenEdit(id){
   if(!_trmCanChange('edit')||_trmBusy)return;var r=_trmList().find(function(x){return x.id===id;});if(!r)return;
   _trmEditingId=id;_trmEditBase=JSON.parse(JSON.stringify(r));var ar=isAR(),pg=document.getElementById('page-training');
   var old=document.getElementById('trm-edit-box');if(old)old.remove();
-  var box=document.createElement('div');box.id='trm-edit-box';box.style.cssText='background:#0D1A2E;border:1px solid #23A0B5;border-radius:12px;padding:20px;margin:16px 0';
+  var box=document.createElement('div');box.id='trm-edit-box';box.style.cssText='background:#0D1A2E;border:1px solid #23A0B5;border-radius:12px;padding:20px;margin:16px 0;flex-shrink:0';
   box.innerHTML='<h3 style="color:#F5F7FA;margin-top:0">'+(ar?'تعديل القاعة':'Edit Room')+'</h3><div class="form-row"><div class="form-group"><label>'+(ar?'اسم العرض':'Display name')+'</label><input class="fc" id="trm-edit-name" maxlength="120"></div><div class="form-group"><label>'+(ar?'نوع القاعة':'Room type')+'</label><select class="fc" id="trm-edit-type">'+_trmTypes.map(function(t){return '<option value="'+_trmEsc(t)+'">'+_trmTypeLabel(t)+'</option>';}).join('')+'</select></div></div><p style="color:#6A85A5;font-size:12px">'+(ar?'اسم القاعة في الجلسات السابقة لن يتغيّر.':'Existing session room names will not change.')+'</p><button class="btn btn-teal" id="trm-edit-save">'+(ar?'حفظ التعديل':'Save Changes')+'</button> <button class="btn" id="trm-edit-cancel">'+(ar?'إلغاء':'Cancel')+'</button>';
   pg.insertBefore(box,pg.querySelector('.tbl-wrap'));document.getElementById('trm-edit-name').value=_trmDisplay(r);document.getElementById('trm-edit-type').value=r.type;
   document.getElementById('trm-edit-cancel').onclick=function(){box.remove();_trmEditingId=null;_trmEditBase=null;};
